@@ -26,3 +26,7 @@ it  180 steps   1.11M sps   1978 rew 0.109 ev 0.82 ew 0.50 fall 0.000 vmax 4.0 k
 it  190 steps   1.17M sps   1978 rew 0.097 ev 0.83 ew 0.64 fall 0.000 vmax 4.0 kl 0.0165 lr 6.7e-04 std 0.33
 it  200 steps   1.23M sps   1981 rew 0.108 ev 0.82 ew 0.44 fall 0.000 vmax 4.0 kl 0.0259 lr 2.0e-04 std 0.34
 it  210 steps   1.29M sps   1976 rew 0.092 ev 1.08 ew 0.47 fall 0.111 vmax 4.0 kl 0.0167 lr 3.0e-04 std 0.34
+it  220 steps   1.35M sps   1980 rew 0.125 ev 0.51 ew 0.39 fall 0.125 vmax 4.0 kl 0.0284 lr 4.4e-04 std 0.35
+/home/user/Spherical-robot/rl/train_loco.py:69: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:820.)
+  std = float(agent.actor.log_std.exp().mean())

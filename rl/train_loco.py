@@ -55,6 +55,7 @@ def main():
     steps, it, t0 = steps0, 0, time.time() - steps0 / 2150.0
     best = -1e9
     hist = []
+    last_adv = steps
     while steps < a.steps:
         buf, infos, oa, oc = rollout(env, agent, oa, oc, a.horizon)
         st = agent.update(buf)
@@ -73,10 +74,11 @@ def main():
         # curriculum on the commanded speed range (smoothed over the last 20 iterations)
         hist.append((ev / max(v_max, 3.0) * 3.0, ew, len([i for i in ends if i["fell"]]), len(ends)))
         hist = hist[-20:]
-        h_ev = np.mean([x[0] for x in hist])
-        h_ew = np.mean([x[1] for x in hist])
         h_fall = sum(x[2] for x in hist) / max(1, sum(x[3] for x in hist))
-        if len(hist) == 20 and h_ev < 0.5 and h_ew < 0.4 and h_fall < 0.15 and (v_max < 8.5 or diff < 1.0):
+        # speed error has a physics floor (gravity-limited acceleration after command jumps), so the
+        # schedule is step-based and gated only on the fall rate
+        if len(hist) == 20 and steps - last_adv > 1.2e6 and h_fall < 0.2 and (v_max < 8.5 or diff < 1.0):
+            last_adv = steps
             v_max = min(8.5, v_max + 1.0)
             diff = min(1.0, diff + 0.125)
             env.set_attr(v_max=v_max, difficulty=diff)
