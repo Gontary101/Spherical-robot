@@ -23,21 +23,26 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "sim"))
 from gyra2_model import MotorModel, build_xml2  # noqa: E402
+from gyra2_sim import ClassicalController  # noqa: E402
 
 DT = 0.02
 N_SUB = 20
 HIST = 4
-FRAME = 15
+FRAME = 18
 ACT_OBS = FRAME * HIST + 2
 CRIT_OBS = FRAME + 2 + 28
+RES_SUM, RES_DIFF, RES_BOB = 25.0, 25.0, 0.35   # residual authority on top of the classical loop
 N_ACT = 3
 EP_LEN = 1000                      # 20 s
 TAU_SUM, TAU_DIFF = 50.0, 50.0     # action scales (N m at the tyre)
 
 
 class LocoEnv:
-    def __init__(self, seed=0, v_max=3.0, randomize=True, push=True, n_obstacles=0, arena=None):
+    def __init__(self, seed=0, v_max=3.0, randomize=True, push=True, n_obstacles=0, arena=None,
+                 residual=True, difficulty=1.0):
         self.rng = np.random.default_rng(seed)
+        self.residual = residual
+        self.difficulty = difficulty
         # obstacle slots are pre-allocated far away and moved/resized per episode (no recompiles)
         obst = [("cylinder" if i % 2 == 0 else "box", (200.0 + 3 * i, 200.0, 0.4), (0.2, 0.4) if i % 2 == 0 else (0.2, 0.2, 0.4))
                 for i in range(n_obstacles)]
@@ -68,7 +73,7 @@ class LocoEnv:
             self.mscale = r.uniform(0.9, 1.1, size=4)
             self.com = np.array([r.uniform(-5, 5), r.uniform(-5, 5), r.uniform(-5, 5)]) * 1e-3
             self.strength = r.uniform(0.8, 1.1)
-            slope = np.radians(r.uniform(0, 12)) if r.random() < 0.5 else 0.0
+            slope = np.radians(r.uniform(0, 12 * self.difficulty)) if r.random() < 0.5 else 0.0
             sdir = r.uniform(-np.pi, np.pi)
             self.delay = int(r.integers(0, 2))
         else:
@@ -109,6 +114,12 @@ class LocoEnv:
         self.next_cmd_t = self.d.time + r.uniform(2.0, 5.0)
 
     # ------------------------------------------------------------------ state helpers
+    def q(self, n):                 # adapter API used by ClassicalController
+        return float(self.d.qpos[self.qa[n]])
+
+    def qd(self, n):
+        return float(self.d.qvel[self.va[n]])
+
     def _q(self, n):
         return self.d.qpos[self.qa[n]]
 
@@ -141,7 +152,7 @@ class LocoEnv:
              (self._qd("tyreL") - self._qd("yoke") + n(0, 0.05)) * 0.05,
              (self._qd("tyreR") - self._qd("yoke") + n(0, 0.05)) * 0.05,
              self._q("bob") + n(0, 0.003)],
-            self.last_a,
+            self.last_a, self.base_a,
         ])
         return f
 
@@ -175,6 +186,8 @@ class LocoEnv:
         self.d.qpos[3:7] = [np.cos(yaw / 2), 0, 0, np.sin(yaw / 2)]
         mujoco.mj_forward(self.m, self.d)
         self.last_a = np.zeros(N_ACT)
+        self.base_a = np.zeros(N_ACT)
+        self.ctrl = ClassicalController(DT)
         self.a_queue = [np.zeros(N_ACT)] * 2
         self.bob_cmd = 0.0
         self.steps = 0
@@ -193,17 +206,29 @@ class LocoEnv:
         self.a_queue = self.a_queue[-3:]
         d = self.d
         tau_sum, tau_diff = TAU_SUM * a_eff[0], TAU_DIFF * a_eff[1]
-        step = np.radians(60) * DT
-        self.bob_cmd += float(np.clip(0.698 * a_eff[2] - self.bob_cmd, -step, step))
+        bob_target = 0.698 * a_eff[2]
         # pushes
-        if self.push and self.push_left <= 0 and self.rng.random() < DT / 4.0:
+        if self.push and self.push_left <= 0 and self.rng.random() < DT / 4.0 * self.difficulty:
             ang = self.rng.uniform(-np.pi, np.pi)
-            mag = self.rng.uniform(50, 250)
+            mag = self.rng.uniform(50, 50 + 200 * self.difficulty)
             self.push_f = np.array([mag * np.cos(ang), mag * np.sin(ang), 0.0])
             self.push_left = int(self.rng.integers(3, 8))
         d.xfrc_applied[self.bid["spine"], :3] = self.push_f if self.push_left > 0 else 0.0
         self.push_left -= 1
         t = self._truth()
+        if self.residual:
+            # classical loop on *estimated* state (IMU + encoders, with noise), policy adds a residual
+            n = self.rng.normal
+            est = dict(v=t["v"] + n(0, 0.05), yaw_rate=t["w"] + n(0, 0.02), roll=t["roll"] + n(0, 0.01),
+                       roll_rate=t["roll_rate"] + n(0, 0.02), pitch=t["pitch"] + n(0, 0.005),
+                       pitch_rate=t["pitch_rate"] + n(0, 0.02))
+            tl, tr, _, bob_c = self.ctrl(self, est, self.cmd[0], self.cmd[1])
+            self.base_a = np.array([(tl + tr) / TAU_SUM, (tr - tl) / TAU_DIFF, bob_c / 0.698])
+            tau_sum = (tl + tr) + RES_SUM * a_eff[0]
+            tau_diff = (tr - tl) + RES_DIFF * a_eff[1]
+            bob_target = float(np.clip(bob_c + RES_BOB * a_eff[2], -0.698, 0.698))
+        step = np.radians(60) * DT                       # worm drive slew limit
+        self.bob_cmd += float(np.clip(bob_target - self.bob_cmd, -step, step))
         wL = self._qd("tyreL") - self._qd("yoke")
         wR = self._qd("tyreR") - self._qd("yoke")
         d.ctrl[self.aid["driveL"]] = MotorModel.limit(0.5 * tau_sum - 0.5 * tau_diff, wL, self.strength)
@@ -220,7 +245,7 @@ class LocoEnv:
         r_track = np.exp(-ev ** 2 / 0.5) + np.exp(-ew ** 2 / 0.5) - 0.15 * min(abs(ev), 3) - 0.15 * min(abs(ew), 3)
         p_roll = 0.05 * t["roll_rate"] ** 2 + 0.5 * max(abs(t["roll"]) - 0.35, 0) ** 2
         p_spine = 2.0 * t["pitch"] ** 2
-        p_act = 0.05 * float(np.sum((a - self.last_a) ** 2))
+        p_act = 0.05 * float(np.sum((a - self.last_a) ** 2)) + (0.02 * float(np.sum(a ** 2)) if self.residual else 0.0)
         p_energy = 2e-4 * abs(d.ctrl[self.aid["driveL"]] * wL) + 2e-4 * abs(d.ctrl[self.aid["driveR"]] * wR)
         p_pend = 0.02 * t["pend_rate"] ** 2 * 0.1
         rew = r_track - p_roll - p_spine - p_act - p_energy - p_pend

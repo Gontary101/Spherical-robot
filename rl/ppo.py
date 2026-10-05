@@ -61,8 +61,9 @@ class Actor(nn.Module):
 
 class PPO:
     def __init__(self, n_actor, n_critic, n_act, lr=3e-4, gamma=0.99, lam=0.95, clip=0.2, epochs=5,
-                 minibatches=4, ent=0.003, vf_coef=1.0, max_grad=1.0, target_kl=0.01, hidden=(256, 256, 128)):
-        self.actor = Actor(n_actor, n_act, hidden)
+                 minibatches=4, ent=0.003, vf_coef=1.0, max_grad=1.0, target_kl=0.01, hidden=(256, 256, 128),
+                 init_std=0.5):
+        self.actor = Actor(n_actor, n_act, hidden, init_std)
         self.critic = mlp(n_critic, 1, hidden)
         self.opt = torch.optim.Adam(list(self.actor.parameters()) + list(self.critic.parameters()), lr=lr)
         self.lr, self.gamma, self.lam, self.clip = lr, gamma, lam, clip

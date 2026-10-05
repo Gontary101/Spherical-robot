@@ -40,12 +40,13 @@ def main():
     os.makedirs(a.out, exist_ok=True)
     torch.set_num_threads(1)
     env = VecEnv(LocoEnv, n_workers=a.workers, envs_per_worker=a.envs, seed=1)
-    agent = PPO(ACT_OBS, CRIT_OBS, N_ACT)
-    v_max, steps0 = 3.0, 0
+    agent = PPO(ACT_OBS, CRIT_OBS, N_ACT, init_std=0.3, ent=0.001)
+    v_max, steps0, diff = 4.0, 0, 0.5
     if a.resume:
         extra = agent.load(a.resume)
         v_max, steps0 = extra.get("v_max", 3.0), int(extra.get("steps", 0))
-    env.set_attr(v_max=v_max)
+        diff = extra.get("difficulty", 0.5)
+    env.set_attr(v_max=v_max, difficulty=diff)
     oa, oc = env.reset()
     f = open(os.path.join(a.out, "progress.csv"), "a", newline="")
     wr = csv.writer(f)
@@ -75,21 +76,22 @@ def main():
         h_ev = np.mean([x[0] for x in hist])
         h_ew = np.mean([x[1] for x in hist])
         h_fall = sum(x[2] for x in hist) / max(1, sum(x[3] for x in hist))
-        if len(hist) == 20 and h_ev < 0.6 and h_ew < 0.45 and h_fall < 0.15 and v_max < 8.5:
+        if len(hist) == 20 and h_ev < 0.5 and h_ew < 0.4 and h_fall < 0.15 and (v_max < 8.5 or diff < 1.0):
             v_max = min(8.5, v_max + 1.0)
-            env.set_attr(v_max=v_max)
+            diff = min(1.0, diff + 0.125)
+            env.set_attr(v_max=v_max, difficulty=diff)
             hist = []
-            print(f"curriculum -> v_max {v_max}", flush=True)
+            print(f"curriculum -> v_max {v_max} difficulty {diff}", flush=True)
         if it % 10 == 0:
             print(f"it {it:4d} steps {steps/1e6:6.2f}M sps {steps/el:6.0f} rew {mr:.3f} ev {ev:.2f} ew {ew:.2f} "
                   f"fall {fall:.3f} vmax {v_max} kl {st['kl']:.4f} lr {st['lr']:.1e} std {std:.2f}", flush=True)
-            agent.save(os.path.join(a.out, "last.pt"), {"v_max": v_max, "steps": steps})
-            score = mr - 2 * fall + v_max * 0.05
+            agent.save(os.path.join(a.out, "last.pt"), {"v_max": v_max, "steps": steps, "difficulty": diff})
+            score = mr - 2 * h_fall + v_max * 0.05 + diff * 0.2
             if score > best:
                 best = score
-                agent.save(os.path.join(a.out, "best.pt"), {"v_max": v_max, "steps": steps})
+                agent.save(os.path.join(a.out, "best.pt"), {"v_max": v_max, "steps": steps, "difficulty": diff})
                 export_actor(agent, a.out)
-    agent.save(os.path.join(a.out, "final.pt"), {"v_max": v_max, "steps": steps})
+    agent.save(os.path.join(a.out, "final.pt"), {"v_max": v_max, "steps": steps, "difficulty": diff})
     export_actor(agent, a.out)
     env.close()
 
