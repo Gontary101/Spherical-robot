@@ -30,3 +30,9 @@ it  220 steps   1.35M sps   1980 rew 0.125 ev 0.51 ew 0.39 fall 0.125 vmax 4.0 k
 /home/user/Spherical-robot/rl/train_loco.py:69: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
 Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:820.)
   std = float(agent.actor.log_std.exp().mean())
+it   10 steps   1.41M sps   2150 rew 0.111 ev 0.82 ew 0.42 fall 0.000 vmax 4.0 kl 0.0114 lr 4.4e-04 std 0.35
+/usr/local/lib/python3.11/dist-packages/torch/jit/_trace.py:1006: FutureWarning: `torch.jit.trace` is deprecated. Please switch to `torch.compile` or `torch.export`.
+  warnings.warn(
+/usr/local/lib/python3.11/dist-packages/torch/jit/_trace.py:1145: FutureWarning: `torch.jit.trace_method` is deprecated. Please switch to `torch.compile` or `torch.export`.
+  warnings.warn(
+it   20 steps   1.47M sps   2145 rew 0.098 ev 0.93 ew 0.47 fall 0.000 vmax 4.0 kl 0.0207 lr 6.7e-04 std 0.36
