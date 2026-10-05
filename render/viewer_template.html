@@ -1,0 +1,245 @@
+<title>GYRA Mk1 Viewer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one-screen instrument. 3-D stage fills the left; a narrow control rail on the right (stacks below on phones). */
+:root {
+  --bg: #eef0f2;
+  --stage: #dfe3e8;
+  --panel: #f8f9fa;
+  --ink: #15181c;
+  --ink-2: #4c535c;
+  --line: #c9ced5;
+  --accent: #d9620c;
+  --accent-soft: #f6dcc6;
+  --display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --body: "IBM Plex Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111418; --stage: #181c21; --panel: #1b1f25; --ink: #eceef1; --ink-2: #a5adb7;
+    --line: #2d333b; --accent: #f08a33; --accent-soft: #3a2615; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111418; --stage: #181c21; --panel: #1b1f25; --ink: #eceef1; --ink-2: #a5adb7;
+  --line: #2d333b; --accent: #f08a33; --accent-soft: #3a2615; color-scheme: dark;
+}
+html, body { height: 100%; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 14px; }
+.app { display: grid; grid-template-columns: minmax(0, 1fr) 320px; height: 100%; }
+.stage { position: relative; background: var(--stage); min-height: 360px; }
+#c { display: block; width: 100%; height: 100%; outline: none; }
+.badge { position: absolute; left: 16px; top: 14px; pointer-events: none; }
+.badge h1 { font-family: var(--display); font-weight: 700; font-size: 34px; letter-spacing: .04em; margin: 0; line-height: 1; text-wrap: balance; }
+.badge p { margin: 4px 0 0; color: var(--ink-2); font-size: 13px; max-width: 34ch; }
+.hint { position: absolute; left: 16px; bottom: 12px; color: var(--ink-2); font-size: 12px; font-family: var(--mono); pointer-events: none; }
+#loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--ink-2); font-family: var(--mono); }
+aside { background: var(--panel); border-left: 1px solid var(--line); overflow-y: auto; padding: 18px 18px 24px; display: flex; flex-direction: column; gap: 18px; }
+aside h2 { font-family: var(--display); font-weight: 500; font-size: 15px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-2); margin: 0; }
+.group { display: flex; flex-direction: column; gap: 12px; }
+.ctl { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: baseline; }
+.ctl label { font-weight: 600; font-size: 13.5px; }
+.ctl output { font-family: var(--mono); font-size: 12.5px; color: var(--accent); font-variant-numeric: tabular-nums; }
+.ctl input[type=range] { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); }
+.ctl small { grid-column: 1 / -1; color: var(--ink-2); font-size: 12px; line-height: 1.4; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; }
+button { font: 600 13px var(--body); color: var(--ink); background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 7px 11px; cursor: pointer; }
+button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--ink); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+dl { display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; margin: 0; font-size: 13px; }
+dt { color: var(--ink-2); }
+dd { margin: 0; font-family: var(--mono); font-size: 12.5px; text-align: right; font-variant-numeric: tabular-nums; }
+.legend { display: grid; grid-template-columns: 12px 1fr; gap: 6px 8px; align-items: center; font-size: 12.5px; color: var(--ink-2); }
+.sw { width: 12px; height: 12px; border-radius: 3px; }
+@media (max-width: 760px) {
+  .app { grid-template-columns: 1fr; grid-template-rows: 58vh auto; height: auto; }
+  aside { border-left: 0; border-top: 1px solid var(--line); overflow: visible; }
+  .badge h1 { font-size: 28px; }
+}
+</style>
+
+<div class="app">
+  <div class="stage">
+    <canvas id="c" tabindex="0" aria-label="3-D model of the GYRA Mk1 spherical robot"></canvas>
+    <div class="badge">
+      <h1>GYRA MK1</h1>
+      <p>600 mm rubber-tyred spherical robot: pendulum drive, levelled sensor spine, scissored CMG pair.</p>
+    </div>
+    <div class="hint">drag to orbit · scroll to zoom · right-drag to pan</div>
+    <div id="loading">loading 89 parts…</div>
+  </div>
+  <aside>
+    <div class="group">
+      <h2>Pose the mechanism</h2>
+      <div class="ctl"><label for="pitch">Pendulum pitch</label><output id="pitchV">0°</output>
+        <input id="pitch" type="range" min="-75" max="75" value="0" step="1">
+        <small>The drive motors push against the yoke. It swings forward and gravity rolls the tyre. Hard stop ±75°.</small></div>
+      <div class="ctl"><label for="bob">Lean bob</label><output id="bobV">0°</output>
+        <input id="bob" type="range" min="-30" max="30" value="0" step="1">
+        <small>A worm drive slides the 10.9 kg battery + lead bob along a ±30° arc. That leans the robot, and precession turns it.</small></div>
+      <div class="ctl"><label for="gim">CMG gimbals (scissor)</label><output id="gimV">0°</output>
+        <input id="gim" type="range" min="-90" max="90" value="0" step="1">
+        <small>Near 0°: pure roll torque (wobble damping). Parked at ±90° and swept together: pure yaw torque (turn in place).</small></div>
+      <div class="ctl"><label for="exp">Explode</label><output id="expV">0%</output>
+        <input id="exp" type="range" min="0" max="100" value="0" step="1">
+        <small>Tyre halves, pods, CMG modules and the bob pull apart along their assembly directions.</small></div>
+      <div class="row">
+        <button id="xray" aria-pressed="false">X-ray tyre</button>
+        <button id="pods" aria-pressed="false">Hide pod shields</button>
+        <button id="play" aria-pressed="false">Play motion</button>
+        <button id="reset">Reset</button>
+      </div>
+    </div>
+    <div class="group">
+      <h2>Bodies</h2>
+      <div class="legend">
+        <span class="sw" style="background:#1d1d20"></span><span>Tyre: spins about the axle</span>
+        <span class="sw" style="background:#a9aeb5"></span><span>Spine: axle, pods, CMGs, kept level</span>
+        <span class="sw" style="background:#cdb08a"></span><span>Yoke: pendulum pitch body, drive train</span>
+        <span class="sw" style="background:#2f5fb8"></span><span>Bob: battery + lead, lateral lean</span>
+      </div>
+    </div>
+    <div class="group">
+      <h2>Key figures</h2>
+      <dl>
+        <dt>Diameter</dt><dd>600 mm</dd>
+        <dt>Mass (CAD)</dt><dd>41.4 kg</dd>
+        <dt>CoM below centre</dt><dd>59 mm</dd>
+        <dt>Top speed</dt><dd>6.4 m/s</dd>
+        <dt>Drive ratio</dt><dd>30 : 1</dd>
+        <dt>Rated grade</dt><dd>10°</dd>
+        <dt>Lean torque</dt><dd>11.2 N·m</dd>
+        <dt>CMG torque (pair)</dt><dd>18.5 N·m</dd>
+        <dt>Flywheel h</dt><dd>2.31 N·m·s @ 10 krpm</dd>
+        <dt>Turn radius @ 2 m/s</dt><dd>5.8 m (sim)</dd>
+        <dt>Battery</dt><dd>468 Wh</dd>
+        <dt>Draft afloat</dt><dd>246 mm</dd>
+      </dl>
+    </div>
+  </aside>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/environments/RoomEnvironment.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/utils/BufferGeometryUtils.js"></script>
+<script id="manifest" type="application/json">__MANIFEST__</script>
+<script>
+const GLB_B64 = "__GLB__";
+const MAN = JSON.parse(document.getElementById('manifest').textContent);
+const CMG_Y = 0.170, CMG_Z = 0.122;
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+const scene = new THREE.Scene();
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new THREE.RoomEnvironment(), 0.04).texture;
+const camera = new THREE.PerspectiveCamera(35, 1, 0.01, 50);
+camera.position.set(1.45, 0.62, 1.2);
+const controls = new THREE.OrbitControls(camera, canvas);
+controls.target.set(0, -0.02, 0);
+controls.enableDamping = true;
+controls.minDistance = 0.5; controls.maxDistance = 5;
+const key = new THREE.DirectionalLight(0xffffff, 1.6); key.position.set(2, 3, 2); scene.add(key);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.35));
+
+function themeBg() {
+  const c = getComputedStyle(document.documentElement).getPropertyValue('--stage').trim();
+  scene.background = new THREE.Color(c || '#dfe3e8');
+}
+themeBg();
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', themeBg);
+new MutationObserver(themeBg).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+// robot frame (x fwd, y left, z up) inside a y-up display root
+const robot = new THREE.Group(); robot.rotation.x = -Math.PI / 2; scene.add(robot);
+const G = {};
+function grp(name, parent, pos) { const g = new THREE.Group(); if (pos) g.position.set(...pos); parent.add(g); G[name] = g; return g; }
+grp('tyre', robot); grp('spine', robot); grp('yoke', robot); grp('bob', G.yoke);
+grp('cmgL', G.spine, [0, CMG_Y, CMG_Z]); grp('cmgR', G.spine, [0, -CMG_Y, CMG_Z]);
+const inner = { cmgL: grp('cmgLi', G.cmgL, [0, -CMG_Y, -CMG_Z]), cmgR: grp('cmgRi', G.cmgR, [0, CMG_Y, -CMG_Z]) };
+const parentOf = { tyre: G.tyre, spine: G.spine, yoke: G.yoke, bob: G.bob, cmgL: inner.cmgL, flyL: inner.cmgL, cmgR: inner.cmgR, flyR: inner.cmgR };
+
+// floor shadow disc
+const floor = new THREE.Mesh(new THREE.CircleGeometry(0.42, 64), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.16 }));
+floor.rotation.x = -Math.PI / 2; floor.position.y = -0.301; scene.add(floor);
+
+const parts = [];
+const toRobot = new THREE.Matrix4().makeRotationX(Math.PI / 2);
+const bin = Uint8Array.from(atob(GLB_B64), c => c.charCodeAt(0)).buffer;
+new THREE.GLTFLoader().parse(bin, '', gltf => {
+  const byName = {};
+  gltf.scene.traverse(o => { if (o.isMesh) byName[o.name] = o; });
+  for (const e of MAN) {
+    const m = byName[e.n]; if (!m) continue;
+    m.updateMatrixWorld(true);
+    m.geometry.applyMatrix4(m.matrixWorld); m.geometry.applyMatrix4(toRobot);
+    m.position.set(0, 0, 0); m.rotation.set(0, 0, 0); m.scale.set(1, 1, 1);
+    m.geometry.deleteAttribute('normal');
+    m.geometry = THREE.BufferGeometryUtils.toCreasedNormals(m.geometry, Math.PI / 6);
+    m.material = m.material.clone(); m.material.side = THREE.DoubleSide;
+    m.material.envMapIntensity = m.material.metalness > 0.5 ? 0.9 : 0.25;
+    if (e.m === 'led') m.material.emissiveIntensity = 2.5;
+    parentOf[e.g].add(m);
+    parts.push({ mesh: m, e, base: new THREE.Vector3() });
+  }
+  document.getElementById('loading').hidden = true;
+  apply();
+}, err => { document.getElementById('loading').textContent = 'Could not load the model: ' + err; });
+
+const $ = id => document.getElementById(id);
+const S = { pitch: 0, bob: 0, gim: 0, exp: 0, xray: false, pods: false, play: false };
+function apply() {
+  const d = Math.PI / 180;
+  G.yoke.rotation.y = S.pitch * d;
+  G.bob.rotation.x = S.bob * d;
+  G.cmgL.rotation.y = S.gim * d; G.cmgR.rotation.y = -S.gim * d;
+  const k = S.exp / 100;
+  for (const p of parts) {
+    const x = p.e.x;
+    p.mesh.position.set(x[0] * k / 1000, x[1] * k / 1000, x[2] * k / 1000);
+    const tyreSkin = /^(drum|tread_base|lugs|eq_flange)/.test(p.e.n);
+    const shield = /^(pod_shield|pod_plate|led_ring)/.test(p.e.n);
+    const mat = p.mesh.material;
+    const ghost = (S.xray && tyreSkin) || (S.pods && shield);
+    mat.transparent = ghost || mat.userData.wasT === true; mat.opacity = ghost ? 0.1 : 1; mat.depthWrite = !ghost;
+    p.mesh.visible = !(S.pods && /^pod_shield/.test(p.e.n));
+  }
+  $('pitchV').value = S.pitch + '°'; $('bobV').value = S.bob + '°'; $('gimV').value = S.gim + '°'; $('expV').value = S.exp + '%';
+}
+for (const id of ['pitch', 'bob', 'gim', 'exp']) $(id).addEventListener('input', ev => { S[id] = +ev.target.value; apply(); });
+function toggle(id, key) { $(id).addEventListener('click', () => { S[key] = !S[key]; $(id).setAttribute('aria-pressed', S[key]); apply(); }); }
+toggle('xray', 'xray'); toggle('pods', 'pods'); toggle('play', 'play');
+$('reset').addEventListener('click', () => {
+  Object.assign(S, { pitch: 0, bob: 0, gim: 0, exp: 0 });
+  for (const id of ['pitch', 'bob', 'gim', 'exp']) $(id).value = 0;
+  G.tyre.rotation.y = 0; apply();
+});
+
+function resize() {
+  const r = canvas.parentElement.getBoundingClientRect();
+  renderer.setSize(r.width, r.height, false); camera.aspect = r.width / r.height; camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(canvas.parentElement); resize();
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let t0 = performance.now();
+function loop(t) {
+  const dt = (t - t0) / 1000; t0 = t;
+  if (S.play && !reduce) {
+    const s = t / 1000;
+    G.tyre.rotation.y += dt * 2.2;
+    S.pitch = Math.round(-28 * Math.sin(s * 0.9)); S.bob = Math.round(22 * Math.sin(s * 0.45)); S.gim = Math.round(35 * Math.sin(s * 1.7));
+    $('pitch').value = S.pitch; $('bob').value = S.bob; $('gim').value = S.gim; apply();
+  }
+  controls.update(); renderer.render(scene, camera); requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>

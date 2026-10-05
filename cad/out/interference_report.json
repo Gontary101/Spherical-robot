@@ -1,0 +1,407 @@
+[
+ {
+  "pitch": 0,
+  "bob": 0,
+  "gimbal": [
+   0,
+   0
+  ],
+  "hits": []
+ },
+ {
+  "pitch": 0,
+  "bob": 0,
+  "gimbal": [
+   90,
+   -90
+  ],
+  "hits": []
+ },
+ {
+  "pitch": 0,
+  "bob": 0,
+  "gimbal": [
+   -60,
+   60
+  ],
+  "hits": []
+ },
+ {
+  "pitch": 0,
+  "bob": -30,
+  "gimbal": [
+   0,
+   0
+  ],
+  "hits": []
+ },
+ {
+  "pitch": 0,
+  "bob": -30,
+  "gimbal": [
+   90,
+   -90
+  ],
+  "hits": []
+ },
+ {
+  "pitch": 0,
+  "bob": -30,
+  "gimbal": [
+   -60,
+   60
+  ],
+  "hits": []
+ },
+ {
+  "pitch": 0,
+  "bob": 30,
+  "gimbal": [
+   0,
+   0
+  ],
+  "hits": []
+ },
+ {
+  "pitch": 0,
+  "bob": 30,
+  "gimbal": [
+   90,
+   -90
+  ],
+  "hits": []
+ },
+ {
+  "pitch": 0,
+  "bob": 30,
+  "gimbal": [
+   -60,
+   60
+  ],
+  "hits": []
+ },
+ {
+  "pitch": 45,
+  "bob": 0,
+  "gimbal": [
+   0,
+   0
+  ],
+  "hits": []
+ },
+ {
+  "pitch": 45,
+  "bob": 0,
+  "gimbal": [
+   90,
+   -90
+  ],
+  "hits": []
+ },
+ {
+  "pitch": 45,
+  "bob": 0,
+  "gimbal": [
+   -60,
+   60
+  ],
+  "hits": []
+ },
+ {
+  "pitch": 45,
+  "bob": -30,
+  "gimbal": [
+   0,
+   0
+  ],
+  "hits": []
+ },
+ {
+  "pitch": 45,
+  "bob": -30,
+  "gimbal": [
+   90,
+   -90
+  ],
+  "hits": []
+ },
+ {
+  "pitch": 45,
+  "bob": -30,
+  "gimbal": [
+   -60,
+   60
+  ],
+  "hits": []
+ },
+ {
+  "pitch": 45,
+  "bob": 30,
+  "gimbal": [
+   0,
+   0
+  ],
+  "hits": []
+ },
+ {
+  "pitch": 45,
+  "bob": 30,
+  "gimbal": [
+   90,
+   -90
+  ],
+  "hits": []
+ },
+ {
+  "pitch": 45,
+  "bob": 30,
+  "gimbal": [
+   -60,
+   60
+  ],
+  "hits": []
+ },
+ {
+  "pitch": -45,
+  "bob": 0,
+  "gimbal": [
+   0,
+   0
+  ],
+  "hits": []
+ },
+ {
+  "pitch": -45,
+  "bob": 0,
+  "gimbal": [
+   90,
+   -90
+  ],
+  "hits": []
+ },
+ {
+  "pitch": -45,
+  "bob": 0,
+  "gimbal": [
+   -60,
+   60
+  ],
+  "hits": []
+ },
+ {
+  "pitch": -45,
+  "bob": -30,
+  "gimbal": [
+   0,
+   0
+  ],
+  "hits": []
+ },
+ {
+  "pitch": -45,
+  "bob": -30,
+  "gimbal": [
+   90,
+   -90
+  ],
+  "hits": []
+ },
+ {
+  "pitch": -45,
+  "bob": -30,
+  "gimbal": [
+   -60,
+   60
+  ],
+  "hits": []
+ },
+ {
+  "pitch": -45,
+  "bob": 30,
+  "gimbal": [
+   0,
+   0
+  ],
+  "hits": []
+ },
+ {
+  "pitch": -45,
+  "bob": 30,
+  "gimbal": [
+   90,
+   -90
+  ],
+  "hits": []
+ },
+ {
+  "pitch": -45,
+  "bob": 30,
+  "gimbal": [
+   -60,
+   60
+  ],
+  "hits": []
+ },
+ {
+  "pitch": 75,
+  "bob": 0,
+  "gimbal": [
+   0,
+   0
+  ],
+  "hits": []
+ },
+ {
+  "pitch": 75,
+  "bob": 0,
+  "gimbal": [
+   90,
+   -90
+  ],
+  "hits": []
+ },
+ {
+  "pitch": 75,
+  "bob": 0,
+  "gimbal": [
+   -60,
+   60
+  ],
+  "hits": []
+ },
+ {
+  "pitch": 75,
+  "bob": -30,
+  "gimbal": [
+   0,
+   0
+  ],
+  "hits": []
+ },
+ {
+  "pitch": 75,
+  "bob": -30,
+  "gimbal": [
+   90,
+   -90
+  ],
+  "hits": []
+ },
+ {
+  "pitch": 75,
+  "bob": -30,
+  "gimbal": [
+   -60,
+   60
+  ],
+  "hits": []
+ },
+ {
+  "pitch": 75,
+  "bob": 30,
+  "gimbal": [
+   0,
+   0
+  ],
+  "hits": []
+ },
+ {
+  "pitch": 75,
+  "bob": 30,
+  "gimbal": [
+   90,
+   -90
+  ],
+  "hits": []
+ },
+ {
+  "pitch": 75,
+  "bob": 30,
+  "gimbal": [
+   -60,
+   60
+  ],
+  "hits": []
+ },
+ {
+  "pitch": -75,
+  "bob": 0,
+  "gimbal": [
+   0,
+   0
+  ],
+  "hits": []
+ },
+ {
+  "pitch": -75,
+  "bob": 0,
+  "gimbal": [
+   90,
+   -90
+  ],
+  "hits": []
+ },
+ {
+  "pitch": -75,
+  "bob": 0,
+  "gimbal": [
+   -60,
+   60
+  ],
+  "hits": []
+ },
+ {
+  "pitch": -75,
+  "bob": -30,
+  "gimbal": [
+   0,
+   0
+  ],
+  "hits": []
+ },
+ {
+  "pitch": -75,
+  "bob": -30,
+  "gimbal": [
+   90,
+   -90
+  ],
+  "hits": []
+ },
+ {
+  "pitch": -75,
+  "bob": -30,
+  "gimbal": [
+   -60,
+   60
+  ],
+  "hits": []
+ },
+ {
+  "pitch": -75,
+  "bob": 30,
+  "gimbal": [
+   0,
+   0
+  ],
+  "hits": []
+ },
+ {
+  "pitch": -75,
+  "bob": 30,
+  "gimbal": [
+   90,
+   -90
+  ],
+  "hits": []
+ },
+ {
+  "pitch": -75,
+  "bob": 30,
+  "gimbal": [
+   -60,
+   60
+  ],
+  "hits": []
+ }
+]

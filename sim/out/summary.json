@@ -1,0 +1,20 @@
+{
+ "drive_cruise_speed_ms": 3.203108840299354,
+ "drive_peak_pendulum_pitch_deg": 46.01470276471859,
+ "drive_peak_spine_pitch_deg": 0.7531512359053729,
+ "turn_off_roll_std_deg": 24.53735298969352,
+ "turn_off_roll_p2p_deg": 89.05862258276032,
+ "turn_off_mean_yaw_rate_dps": 22.14935327583889,
+ "turn_off_turn_radius_m": 5.029744250124251,
+ "turn_on_roll_std_deg": 0.4843607764723227,
+ "turn_on_roll_p2p_deg": 1.417721057467239,
+ "turn_on_mean_yaw_rate_dps": 19.688794602373154,
+ "turn_on_turn_radius_m": 5.817296080778458,
+ "spin_total_yaw_deg": 314.8277319528332,
+ "spin_drift_m": 0.07348672680638621,
+ "slope_6_climbed_m_in_10s": 7.681729815982805,
+ "slope_10_climbed_m_in_10s": 2.5052910480926682,
+ "slope_12_climbed_m_in_10s": -20.617625970012444,
+ "slope_14_climbed_m_in_10s": -31.624469552645465,
+ "slope_16_climbed_m_in_10s": -44.39115933161291
+}
