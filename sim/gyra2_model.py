@@ -89,13 +89,13 @@ def build_xml2(slope_deg=0.0, friction=1.0, torsional=0.015, rolling=0.005, mass
         <joint name="tyreL" type="hinge" axis="0 1 0" damping="0.01"/>
         {inertial("tyreL", ms.get("tyre", 1.0))}
         <geom name="tyreL" type="sphere" size="{R}" pos="0 {D} 0" contype="{TYRE_CT}" conaffinity="{TYRE_CA}"
-              condim="6" friction="{friction} {torsional} {rolling}" rgba=".06 .06 .06 1"/>
+              condim="6" friction="{friction} {torsional} {rolling}" rgba=".06 .06 .06 1" group="3"/>
       </body>
       <body name="tyreR">
         <joint name="tyreR" type="hinge" axis="0 1 0" damping="0.01"/>
         {inertial("tyreR", ms.get("tyre", 1.0))}
         <geom name="tyreR" type="sphere" size="{R}" pos="0 {-D} 0" contype="{TYRE_CT}" conaffinity="{TYRE_CA}"
-              condim="6" friction="{friction} {torsional} {rolling}" rgba=".1 .1 .1 1"/>
+              condim="6" friction="{friction} {torsional} {rolling}" rgba=".1 .1 .1 1" group="3"/>
       </body>
       <body name="yoke">
         <joint name="yoke" type="hinge" axis="0 1 0" damping="0.05"/>

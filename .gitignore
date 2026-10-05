@@ -2,3 +2,4 @@ __pycache__/
 *.pyc
 sim/out/runs.npz
 cad/out/*.log
+rl/runs/*/last.pt
