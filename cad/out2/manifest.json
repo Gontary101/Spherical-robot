@@ -1,0 +1,871 @@
+[
+ {
+  "name": "drum_L",
+  "group": "tyreL",
+  "material": "gfrp",
+  "stl": "stl/drum_L.stl",
+  "explode_mm": [
+   0.0,
+   300.0,
+   0.0
+  ]
+ },
+ {
+  "name": "tread_base_L",
+  "group": "tyreL",
+  "material": "rubber",
+  "stl": "stl/tread_base_L.stl",
+  "explode_mm": [
+   0.0,
+   300.0,
+   0.0
+  ]
+ },
+ {
+  "name": "lugs_L",
+  "group": "tyreL",
+  "material": "rubber",
+  "stl": "stl/lugs_L.stl",
+  "explode_mm": [
+   0.0,
+   300.0,
+   0.0
+  ]
+ },
+ {
+  "name": "rim_L",
+  "group": "tyreL",
+  "material": "alu",
+  "stl": "stl/rim_L.stl",
+  "explode_mm": [
+   0.0,
+   300.0,
+   0.0
+  ]
+ },
+ {
+  "name": "eq_flange_L",
+  "group": "tyreL",
+  "material": "gfrp",
+  "stl": "stl/eq_flange_L.stl",
+  "explode_mm": [
+   0.0,
+   300.0,
+   0.0
+  ]
+ },
+ {
+  "name": "ring_gear_L",
+  "group": "tyreL",
+  "material": "alu_dark",
+  "stl": "stl/ring_gear_L.stl",
+  "explode_mm": [
+   0.0,
+   300.0,
+   0.0
+  ]
+ },
+ {
+  "name": "eq_slewing_ring",
+  "group": "tyreL",
+  "material": "steel",
+  "stl": "stl/eq_slewing_ring.stl",
+  "explode_mm": [
+   0.0,
+   300.0,
+   0.0
+  ]
+ },
+ {
+  "name": "drum_R",
+  "group": "tyreR",
+  "material": "gfrp",
+  "stl": "stl/drum_R.stl",
+  "explode_mm": [
+   0.0,
+   -300.0,
+   0.0
+  ]
+ },
+ {
+  "name": "tread_base_R",
+  "group": "tyreR",
+  "material": "rubber",
+  "stl": "stl/tread_base_R.stl",
+  "explode_mm": [
+   0.0,
+   -300.0,
+   0.0
+  ]
+ },
+ {
+  "name": "lugs_R",
+  "group": "tyreR",
+  "material": "rubber",
+  "stl": "stl/lugs_R.stl",
+  "explode_mm": [
+   0.0,
+   -300.0,
+   0.0
+  ]
+ },
+ {
+  "name": "rim_R",
+  "group": "tyreR",
+  "material": "alu",
+  "stl": "stl/rim_R.stl",
+  "explode_mm": [
+   0.0,
+   -300.0,
+   0.0
+  ]
+ },
+ {
+  "name": "eq_flange_R",
+  "group": "tyreR",
+  "material": "gfrp",
+  "stl": "stl/eq_flange_R.stl",
+  "explode_mm": [
+   0.0,
+   -300.0,
+   0.0
+  ]
+ },
+ {
+  "name": "ring_gear_R",
+  "group": "tyreR",
+  "material": "alu_dark",
+  "stl": "stl/ring_gear_R.stl",
+  "explode_mm": [
+   0.0,
+   -300.0,
+   0.0
+  ]
+ },
+ {
+  "name": "axle",
+  "group": "spine",
+  "material": "carbon",
+  "stl": "stl/axle.stl",
+  "explode_mm": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "name": "pod_plate_L",
+  "group": "spine",
+  "material": "alu_dark",
+  "stl": "stl/pod_plate_L.stl",
+  "explode_mm": [
+   0.0,
+   560.0,
+   0.0
+  ]
+ },
+ {
+  "name": "pod_shield_L",
+  "group": "spine",
+  "material": "nylon",
+  "stl": "stl/pod_shield_L.stl",
+  "explode_mm": [
+   0.0,
+   560.0,
+   0.0
+  ]
+ },
+ {
+  "name": "lidar_body_L",
+  "group": "spine",
+  "material": "lidar_white",
+  "stl": "stl/lidar_body_L.stl",
+  "explode_mm": [
+   0.0,
+   560.0,
+   0.0
+  ]
+ },
+ {
+  "name": "lidar_window_L",
+  "group": "spine",
+  "material": "glass",
+  "stl": "stl/lidar_window_L.stl",
+  "explode_mm": [
+   0.0,
+   560.0,
+   0.0
+  ]
+ },
+ {
+  "name": "cam0_L",
+  "group": "spine",
+  "material": "motor_black",
+  "stl": "stl/cam0_L.stl",
+  "explode_mm": [
+   0.0,
+   560.0,
+   0.0
+  ]
+ },
+ {
+  "name": "lens0_L",
+  "group": "spine",
+  "material": "glass",
+  "stl": "stl/lens0_L.stl",
+  "explode_mm": [
+   0.0,
+   560.0,
+   0.0
+  ]
+ },
+ {
+  "name": "cam1_L",
+  "group": "spine",
+  "material": "motor_black",
+  "stl": "stl/cam1_L.stl",
+  "explode_mm": [
+   0.0,
+   560.0,
+   0.0
+  ]
+ },
+ {
+  "name": "lens1_L",
+  "group": "spine",
+  "material": "glass",
+  "stl": "stl/lens1_L.stl",
+  "explode_mm": [
+   0.0,
+   560.0,
+   0.0
+  ]
+ },
+ {
+  "name": "cam2_L",
+  "group": "spine",
+  "material": "motor_black",
+  "stl": "stl/cam2_L.stl",
+  "explode_mm": [
+   0.0,
+   560.0,
+   0.0
+  ]
+ },
+ {
+  "name": "lens2_L",
+  "group": "spine",
+  "material": "glass",
+  "stl": "stl/lens2_L.stl",
+  "explode_mm": [
+   0.0,
+   560.0,
+   0.0
+  ]
+ },
+ {
+  "name": "gnss_L",
+  "group": "spine",
+  "material": "nylon_light",
+  "stl": "stl/gnss_L.stl",
+  "explode_mm": [
+   0.0,
+   560.0,
+   0.0
+  ]
+ },
+ {
+  "name": "led_ring_L",
+  "group": "spine",
+  "material": "led",
+  "stl": "stl/led_ring_L.stl",
+  "explode_mm": [
+   0.0,
+   560.0,
+   0.0
+  ]
+ },
+ {
+  "name": "rollers_L",
+  "group": "spine",
+  "material": "steel",
+  "stl": "stl/rollers_L.stl",
+  "explode_mm": [
+   0.0,
+   560.0,
+   0.0
+  ]
+ },
+ {
+  "name": "axle_flange_L",
+  "group": "spine",
+  "material": "alu",
+  "stl": "stl/axle_flange_L.stl",
+  "explode_mm": [
+   0.0,
+   560.0,
+   0.0
+  ]
+ },
+ {
+  "name": "pod_plate_R",
+  "group": "spine",
+  "material": "alu_dark",
+  "stl": "stl/pod_plate_R.stl",
+  "explode_mm": [
+   0.0,
+   -560.0,
+   0.0
+  ]
+ },
+ {
+  "name": "pod_shield_R",
+  "group": "spine",
+  "material": "nylon",
+  "stl": "stl/pod_shield_R.stl",
+  "explode_mm": [
+   0.0,
+   -560.0,
+   0.0
+  ]
+ },
+ {
+  "name": "lidar_body_R",
+  "group": "spine",
+  "material": "lidar_white",
+  "stl": "stl/lidar_body_R.stl",
+  "explode_mm": [
+   0.0,
+   -560.0,
+   0.0
+  ]
+ },
+ {
+  "name": "lidar_window_R",
+  "group": "spine",
+  "material": "glass",
+  "stl": "stl/lidar_window_R.stl",
+  "explode_mm": [
+   0.0,
+   -560.0,
+   0.0
+  ]
+ },
+ {
+  "name": "cam0_R",
+  "group": "spine",
+  "material": "motor_black",
+  "stl": "stl/cam0_R.stl",
+  "explode_mm": [
+   0.0,
+   -560.0,
+   0.0
+  ]
+ },
+ {
+  "name": "lens0_R",
+  "group": "spine",
+  "material": "glass",
+  "stl": "stl/lens0_R.stl",
+  "explode_mm": [
+   0.0,
+   -560.0,
+   0.0
+  ]
+ },
+ {
+  "name": "cam1_R",
+  "group": "spine",
+  "material": "motor_black",
+  "stl": "stl/cam1_R.stl",
+  "explode_mm": [
+   0.0,
+   -560.0,
+   0.0
+  ]
+ },
+ {
+  "name": "lens1_R",
+  "group": "spine",
+  "material": "glass",
+  "stl": "stl/lens1_R.stl",
+  "explode_mm": [
+   0.0,
+   -560.0,
+   0.0
+  ]
+ },
+ {
+  "name": "cam2_R",
+  "group": "spine",
+  "material": "motor_black",
+  "stl": "stl/cam2_R.stl",
+  "explode_mm": [
+   0.0,
+   -560.0,
+   0.0
+  ]
+ },
+ {
+  "name": "lens2_R",
+  "group": "spine",
+  "material": "glass",
+  "stl": "stl/lens2_R.stl",
+  "explode_mm": [
+   0.0,
+   -560.0,
+   0.0
+  ]
+ },
+ {
+  "name": "gnss_R",
+  "group": "spine",
+  "material": "nylon_light",
+  "stl": "stl/gnss_R.stl",
+  "explode_mm": [
+   0.0,
+   -560.0,
+   0.0
+  ]
+ },
+ {
+  "name": "led_ring_R",
+  "group": "spine",
+  "material": "led",
+  "stl": "stl/led_ring_R.stl",
+  "explode_mm": [
+   0.0,
+   -560.0,
+   0.0
+  ]
+ },
+ {
+  "name": "rollers_R",
+  "group": "spine",
+  "material": "steel",
+  "stl": "stl/rollers_R.stl",
+  "explode_mm": [
+   0.0,
+   -560.0,
+   0.0
+  ]
+ },
+ {
+  "name": "axle_flange_R",
+  "group": "spine",
+  "material": "alu",
+  "stl": "stl/axle_flange_R.stl",
+  "explode_mm": [
+   0.0,
+   -560.0,
+   0.0
+  ]
+ },
+ {
+  "name": "spine_bracket_L",
+  "group": "spine",
+  "material": "alu",
+  "stl": "stl/spine_bracket_L.stl",
+  "explode_mm": [
+   0.0,
+   160.0,
+   0.0
+  ]
+ },
+ {
+  "name": "bay_L",
+  "group": "spine",
+  "material": "alu_dark",
+  "stl": "stl/bay_L.stl",
+  "explode_mm": [
+   0.0,
+   160.0,
+   0.0
+  ]
+ },
+ {
+  "name": "bay_strut_L",
+  "group": "spine",
+  "material": "alu",
+  "stl": "stl/bay_strut_L.stl",
+  "explode_mm": [
+   0.0,
+   160.0,
+   0.0
+  ]
+ },
+ {
+  "name": "spine_bracket_R",
+  "group": "spine",
+  "material": "alu",
+  "stl": "stl/spine_bracket_R.stl",
+  "explode_mm": [
+   0.0,
+   -160.0,
+   0.0
+  ]
+ },
+ {
+  "name": "bay_R",
+  "group": "spine",
+  "material": "alu_dark",
+  "stl": "stl/bay_R.stl",
+  "explode_mm": [
+   0.0,
+   -160.0,
+   0.0
+  ]
+ },
+ {
+  "name": "bay_strut_R",
+  "group": "spine",
+  "material": "alu",
+  "stl": "stl/bay_strut_R.stl",
+  "explode_mm": [
+   0.0,
+   -160.0,
+   0.0
+  ]
+ },
+ {
+  "name": "level_motor",
+  "group": "spine",
+  "material": "motor_black",
+  "stl": "stl/level_motor.stl",
+  "explode_mm": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "name": "clockspring",
+  "group": "spine",
+  "material": "orange",
+  "stl": "stl/clockspring.stl",
+  "explode_mm": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "name": "hanger_L",
+  "group": "yoke",
+  "material": "alu",
+  "stl": "stl/hanger_L.stl",
+  "explode_mm": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "name": "hanger_R",
+  "group": "yoke",
+  "material": "alu",
+  "stl": "stl/hanger_R.stl",
+  "explode_mm": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "name": "hub_bearing_L",
+  "group": "yoke",
+  "material": "steel",
+  "stl": "stl/hub_bearing_L.stl",
+  "explode_mm": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "name": "hub_bearing_R",
+  "group": "yoke",
+  "material": "steel",
+  "stl": "stl/hub_bearing_R.stl",
+  "explode_mm": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "name": "level_gear",
+  "group": "yoke",
+  "material": "steel",
+  "stl": "stl/level_gear.stl",
+  "explode_mm": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "name": "arc_plate_F",
+  "group": "yoke",
+  "material": "alu",
+  "stl": "stl/arc_plate_F.stl",
+  "explode_mm": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "name": "arc_plate_B",
+  "group": "yoke",
+  "material": "alu",
+  "stl": "stl/arc_plate_B.stl",
+  "explode_mm": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "name": "bob_rails",
+  "group": "yoke",
+  "material": "steel",
+  "stl": "stl/bob_rails.stl",
+  "explode_mm": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "name": "lean_rack",
+  "group": "yoke",
+  "material": "steel",
+  "stl": "stl/lean_rack.stl",
+  "explode_mm": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "name": "drive_motor_F",
+  "group": "yoke",
+  "material": "motor_black",
+  "stl": "stl/drive_motor_F.stl",
+  "explode_mm": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "name": "pulley_m_F",
+  "group": "yoke",
+  "material": "alu",
+  "stl": "stl/pulley_m_F.stl",
+  "explode_mm": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "name": "pulley_p_F",
+  "group": "yoke",
+  "material": "alu",
+  "stl": "stl/pulley_p_F.stl",
+  "explode_mm": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "name": "belt_F",
+  "group": "yoke",
+  "material": "rubber",
+  "stl": "stl/belt_F.stl",
+  "explode_mm": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "name": "pinion_F",
+  "group": "yoke",
+  "material": "steel",
+  "stl": "stl/pinion_F.stl",
+  "explode_mm": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "name": "pinion_shaft_F",
+  "group": "yoke",
+  "material": "steel",
+  "stl": "stl/pinion_shaft_F.stl",
+  "explode_mm": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "name": "drive_motor_B",
+  "group": "yoke",
+  "material": "motor_black",
+  "stl": "stl/drive_motor_B.stl",
+  "explode_mm": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "name": "pulley_m_B",
+  "group": "yoke",
+  "material": "alu",
+  "stl": "stl/pulley_m_B.stl",
+  "explode_mm": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "name": "pulley_p_B",
+  "group": "yoke",
+  "material": "alu",
+  "stl": "stl/pulley_p_B.stl",
+  "explode_mm": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "name": "belt_B",
+  "group": "yoke",
+  "material": "rubber",
+  "stl": "stl/belt_B.stl",
+  "explode_mm": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "name": "pinion_B",
+  "group": "yoke",
+  "material": "steel",
+  "stl": "stl/pinion_B.stl",
+  "explode_mm": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "name": "pinion_shaft_B",
+  "group": "yoke",
+  "material": "steel",
+  "stl": "stl/pinion_shaft_B.stl",
+  "explode_mm": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "name": "esc_L",
+  "group": "yoke",
+  "material": "pcb",
+  "stl": "stl/esc_L.stl",
+  "explode_mm": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "name": "esc_R",
+  "group": "yoke",
+  "material": "pcb",
+  "stl": "stl/esc_R.stl",
+  "explode_mm": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "name": "compute_pendulum",
+  "group": "yoke",
+  "material": "alu_dark",
+  "stl": "stl/compute_pendulum.stl",
+  "explode_mm": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "name": "bob_tungsten",
+  "group": "bob",
+  "material": "lead",
+  "stl": "stl/bob_tungsten.stl",
+  "explode_mm": [
+   0.0,
+   0.0,
+   -330.0
+  ]
+ },
+ {
+  "name": "bob_battery",
+  "group": "bob",
+  "material": "battery",
+  "stl": "stl/bob_battery.stl",
+  "explode_mm": [
+   0.0,
+   0.0,
+   -330.0
+  ]
+ },
+ {
+  "name": "bob_worm_motor",
+  "group": "bob",
+  "material": "motor_black",
+  "stl": "stl/bob_worm_motor.stl",
+  "explode_mm": [
+   0.0,
+   0.0,
+   -330.0
+  ]
+ },
+ {
+  "name": "bob_carriage",
+  "group": "bob",
+  "material": "alu_dark",
+  "stl": "stl/bob_carriage.stl",
+  "explode_mm": [
+   0.0,
+   0.0,
+   -330.0
+  ]
+ },
+ {
+  "name": "bob_lean_pinion",
+  "group": "bob",
+  "material": "steel",
+  "stl": "stl/bob_lean_pinion.stl",
+  "explode_mm": [
+   0.0,
+   0.0,
+   -330.0
+  ]
+ }
+]

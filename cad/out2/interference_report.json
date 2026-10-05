@@ -1,0 +1,92 @@
+[
+ {
+  "pitch": 0,
+  "bob": 0,
+  "hits": []
+ },
+ {
+  "pitch": 0,
+  "bob": -40,
+  "hits": []
+ },
+ {
+  "pitch": 0,
+  "bob": 40,
+  "hits": []
+ },
+ {
+  "pitch": 60,
+  "bob": 0,
+  "hits": []
+ },
+ {
+  "pitch": 60,
+  "bob": -40,
+  "hits": []
+ },
+ {
+  "pitch": 60,
+  "bob": 40,
+  "hits": []
+ },
+ {
+  "pitch": -60,
+  "bob": 0,
+  "hits": []
+ },
+ {
+  "pitch": -60,
+  "bob": -40,
+  "hits": []
+ },
+ {
+  "pitch": -60,
+  "bob": 40,
+  "hits": []
+ },
+ {
+  "pitch": 120,
+  "bob": 0,
+  "hits": []
+ },
+ {
+  "pitch": 120,
+  "bob": -40,
+  "hits": []
+ },
+ {
+  "pitch": 120,
+  "bob": 40,
+  "hits": []
+ },
+ {
+  "pitch": -120,
+  "bob": 0,
+  "hits": []
+ },
+ {
+  "pitch": -120,
+  "bob": -40,
+  "hits": []
+ },
+ {
+  "pitch": -120,
+  "bob": 40,
+  "hits": []
+ },
+ {
+  "pitch": 180,
+  "bob": 0,
+  "hits": []
+ },
+ {
+  "pitch": 180,
+  "bob": -40,
+  "hits": []
+ },
+ {
+  "pitch": 180,
+  "bob": 40,
+  "hits": []
+ }
+]
