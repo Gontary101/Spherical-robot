@@ -3,7 +3,7 @@ GYRA Mk2 locomotion / teleoperation environment (MuJoCo), built for asymmetric a
 
 Task: track joystick commands (v_cmd forward speed, w_cmd yaw rate) at 50 Hz.
 
-Action (3, in [-1, 1]):  tau_sum = 70*a0 (pendulum drive),  tau_diff = 50*a1 (right - left),
+Action (3, in [-1, 1]):  tau_sum = 50*a0 (pendulum drive),  tau_diff = 50*a1 (right - left),
                          bob target = 0.698*a2 (worm drive, rate-limited to 60 deg/s)
 The spine levelling motor stays on its own hardware PD loop (it is not part of the policy).
 
@@ -32,6 +32,7 @@ ACT_OBS = FRAME * HIST + 2
 CRIT_OBS = FRAME + 2 + 28
 N_ACT = 3
 EP_LEN = 1000                      # 20 s
+TAU_SUM, TAU_DIFF = 50.0, 50.0     # action scales (N m at the tyre)
 
 
 class LocoEnv:
@@ -93,15 +94,16 @@ class LocoEnv:
         r = self.rng
         u = r.random()
         vm = self.v_max
+        w_max = min(4.0, 1.5 + vm / 3)                     # yaw-rate range grows with the curriculum
         if u < 0.15:
-            v, w = 0.0, r.uniform(-4, 4)                      # turn in place
+            v, w = 0.0, r.uniform(-w_max, w_max)              # turn in place
         elif u < 0.35:
             v, w = r.uniform(-min(vm, 3), vm), 0.0            # straight
         elif u < 0.45:
             v, w = 0.0, 0.0                                  # stand still
         else:
             v = r.uniform(-min(vm, 3), vm)
-            wl = min(3.0, 4.0 / max(abs(v), 0.5))            # tip-over bound |v w| <= 4 m/s^2
+            wl = min(w_max, 4.0 / max(abs(v), 0.5))          # tip-over bound |v w| <= 4 m/s^2
             w = r.uniform(-wl, wl)
         self.cmd = np.array([v, w])
         self.next_cmd_t = self.d.time + r.uniform(2.0, 5.0)
@@ -190,7 +192,7 @@ class LocoEnv:
         a_eff = self.a_queue[-1 - self.delay]
         self.a_queue = self.a_queue[-3:]
         d = self.d
-        tau_sum, tau_diff = 70 * a_eff[0], 50 * a_eff[1]
+        tau_sum, tau_diff = TAU_SUM * a_eff[0], TAU_DIFF * a_eff[1]
         step = np.radians(60) * DT
         self.bob_cmd += float(np.clip(0.698 * a_eff[2] - self.bob_cmd, -step, step))
         # pushes
@@ -215,7 +217,7 @@ class LocoEnv:
         t = self._truth()
         # reward
         ev, ew = self.cmd[0] - t["v"], self.cmd[1] - t["w"]
-        r_track = 1.0 * np.exp(-ev ** 2 / 0.25) + 0.8 * np.exp(-ew ** 2 / 0.25)
+        r_track = np.exp(-ev ** 2 / 0.5) + np.exp(-ew ** 2 / 0.5) - 0.15 * min(abs(ev), 3) - 0.15 * min(abs(ew), 3)
         p_roll = 0.05 * t["roll_rate"] ** 2 + 0.5 * max(abs(t["roll"]) - 0.35, 0) ** 2
         p_spine = 2.0 * t["pitch"] ** 2
         p_act = 0.05 * float(np.sum((a - self.last_a) ** 2))
@@ -224,7 +226,7 @@ class LocoEnv:
         rew = r_track - p_roll - p_spine - p_act - p_energy - p_pend
         fell = abs(t["pend"]) > 2.4 or abs(t["roll"]) > 1.1 or not np.isfinite(d.qpos).all()
         if fell:
-            rew -= 20.0
+            rew -= 10.0
         self.last_a = a
         f = self._frame(t)
         self.hist = np.roll(self.hist, -1, axis=0)

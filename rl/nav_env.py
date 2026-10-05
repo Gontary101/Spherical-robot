@@ -20,7 +20,7 @@ import mujoco
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(__file__))
-from loco_env import LocoEnv  # noqa: E402
+from loco_env import TAU_DIFF, TAU_SUM, LocoEnv  # noqa: E402
 
 N_BEAM = 72
 MAX_R = 8.0
@@ -285,7 +285,7 @@ class NavEnv:
         s = g.state()
         tl, tr, _, bob = self.ctrl(g, s, lo.cmd[0], lo.cmd[1])
         tau_sum, tau_diff = tl + tr, tr - tl
-        return np.array([tau_sum / 70, tau_diff / 50, bob / 0.698])
+        return np.array([tau_sum / TAU_SUM, tau_diff / TAU_DIFF, bob / 0.698])
 
 
 class _Adapter:

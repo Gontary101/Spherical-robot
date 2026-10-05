@@ -41,17 +41,19 @@ def main():
     torch.set_num_threads(1)
     env = VecEnv(LocoEnv, n_workers=a.workers, envs_per_worker=a.envs, seed=1)
     agent = PPO(ACT_OBS, CRIT_OBS, N_ACT)
-    v_max = 3.0
+    v_max, steps0 = 3.0, 0
     if a.resume:
-        v_max = agent.load(a.resume).get("v_max", 3.0)
+        extra = agent.load(a.resume)
+        v_max, steps0 = extra.get("v_max", 3.0), int(extra.get("steps", 0))
     env.set_attr(v_max=v_max)
     oa, oc = env.reset()
     f = open(os.path.join(a.out, "progress.csv"), "a", newline="")
     wr = csv.writer(f)
     if f.tell() == 0:
         wr.writerow(["iter", "steps", "time_s", "sps", "mean_rew", "ev", "ew", "fall_rate", "v_max", "kl", "lr", "std"])
-    steps, it, t0 = 0, 0, time.time()
+    steps, it, t0 = steps0, 0, time.time() - steps0 / 2150.0
     best = -1e9
+    hist = []
     while steps < a.steps:
         buf, infos, oa, oc = rollout(env, agent, oa, oc, a.horizon)
         st = agent.update(buf)
@@ -67,10 +69,17 @@ def main():
         wr.writerow([it, steps, round(el, 1), round(steps / el), round(mr, 4), round(ev, 3), round(ew, 3),
                      round(fall, 3), v_max, round(st["kl"], 4), round(st["lr"], 6), round(std, 3)])
         f.flush()
-        # curriculum on the commanded speed range
-        if ev < 0.35 and ew < 0.35 and fall < 0.05 and v_max < 8.5 and it % 10 == 0:
+        # curriculum on the commanded speed range (smoothed over the last 20 iterations)
+        hist.append((ev / max(v_max, 3.0) * 3.0, ew, len([i for i in ends if i["fell"]]), len(ends)))
+        hist = hist[-20:]
+        h_ev = np.mean([x[0] for x in hist])
+        h_ew = np.mean([x[1] for x in hist])
+        h_fall = sum(x[2] for x in hist) / max(1, sum(x[3] for x in hist))
+        if len(hist) == 20 and h_ev < 0.6 and h_ew < 0.45 and h_fall < 0.15 and v_max < 8.5:
             v_max = min(8.5, v_max + 1.0)
             env.set_attr(v_max=v_max)
+            hist = []
+            print(f"curriculum -> v_max {v_max}", flush=True)
         if it % 10 == 0:
             print(f"it {it:4d} steps {steps/1e6:6.2f}M sps {steps/el:6.0f} rew {mr:.3f} ev {ev:.2f} ew {ew:.2f} "
                   f"fall {fall:.3f} vmax {v_max} kl {st['kl']:.4f} lr {st['lr']:.1e} std {std:.2f}", flush=True)

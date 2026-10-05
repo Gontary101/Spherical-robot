@@ -32,6 +32,7 @@ def args():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     ap = argparse.ArgumentParser()
     ap.add_argument("--scene", default="hero")
+    ap.add_argument("--cad", default="out", help="cad/out (Mk1) or cad/out2 (Mk2)")
     ap.add_argument("--out", default=os.path.join(ROOT, "media", "hero.png"))
     ap.add_argument("--res", default="1600x1000")
     ap.add_argument("--samples", type=int, default=96)
@@ -146,6 +147,7 @@ def ghost_mat():
 
 
 def load(scale=0.001):
+    global CAD_OUT
     man = json.load(open(os.path.join(CAD_OUT, "manifest.json")))
     objs = {}
     for e in man:
@@ -189,7 +191,7 @@ def rig(objs):
     bob = empty("bob", parent=yoke)
     cmgL = empty("cmgL", (0, CMG_Y, CMG_Z), parent=spine)
     cmgR = empty("cmgR", (0, -CMG_Y, CMG_Z), parent=spine)
-    par = {"tyre": tyre, "spine": spine, "yoke": yoke, "bob": bob,
+    par = {"tyre": tyre, "tyreL": tyre, "tyreR": tyre, "spine": spine, "yoke": yoke, "bob": bob,
            "cmgL": cmgL, "flyL": cmgL, "cmgR": cmgR, "flyR": cmgR}
     bpy.context.view_layer.update()
     for o in objs.values():
@@ -284,10 +286,10 @@ LABELS = {  # label -> candidate parts (first one with visible surface wins)
     "lidar": ["lidar_window_L", "lidar_window_R"],
     "cmg": ["flywheel_L", "flywheel_R", "cmg_housing_L", "cmg_housing_R"],
     "gimbal": ["gimbal_actuator_L", "gimbal_actuator_R"],
-    "ring": ["ring_gear"],
+    "ring": ["ring_gear", "ring_gear_L", "ring_gear_R"],
     "drive": ["drive_motor_B", "drive_motor_F"],
     "pinion": ["pinion_B", "pinion_F", "pulley_p_B"],
-    "bob": ["bob_lead"],
+    "bob": ["bob_lead", "bob_tungsten"],
     "battery": ["bob_battery"],
     "yoke": ["arc_plate_B", "hanger_L", "hanger_R"],
     "axle": ["axle"],
@@ -344,6 +346,8 @@ def export_labels(sc, objs, out_png):
 
 def main():
     a = args()
+    global CAD_OUT
+    CAD_OUT = os.path.join(ROOT, "cad", a.cad)
     sc = reset()
     W, H = (int(v) for v in a.res.split("x"))
     sc.render.resolution_x, sc.render.resolution_y = W, H
@@ -376,7 +380,7 @@ def main():
     elif s == "pose":
         camera(sc, (1.75, 1.05, 0.30), (0, 0.0, -0.05), lens=55)
     elif s == "cutaway":
-        cut(objs, ("drum", "tread_base", "lugs", "eq_flange", "rim", "ring_gear", "equator_bolts"),
+        cut(objs, ("drum", "tread_base", "lugs", "eq_flange", "rim", "ring_gear", "equator_bolts", "eq_slewing"),
             (-0.02, -1, -0.10), (1, 1, 1))
         cut(objs, ("pod_shield_L", "pod_plate_L", "led_ring_L", "rollers_L", "lidar"), (-0.02, -1, -0.10), (1, 1, 1))
         camera(sc, (1.55, 1.05, 0.62), (0, 0.0, -0.04), lens=50)
