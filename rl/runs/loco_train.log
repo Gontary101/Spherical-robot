@@ -36,3 +36,44 @@ it   10 steps   1.41M sps   2150 rew 0.111 ev 0.82 ew 0.42 fall 0.000 vmax 4.0 k
 /usr/local/lib/python3.11/dist-packages/torch/jit/_trace.py:1145: FutureWarning: `torch.jit.trace_method` is deprecated. Please switch to `torch.compile` or `torch.export`.
   warnings.warn(
 it   20 steps   1.47M sps   2145 rew 0.098 ev 0.93 ew 0.47 fall 0.000 vmax 4.0 kl 0.0207 lr 6.7e-04 std 0.36
+it   30 steps   1.54M sps   2141 rew 0.107 ev 0.63 ew 0.56 fall 0.000 vmax 4.0 kl 0.0256 lr 3.0e-04 std 0.37
+it   40 steps   1.60M sps   2134 rew 0.125 ev 0.59 ew 0.36 fall 0.026 vmax 4.0 kl 0.0162 lr 1.0e-03 std 0.37
+it   50 steps   1.66M sps   2125 rew 0.112 ev 0.91 ew 0.38 fall 0.000 vmax 4.0 kl 0.0163 lr 1.0e-03 std 0.37
+it   60 steps   1.72M sps   2117 rew 0.109 ev 0.72 ew 0.46 fall 0.500 vmax 4.0 kl 0.0261 lr 4.4e-04 std 0.37
+it   70 steps   1.78M sps   2109 rew 0.105 ev 0.94 ew 0.45 fall 0.000 vmax 4.0 kl 0.0141 lr 1.0e-03 std 0.37
+it   80 steps   1.84M sps   2103 rew 0.113 ev 0.83 ew 0.42 fall 0.500 vmax 4.0 kl 0.0135 lr 6.7e-04 std 0.38
+it   90 steps   1.90M sps   2099 rew 0.109 ev 0.70 ew 0.44 fall 0.167 vmax 4.0 kl 0.0138 lr 6.7e-04 std 0.39
+it  100 steps   1.97M sps   2094 rew 0.114 ev 0.71 ew 0.43 fall 0.125 vmax 4.0 kl 0.0159 lr 6.7e-04 std 0.39
+it  110 steps   2.03M sps   2092 rew 0.120 ev 0.63 ew 0.40 fall 0.000 vmax 4.0 kl 0.0179 lr 6.7e-04 std 0.39
+it  120 steps   2.09M sps   2089 rew 0.117 ev 0.72 ew 0.38 fall 0.000 vmax 4.0 kl 0.0243 lr 3.0e-04 std 0.40
+it  130 steps   2.15M sps   2086 rew 0.109 ev 0.79 ew 0.44 fall 0.200 vmax 4.0 kl 0.0331 lr 3.0e-04 std 0.40
+it  140 steps   2.21M sps   2083 rew 0.127 ev 0.63 ew 0.35 fall 0.000 vmax 4.0 kl 0.0147 lr 4.4e-04 std 0.41
+it  150 steps   2.27M sps   2084 rew 0.119 ev 0.74 ew 0.39 fall 0.333 vmax 4.0 kl 0.0109 lr 4.4e-04 std 0.41
+it  160 steps   2.33M sps   2086 rew 0.097 ev 1.08 ew 0.48 fall 0.000 vmax 4.0 kl 0.0116 lr 1.0e-03 std 0.42
+it  170 steps   2.40M sps   2084 rew 0.114 ev 0.66 ew 0.45 fall 0.143 vmax 4.0 kl 0.0087 lr 4.4e-04 std 0.43
+it  180 steps   2.46M sps   2083 rew 0.104 ev 0.75 ew 0.54 fall 0.000 vmax 4.0 kl 0.0203 lr 4.4e-04 std 0.43
+it  190 steps   2.52M sps   2083 rew 0.110 ev 0.81 ew 0.42 fall 0.000 vmax 4.0 kl 0.0190 lr 6.7e-04 std 0.44
+curriculum -> v_max 5.0 difficulty 0.625
+it  200 steps   2.58M sps   2082 rew 0.085 ev 0.98 ew 0.63 fall 0.286 vmax 5.0 kl 0.0180 lr 1.0e-03 std 0.44
+it  210 steps   2.64M sps   2080 rew 0.098 ev 0.89 ew 0.55 fall 0.500 vmax 5.0 kl 0.0219 lr 4.4e-04 std 0.45
+it  220 steps   2.70M sps   2078 rew 0.101 ev 1.01 ew 0.42 fall 0.111 vmax 5.0 kl 0.0223 lr 1.3e-04 std 0.45
+it  230 steps   2.76M sps   2077 rew 0.086 ev 1.28 ew 0.51 fall 0.222 vmax 5.0 kl 0.0197 lr 1.0e-03 std 0.45
+it  240 steps   2.83M sps   2076 rew 0.108 ev 0.84 ew 0.46 fall 0.000 vmax 5.0 kl 0.0220 lr 2.0e-04 std 0.46
+it  250 steps   2.89M sps   2073 rew 0.109 ev 0.81 ew 0.48 fall 0.000 vmax 5.0 kl 0.0109 lr 4.4e-04 std 0.47
+it  260 steps   2.95M sps   2070 rew 0.110 ev 0.92 ew 0.40 fall 0.250 vmax 5.0 kl 0.0188 lr 6.7e-04 std 0.48
+it  270 steps   3.01M sps   2069 rew 0.101 ev 0.85 ew 0.56 fall 0.429 vmax 5.0 kl 0.0099 lr 3.0e-04 std 0.47
+it  280 steps   3.07M sps   2069 rew 0.112 ev 0.76 ew 0.45 fall 0.167 vmax 5.0 kl 0.0115 lr 3.0e-04 std 0.48
+it  290 steps   3.13M sps   2069 rew 0.099 ev 1.00 ew 0.51 fall 0.077 vmax 5.0 kl 0.0183 lr 1.0e-03 std 0.49
+it  300 steps   3.19M sps   2068 rew 0.100 ev 0.97 ew 0.53 fall 0.182 vmax 5.0 kl 0.0248 lr 3.0e-04 std 0.50
+it  310 steps   3.26M sps   2068 rew 0.099 ev 0.77 ew 0.53 fall 0.143 vmax 5.0 kl 0.0188 lr 6.7e-04 std 0.51
+it  320 steps   3.32M sps   2066 rew 0.105 ev 0.88 ew 0.45 fall 0.000 vmax 5.0 kl 0.0268 lr 3.0e-04 std 0.52
+it  330 steps   3.38M sps   2065 rew 0.093 ev 1.17 ew 0.50 fall 0.400 vmax 5.0 kl 0.0145 lr 6.7e-04 std 0.53
+it  340 steps   3.44M sps   2064 rew 0.101 ev 0.98 ew 0.47 fall 0.200 vmax 5.0 kl 0.0153 lr 1.0e-03 std 0.53
+it  350 steps   3.50M sps   2061 rew 0.102 ev 0.81 ew 0.46 fall 0.167 vmax 5.0 kl 0.0171 lr 1.0e-03 std 0.55
+it  360 steps   3.56M sps   2060 rew 0.115 ev 0.84 ew 0.39 fall 0.000 vmax 5.0 kl 0.0147 lr 6.7e-04 std 0.56
+it  370 steps   3.62M sps   2060 rew 0.112 ev 0.87 ew 0.43 fall 0.333 vmax 5.0 kl 0.0362 lr 3.0e-04 std 0.56
+it  380 steps   3.69M sps   2059 rew 0.108 ev 0.87 ew 0.42 fall 0.167 vmax 5.0 kl 0.0103 lr 4.4e-04 std 0.57
+it  390 steps   3.75M sps   2058 rew 0.114 ev 0.60 ew 0.52 fall 0.000 vmax 5.0 kl 0.0189 lr 6.7e-04 std 0.58
+it  400 steps   3.81M sps   2058 rew 0.112 ev 0.76 ew 0.47 fall 0.125 vmax 5.0 kl 0.0218 lr 6.7e-04 std 0.58
+curriculum -> v_max 6.0 difficulty 0.75
+it  410 steps   3.87M sps   2055 rew 0.102 ev 1.01 ew 0.40 fall 0.286 vmax 6.0 kl 0.0210 lr 4.4e-04 std 0.58
