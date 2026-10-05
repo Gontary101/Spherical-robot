@@ -1,3 +1,28 @@
 /home/user/Spherical-robot/rl/train_loco.py:68: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
 Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:820.)
   std = float(agent.actor.log_std.exp().mean())
+it   10 steps   0.06M sps   2005 rew 0.109 ev 0.73 ew 0.54 fall 0.500 vmax 4.0 kl 0.0067 lr 1.0e-03 std 0.30
+/usr/local/lib/python3.11/dist-packages/torch/jit/_trace.py:1006: FutureWarning: `torch.jit.trace` is deprecated. Please switch to `torch.compile` or `torch.export`.
+  warnings.warn(
+/usr/local/lib/python3.11/dist-packages/torch/jit/_trace.py:1145: FutureWarning: `torch.jit.trace_method` is deprecated. Please switch to `torch.compile` or `torch.export`.
+  warnings.warn(
+it   20 steps   0.12M sps   2005 rew 0.090 ev 0.87 ew 0.65 fall 0.600 vmax 4.0 kl 0.0082 lr 1.0e-03 std 0.30
+it   30 steps   0.18M sps   2004 rew 0.106 ev 0.61 ew 0.66 fall 0.250 vmax 4.0 kl 0.0079 lr 1.0e-03 std 0.30
+it   40 steps   0.25M sps   1979 rew 0.119 ev 0.72 ew 0.37 fall 0.000 vmax 4.0 kl 0.0065 lr 1.0e-03 std 0.29
+it   50 steps   0.31M sps   1968 rew 0.117 ev 0.63 ew 0.53 fall 0.000 vmax 4.0 kl 0.0100 lr 1.0e-03 std 0.29
+it   60 steps   0.37M sps   1968 rew 0.104 ev 0.71 ew 0.61 fall 0.222 vmax 4.0 kl 0.0091 lr 1.0e-03 std 0.29
+it   70 steps   0.43M sps   1972 rew 0.097 ev 0.84 ew 0.68 fall 0.000 vmax 4.0 kl 0.0132 lr 1.0e-03 std 0.29
+it   80 steps   0.49M sps   1963 rew 0.099 ev 0.78 ew 0.68 fall 0.750 vmax 4.0 kl 0.0167 lr 1.0e-03 std 0.29
+it   90 steps   0.55M sps   1964 rew 0.104 ev 0.83 ew 0.55 fall 0.200 vmax 4.0 kl 0.0185 lr 1.0e-03 std 0.29
+it  100 steps   0.61M sps   1966 rew 0.102 ev 0.85 ew 0.55 fall 0.333 vmax 4.0 kl 0.0139 lr 1.0e-03 std 0.29
+it  110 steps   0.68M sps   1972 rew 0.115 ev 0.58 ew 0.58 fall 0.000 vmax 4.0 kl 0.0183 lr 6.7e-04 std 0.30
+it  120 steps   0.74M sps   1976 rew 0.107 ev 0.83 ew 0.51 fall 0.000 vmax 4.0 kl 0.0142 lr 1.0e-03 std 0.31
+it  130 steps   0.80M sps   1975 rew 0.108 ev 0.70 ew 0.58 fall 0.000 vmax 4.0 kl 0.0173 lr 6.7e-04 std 0.31
+it  140 steps   0.86M sps   1974 rew 0.097 ev 0.96 ew 0.51 fall 0.111 vmax 4.0 kl 0.0124 lr 1.0e-03 std 0.31
+it  150 steps   0.92M sps   1976 rew 0.110 ev 0.83 ew 0.46 fall 0.200 vmax 4.0 kl 0.0172 lr 6.7e-04 std 0.31
+it  160 steps   0.98M sps   1975 rew 0.110 ev 0.75 ew 0.52 fall 0.200 vmax 4.0 kl 0.0186 lr 1.0e-03 std 0.32
+it  170 steps   1.04M sps   1979 rew 0.122 ev 0.73 ew 0.36 fall 0.200 vmax 4.0 kl 0.0243 lr 4.4e-04 std 0.32
+it  180 steps   1.11M sps   1978 rew 0.109 ev 0.82 ew 0.50 fall 0.000 vmax 4.0 kl 0.0092 lr 6.7e-04 std 0.32
+it  190 steps   1.17M sps   1978 rew 0.097 ev 0.83 ew 0.64 fall 0.000 vmax 4.0 kl 0.0165 lr 6.7e-04 std 0.33
+it  200 steps   1.23M sps   1981 rew 0.108 ev 0.82 ew 0.44 fall 0.000 vmax 4.0 kl 0.0259 lr 2.0e-04 std 0.34
+it  210 steps   1.29M sps   1976 rew 0.092 ev 1.08 ew 0.47 fall 0.111 vmax 4.0 kl 0.0167 lr 3.0e-04 std 0.34

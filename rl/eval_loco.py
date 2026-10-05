@@ -12,11 +12,9 @@ import sys
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(__file__))
-from loco_env import TAU_DIFF, TAU_SUM, LocoEnv  # noqa: E402
-from nav_env import NumpyActor, _Adapter  # noqa: E402
+from loco_env import LocoEnv  # noqa: E402
+from nav_env import NumpyActor  # noqa: E402
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "sim"))
-from gyra2_sim import ClassicalController  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
@@ -31,7 +29,6 @@ def episode(kind, policy, sched, T, seed=0, randomize=False, push=False, push_at
     env = make_env(seed, randomize, push)
     oa, _ = env.reset()
     env.d.qpos[3:7] = [1, 0, 0, 0]
-    ctrl = ClassicalController(0.02) if kind == "classical" else None
     log = {k: [] for k in ("t", "v", "w", "roll", "x", "y", "pitch", "pend", "v_cmd", "w_cmd")}
     fell = False
     for k in range(int(T / 0.02)):
@@ -40,9 +37,7 @@ def episode(kind, policy, sched, T, seed=0, randomize=False, push=False, push_at
         if push_at is not None and push_at <= t < push_at + 0.1:
             env.push_f, env.push_left = np.array([0.0, 300.0, 0.0]), 1
         if kind == "classical":
-            g = _Adapter(env)
-            tl, tr, _, bob = ctrl(g, g.state(), env.cmd[0], env.cmd[1])
-            a = np.array([(tl + tr) / TAU_SUM, (tr - tl) / TAU_DIFF, bob / 0.698])
+            a = np.zeros(3)          # residual env: zero residual == the classical controller alone
         else:
             oa = np.concatenate([env.hist.reshape(-1), env.cmd * np.array([0.25, 0.5])]).astype(np.float32)
             a = policy(oa)

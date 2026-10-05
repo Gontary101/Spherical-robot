@@ -20,7 +20,7 @@ import mujoco
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(__file__))
-from loco_env import TAU_DIFF, TAU_SUM, LocoEnv  # noqa: E402
+from loco_env import LocoEnv  # noqa: E402
 
 N_BEAM = 72
 MAX_R = 8.0
@@ -89,10 +89,6 @@ class NavEnv:
         self.low_level = low_level
         if low_level == "learned":
             self.policy = NumpyActor(loco_ckpt)
-        else:
-            sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "sim"))
-            from gyra2_sim import ClassicalController  # noqa: E402
-            self._Classical = ClassicalController
         ang = np.linspace(-np.pi, np.pi, N_BEAM, endpoint=False)
         self.beam_ang = ang
         hf, vf = np.radians(45), np.radians(22.5)
@@ -191,8 +187,6 @@ class NavEnv:
         lo.cmd = np.zeros(2)
         lo.hist[:] = lo._frame(lo._truth())
         self.loco_obs = np.concatenate([lo.hist.reshape(-1), lo.cmd * np.array([0.25, 0.5])]).astype(np.float32)
-        if self.low_level == "classical":
-            self.ctrl = self._Classical(0.02)
         pos, yaw, t = self._pose()
         self.odo = np.array([pos[0], pos[1], yaw])
         self.odo_bias = self.rng.normal(0, 0.01)                   # gyro bias (rad/s)
@@ -246,7 +240,7 @@ class NavEnv:
             if self.low_level == "learned":
                 la = self.policy(self.loco_obs)
             else:
-                la = self._classical_action()
+                la = np.zeros(3)                 # zero residual == classical low-level
             (self.loco_obs, _), _, done_lo, info = lo.step(la)
             # odometry: encoder speed + biased gyro
             v_enc = float(lo._qd("tyreL") + lo._qd("tyreR")) * 0.5 * 0.3 * self.odo_scale
@@ -277,33 +271,6 @@ class NavEnv:
         info = {"success": success, "collision": collided, "fell": fell, "timeout": self.steps >= EP_STEPS and not (success or collided or fell),
                 "dist": dist}
         return obs, float(rew), done, info
-
-    def _classical_action(self):
-        """Classical low-level expressed in the policy's action space (for smoke tests / baselines)."""
-        lo = self.loco
-        g = _Adapter(lo)
-        s = g.state()
-        tl, tr, _, bob = self.ctrl(g, s, lo.cmd[0], lo.cmd[1])
-        tau_sum, tau_diff = tl + tr, tr - tl
-        return np.array([tau_sum / TAU_SUM, tau_diff / TAU_DIFF, bob / 0.698])
-
-
-class _Adapter:
-    """Lets ClassicalController read state from a LocoEnv."""
-
-    def __init__(self, lo):
-        self.lo = lo
-
-    def q(self, n):
-        return float(self.lo._q(n))
-
-    def qd(self, n):
-        return float(self.lo._qd(n))
-
-    def state(self):
-        t = self.lo._truth()
-        return dict(v=t["v"], yaw_rate=t["w"], roll=t["roll"], roll_rate=t["roll_rate"], pitch=t["pitch"],
-                    pitch_rate=t["pitch_rate"])
 
 
 if __name__ == "__main__":
