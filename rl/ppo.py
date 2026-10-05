@@ -44,8 +44,9 @@ def mlp(i, o, hidden=(256, 256, 128), act=nn.ELU):
 
 
 class Actor(nn.Module):
-    def __init__(self, n_obs, n_act, hidden=(256, 256, 128), init_std=0.5):
+    def __init__(self, n_obs, n_act, hidden=(256, 256, 128), init_std=0.5, max_std=None):
         super().__init__()
+        self.max_log_std = float(np.log(max_std)) if max_std else 5.0
         self.mu = mlp(n_obs, n_act, hidden)
         self.log_std = nn.Parameter(torch.full((n_act,), float(np.log(init_std))))
         with torch.no_grad():
@@ -53,7 +54,7 @@ class Actor(nn.Module):
             self.mu[-1].bias.zero_()
 
     def dist(self, obs):
-        return torch.distributions.Normal(self.mu(obs), self.log_std.exp())
+        return torch.distributions.Normal(self.mu(obs), self.log_std.clamp(-4.0, self.max_log_std).exp())
 
     def forward(self, obs):          # deterministic, for export
         return torch.clamp(self.mu(obs), -1, 1)
@@ -62,8 +63,9 @@ class Actor(nn.Module):
 class PPO:
     def __init__(self, n_actor, n_critic, n_act, lr=3e-4, gamma=0.99, lam=0.95, clip=0.2, epochs=5,
                  minibatches=4, ent=0.003, vf_coef=1.0, max_grad=1.0, target_kl=0.01, hidden=(256, 256, 128),
-                 init_std=0.5):
-        self.actor = Actor(n_actor, n_act, hidden, init_std)
+                 init_std=0.5, max_std=None, lr_max=1e-3):
+        self.actor = Actor(n_actor, n_act, hidden, init_std, max_std)
+        self.lr_max = lr_max
         self.critic = mlp(n_critic, 1, hidden)
         self.opt = torch.optim.Adam(list(self.actor.parameters()) + list(self.critic.parameters()), lr=lr)
         self.lr, self.gamma, self.lam, self.clip = lr, gamma, lam, clip
@@ -133,7 +135,7 @@ class PPO:
             if stats["kl"] / cnt > 2 * self.target_kl:
                 self.lr = max(self.lr / 1.5, 1e-5)
             elif stats["kl"] / cnt < self.target_kl / 2:
-                self.lr = min(self.lr * 1.5, 1e-3)
+                self.lr = min(self.lr * 1.5, self.lr_max)
             for g in self.opt.param_groups:
                 g["lr"] = self.lr
         return {k: v / cnt for k, v in stats.items()} | {"lr": self.lr}

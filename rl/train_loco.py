@@ -40,7 +40,7 @@ def main():
     os.makedirs(a.out, exist_ok=True)
     torch.set_num_threads(1)
     env = VecEnv(LocoEnv, n_workers=a.workers, envs_per_worker=a.envs, seed=1)
-    agent = PPO(ACT_OBS, CRIT_OBS, N_ACT, init_std=0.3, ent=0.001)
+    agent = PPO(ACT_OBS, CRIT_OBS, N_ACT, init_std=0.3, ent=0.0, max_std=0.35, lr=3e-4, lr_max=3e-4)
     v_max, steps0, diff = 4.0, 0, 0.5
     if a.resume:
         extra = agent.load(a.resume)
@@ -66,7 +66,7 @@ def main():
         ends = [i for i in infos if i.get("fell") or i.get("timeout")]
         fall = float(np.mean([i["fell"] for i in ends])) if ends else 0.0
         mr = float(buf["rew"].mean())
-        std = float(agent.actor.log_std.exp().mean())
+        std = float(agent.actor.log_std.clamp(max=agent.actor.max_log_std).exp().mean())
         el = time.time() - t0
         wr.writerow([it, steps, round(el, 1), round(steps / el), round(mr, 4), round(ev, 3), round(ew, 3),
                      round(fall, 3), v_max, round(st["kl"], 4), round(st["lr"], 6), round(std, 3)])
