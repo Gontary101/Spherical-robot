@@ -8,3 +8,7 @@ rl/runs/loco2/progress.csv
 rl/runs/loco2/train.log
 rl/runs/nav2/progress.csv
 rl/runs/nav2/train.log
+rl/runs/loco2/*.pt
+rl/runs/loco2/*.ts
+rl/runs/nav2/*.pt
+rl/runs/nav2/*.ts
