@@ -48,6 +48,17 @@ class MotorModel:
         avail = np.where(same, t_max * np.clip(1 - np.abs(w_rel) / cls.W_NL, 0, 1), t_max)
         return np.clip(tau, -avail, avail)
 
+    @classmethod
+    def limit_s(cls, tau, w_rel, strength=1.0):
+        """Scalar fast path of limit()."""
+        t_max = cls.TAU_STALL * strength
+        if (tau > 0) == (w_rel > 0) and tau != 0 and w_rel != 0:
+            f = 1 - abs(w_rel) / cls.W_NL
+            avail = t_max * (0.0 if f < 0 else (1.0 if f > 1 else f))
+        else:
+            avail = t_max
+        return -avail if tau < -avail else (avail if tau > avail else tau)
+
 
 def obstacle_vertices(typ, size, n_seg=64):
     """Convex vertex set of an obstacle in its own frame (the single source for collision AND rendering).
@@ -62,15 +73,28 @@ def obstacle_vertices(typ, size, n_seg=64):
 
 
 def build_xml2(slope_deg=0.0, friction=1.0, torsional=0.015, rolling=0.005, mass_scale=None,
-               com_shift=(0, 0, 0), obstacles=(), lidar=False, timestep=0.001, arena=None, mesh_obstacles=()):
+               com_shift=(0, 0, 0), obstacles=(), lidar=False, timestep=0.001, arena=None, mesh_obstacles=(),
+               terrain=None, tyre_r=None, payload=None, gravity=None):
     """mass_scale: dict body->scale (domain randomisation). obstacles: list of (type, pos, size) primitives.
     mesh_obstacles: list of dicts {name, verts (local Nx3), pos, quat}: convex mesh geoms whose vertices are
-    used verbatim for collision, ray-casting and rendering."""
+    used verbatim for collision, ray-casting and rendering.
+    terrain: (hfield asset xml, z offset) from sim/terrain.py; the data is written into m.hfield_data after compiling.
+    tyre_r: tyre crown radius (wear / manufacturing randomisation). payload: (mass kg, (x, y, z) m) bolted to the
+    spine. gravity: explicit gravity vector (overrides slope_deg)."""
     ms = mass_scale or {}
     g = 9.81
     s = np.radians(slope_deg)
     gx, gz = -g * np.sin(s), -g * np.cos(s)
+    if gravity is not None:
+        gx, gy, gz = gravity
+    else:
+        gy = 0.0
+    Rt = R if tyre_r is None else tyre_r
     obs_xml = ""
+    if terrain is not None:
+        asset_t, z0 = terrain
+        obs_xml += (f'<geom name="terrain" type="hfield" hfield="terrain" pos="0 0 {z0:.5f}" contype="{WORLD_CT}" '
+                    f'conaffinity="{WORLD_CA}" friction="{friction} {torsional} {rolling}" condim="6" rgba=".4 .42 .38 1"/>\n')
     for i, (typ, pos, size) in enumerate(obstacles):
         obs_xml += (f'<geom name="obs{i}" type="{typ}" pos="{pos[0]:.3f} {pos[1]:.3f} {pos[2]:.3f}" '
                     f'size="{" ".join(f"{v:.3f}" for v in size)}" contype="{WORLD_CT}" conaffinity="{WORLD_CA}" '
@@ -93,33 +117,35 @@ def build_xml2(slope_deg=0.0, friction=1.0, torsional=0.015, rolling=0.005, mass
 <mujoco model="gyra_mk2">
   <compiler angle="radian" inertiafromgeom="false"/>
   <asset>
+    {asset_t if terrain is not None else ""}
     {asset_xml}
   </asset>
-  <option timestep="{timestep}" integrator="implicitfast" gravity="{gx:.5f} 0 {gz:.5f}"/>
+  <option timestep="{timestep}" integrator="implicitfast" gravity="{gx:.5f} {gy:.5f} {gz:.5f}"/>
   <default>
     <geom contype="0" conaffinity="0"/>
   </default>
   <worldbody>
     <light pos="0 0 6" dir="0 0 -1"/>
-    <geom name="floor" type="plane" size="100 100 0.1" contype="{WORLD_CT}" conaffinity="{WORLD_CA}"
+    <geom name="floor" type="plane" size="100 100 0.1" pos="0 0 {(terrain[1] - 0.02) if terrain is not None else 0:.4f}" contype="{WORLD_CT}" conaffinity="{WORLD_CA}"
           friction="{friction} {torsional} {rolling}" condim="6" rgba=".35 .37 .4 1"/>
     {obs_xml}
-    <body name="spine" pos="0 0 {R + 0.001}">
+    <body name="spine" pos="0 0 {Rt + 0.001}">
       <freejoint name="root"/>
       {inertial("spine", ms.get("spine", 1.0), com_shift)}
       <site name="imu" pos="0 0 0"/>
+      {f'<body name="payload" pos="{payload[1][0]:.4f} {payload[1][1]:.4f} {payload[1][2]:.4f}"><inertial pos="0 0 0" mass="{payload[0]:.4f}" diaginertia="{0.004 * payload[0]:.5f} {0.004 * payload[0]:.5f} {0.004 * payload[0]:.5f}"/></body>' if payload else ""}
       <site name="podL" pos="0 {0.285 + D} 0.0"/>
       <site name="podR" pos="0 {-0.285 - D} 0.0"/>
       <body name="tyreL">
         <joint name="tyreL" type="hinge" axis="0 1 0" damping="0.01"/>
         {inertial("tyreL", ms.get("tyre", 1.0))}
-        <geom name="tyreL" type="sphere" size="{R}" pos="0 {D} 0" contype="{TYRE_CT}" conaffinity="{TYRE_CA}"
+        <geom name="tyreL" type="sphere" size="{Rt}" pos="0 {D} 0" contype="{TYRE_CT}" conaffinity="{TYRE_CA}"
               condim="6" friction="{friction} {torsional} {rolling}" rgba=".06 .06 .06 1" group="3"/>
       </body>
       <body name="tyreR">
         <joint name="tyreR" type="hinge" axis="0 1 0" damping="0.01"/>
         {inertial("tyreR", ms.get("tyre", 1.0))}
-        <geom name="tyreR" type="sphere" size="{R}" pos="0 {-D} 0" contype="{TYRE_CT}" conaffinity="{TYRE_CA}"
+        <geom name="tyreR" type="sphere" size="{Rt}" pos="0 {-D} 0" contype="{TYRE_CT}" conaffinity="{TYRE_CA}"
               condim="6" friction="{friction} {torsional} {rolling}" rgba=".1 .1 .1 1" group="3"/>
       </body>
       <body name="yoke">

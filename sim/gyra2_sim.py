@@ -72,6 +72,10 @@ class Gyra2:
         mujoco.mj_step(self.m, self.d, nstep=n_sub)
 
 
+def _clamp(x, lo, hi):
+    return lo if x < lo else (hi if x > hi else x)
+
+
 class ClassicalController:
     """Cascade speed loop + differential yaw-rate loop + counter-lean + spine levelling."""
 
@@ -85,11 +89,11 @@ class ClassicalController:
         # command shaping: limit yaw-rate command slew and lateral acceleration (tip-over bound)
         a_lat_max = 3.8
         w_lim = a_lat_max / max(abs(s["v"]), 0.5)
-        w_cmd = float(np.clip(w_cmd, -w_lim, w_lim))
+        w_cmd = _clamp(w_cmd, -w_lim, w_lim)
         self.wc = getattr(self, "wc", 0.0)
-        self.wc += float(np.clip(w_cmd - self.wc, -1.5 * self.dt, 1.5 * self.dt))
+        self.wc += _clamp(w_cmd - self.wc, -1.5 * self.dt, 1.5 * self.dt)
         self.vc = getattr(self, "vc", 0.0)
-        self.vc += float(np.clip(v_cmd - self.vc, -2.5 * self.dt, 2.5 * self.dt))
+        self.vc += _clamp(v_cmd - self.vc, -2.5 * self.dt, 2.5 * self.dt)
         e = self.vc - s["v"]
         lim = np.radians(80)
         u = 0.9 * e + 0.45 * self.iv
@@ -97,17 +101,17 @@ class ClassicalController:
             self.iv += e * self.dt
         pend = s["pitch"] + g.q("yoke")
         pend_rate = s["pitch_rate"] + g.qd("yoke")
-        th_ref = -float(np.clip(u, -lim, lim))
+        th_ref = -_clamp(u, -lim, lim)
         tau_sum = 80 * (pend - th_ref) + 10 * pend_rate
         ew = self.wc - s["yaw_rate"]
         sched = 1.0 / (1.0 + abs(s["v"]) / 1.5)    # yaw authority grows with speed -> lower gains
-        self.iw = float(np.clip(self.iw + ew * self.dt, -2, 2))
+        self.iw = _clamp(self.iw + ew * self.dt, -2, 2)
         tau_diff = sched * (30 * ew + 25 * self.iw) - 4.0 * s["roll_rate"] * 0
         # counter-lean: feed-forward from the commanded lateral acceleration + roll feedback
         a_ff = s["v"] * self.wc
-        bob_des = float(np.clip(1.1 * a_ff / 9.81 + 1.2 * s["roll"] + 0.25 * s["roll_rate"], -0.698, 0.698))
+        bob_des = _clamp(1.1 * a_ff / 9.81 + 1.2 * s["roll"] + 0.25 * s["roll_rate"], -0.698, 0.698)
         step = np.radians(60) * self.dt
-        self.bob += np.clip(bob_des - self.bob, -step, step)
+        self.bob += _clamp(bob_des - self.bob, -step, step)
         level = 90 * s["pitch"] + 9 * s["pitch_rate"]
         return 0.5 * tau_sum - 0.5 * tau_diff, 0.5 * tau_sum + 0.5 * tau_diff, level, self.bob
 
