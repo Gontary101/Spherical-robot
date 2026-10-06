@@ -512,7 +512,8 @@ class Loco2Env:
             hold_dist=0.5 * math.exp(-self.e_s ** 2 / 0.0025),
             hold_heading=0.5 * math.exp(-self.e_psi ** 2 / 0.0025),
             steady=0.25 * math.exp(-(t["pitch_rate"] ** 2 + t["roll_rate"] ** 2) / 0.25),
-            tilt=-1.0 * t["pitch"] ** 2 - 0.2 * max(abs(t["roll"]) - 0.15, 0) ** 2,
+            tilt=-1.0 * t["pitch"] ** 2 - 0.5 * t["roll"] ** 2,          # level sensor platform in BOTH axes
+            residual=-0.02 * float(np.sum(a ** 2)),                         # deviate from the classical loop only if it pays
             act_rate=-0.02 * float(np.sum((a - self.last_a) ** 2)),
             act_smooth=-0.01 * float(np.sum((a - 2 * self.last_a + self.prev_a) ** 2)),
             power=-4e-4 * power,
