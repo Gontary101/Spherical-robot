@@ -1,0 +1,23 @@
+/home/user/Spherical-robot/rl/train_nav.py:56: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:820.)
+  round(st["lr"], 6), round(float(agent.actor.log_std.exp().mean()), 3)])
+it    5 steps  0.02M sps   393 succ 0.07 coll 0.93 fell 0.00 tout 0.00 kl 0.0080 std 0.50
+/usr/local/lib/python3.11/dist-packages/torch/jit/_trace.py:1006: FutureWarning: `torch.jit.trace` is deprecated. Please switch to `torch.compile` or `torch.export`.
+  warnings.warn(
+/usr/local/lib/python3.11/dist-packages/torch/jit/_trace.py:1145: FutureWarning: `torch.jit.trace_method` is deprecated. Please switch to `torch.compile` or `torch.export`.
+  warnings.warn(
+it   10 steps  0.03M sps   393 succ 0.12 coll 0.85 fell 0.00 tout 0.02 kl 0.0117 std 0.49
+it   15 steps  0.05M sps   403 succ 0.24 coll 0.71 fell 0.01 tout 0.05 kl 0.0131 std 0.49
+it   20 steps  0.06M sps   404 succ 0.44 coll 0.49 fell 0.01 tout 0.07 kl 0.0182 std 0.48
+it   25 steps  0.08M sps   407 succ 0.64 coll 0.28 fell 0.02 tout 0.07 kl 0.0171 std 0.48
+it   30 steps  0.09M sps   408 succ 0.70 coll 0.23 fell 0.02 tout 0.04 kl 0.0136 std 0.48
+it   35 steps  0.11M sps   408 succ 0.71 coll 0.21 fell 0.03 tout 0.05 kl 0.0121 std 0.47
+it   40 steps  0.12M sps   407 succ 0.75 coll 0.15 fell 0.03 tout 0.07 kl 0.0222 std 0.47
+it   45 steps  0.14M sps   407 succ 0.78 coll 0.11 fell 0.03 tout 0.07 kl 0.0153 std 0.47
+it   50 steps  0.15M sps   407 succ 0.80 coll 0.07 fell 0.04 tout 0.09 kl 0.0208 std 0.46
+it   55 steps  0.17M sps   408 succ 0.79 coll 0.07 fell 0.03 tout 0.10 kl 0.0142 std 0.46
+it   60 steps  0.18M sps   407 succ 0.79 coll 0.08 fell 0.04 tout 0.10 kl 0.0283 std 0.46
+it   65 steps  0.20M sps   407 succ 0.81 coll 0.09 fell 0.02 tout 0.08 kl 0.0177 std 0.46
+it   70 steps  0.22M sps   408 succ 0.84 coll 0.07 fell 0.02 tout 0.07 kl 0.0169 std 0.46
+it   75 steps  0.23M sps   408 succ 0.83 coll 0.06 fell 0.02 tout 0.08 kl 0.0081 std 0.45
+it   80 steps  0.25M sps   409 succ 0.81 coll 0.08 fell 0.03 tout 0.08 kl 0.0229 std 0.45
