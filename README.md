@@ -1,8 +1,8 @@
-# GYRA Mk1: a rubber-tyred spherical robot with a level sensor spine and a scissored CMG pair
+# GYRA: rubber-tyred spherical robots inspired by the RT-G (Mk1 → Mk2 + learned control)
 
 ![GYRA Mk1](media/gyra_hero.png)
 
-This repo has two parts:
+This repo has three parts (the third is the Mk2 section below):
 
 1. **A teardown of how the RT-G (Rotunbot/RotunBot) police robot actually works**, from
    the Zhejiang University paper behind it plus press and company sources:
@@ -24,6 +24,41 @@ This repo has two parts:
    (open locally in a browser)
 
 ![annotated cutaway](media/gyra_cutaway_annotated.png)
+
+## Mk2: split differential tyre + learned control (latest)
+
+![GYRA Mk2](media/mk2_cutaway_annotated.png)
+
+Mk2 drops the CMGs. The tyre becomes **two independently driven halves whose crowns
+are offset 50 mm outward**, so the robot stands on two contact patches and steers with
+the torque *difference* between the halves. The freed mass goes into an 11 kg tungsten
++ 936 Wh bob, and the pendulum can now swing a full 360°. On top of this sit two
+**asymmetric-PPO policies** trained in MuJoCo on the CAD-derived model:
+* a **locomotion/teleop policy**: a residual over the classical loop, fed by IMU and
+  encoders;
+* an **autonomous navigator**: pod LiDARs with the real blind wedge, stereo depth,
+  drifting odometry.
+
+| | RT-G | Mk1 | **Mk2 + learned control** |
+|---|---|---|---|
+| turn in place | can't | 9°/s | **176°/s** (~20×) |
+| 6 m/s turn at 0.6 rad/s | — | — | **stable, 7° roll** (classical loop falls) |
+| falls, random commands + randomised physics + shoves | — | — | **8 %** (classical: 67 %) |
+| sensor-pod pitch while accelerating | ≈ 40° | 0.75° | **0.39°** |
+| grade (sim) | 10° tested | 10° | **14°** |
+| battery | 2.4 kWh @ 160 kg | 468 Wh @ 41 kg | **936 Wh @ 45 kg** |
+| autonomous navigation, 100 random maps | claimed | — | **79 % success, 2 % collisions, 1.35 m/s** (VFH baseline: 72 %, 11 %, 0.86 m/s) |
+
+What does *not* get 10× better, and why (gravity-limited grade and acceleration), is
+covered in [docs/04](docs/04_mk2_research_and_bounds.md). Full numbers:
+[docs/07_scorecard.md](docs/07_scorecard.md) · design: [docs/05](docs/05_GYRA_Mk2_design.md) ·
+learning: [docs/06](docs/06_learned_control.md) · 3-D viewer: [docs/viewer/mk2.html](docs/viewer/mk2.html)
+
+| Learned locomotion vs classical | Mk2 classical benchmark |
+|---|---|
+| ![rl](media/rl_loco_eval.png) | ![mk2](media/mk2_bench.png) |
+
+---
 
 ## The short version of "how RT-G works"
 
@@ -67,6 +102,14 @@ This repo has two parts:
 
 ## Repository layout
 ```
+cad/gyra2_cad.py         Mk2 parametric CAD (split tyre) -> cad/out2/
+sim/gyra2_model.py       Mk2 MuJoCo model + motor torque-speed model
+sim/gyra2_sim.py         Mk2 classical controller + benchmark
+rl/loco_env.py           locomotion env (sensor-realistic actor obs, privileged critic, domain randomisation)
+rl/nav_env.py            navigation env (pod-LiDAR blind wedge, stereo depth, drifting odometry)
+rl/ppo.py, vec_env.py    asymmetric PPO + subprocess vector env
+rl/train_*.py, eval_*.py training + evaluation; rl/runs/{loco,nav}/ deployed policies + eval.json
+calc/scorecard.py        RT-G vs Mk1 vs Mk2 table from all result files
 cad/params.py            single source of truth for dimensions
 cad/gyra_cad.py          parametric CadQuery model → STEP / STL / mass properties / interference check
 cad/export_glb.py        → cad/out/gyra_mk1.glb
@@ -82,14 +125,20 @@ docs/                    research report, design spec, simulation report
 
 ## Reproduce
 ```bash
-pip install cadquery mujoco numpy scipy matplotlib trimesh pillow
+pip install cadquery mujoco numpy scipy matplotlib trimesh pillow torch
 python cad/gyra_cad.py --check        # CAD, exports, mass properties, 45-pose interference check
 python cad/export_glb.py
 python calc/sizing.py
 python sim/scenarios.py
 BLENDER=/path/to/blender render/render_all.sh
 python render/annotate.py media/gyra_cutaway.png media/gyra_cutaway_annotated.png
-python render/build_viewer.py
+python render/build_viewer.py            # Mk1 viewer;  `mk2` for the Mk2 viewer
+# Mk2 + learned control
+python cad/gyra2_cad.py --check && python cad/export_glb.py out2
+python sim/gyra2_sim.py
+python rl/train_loco.py --steps 4e6 && python rl/eval_loco.py
+python rl/train_nav.py --loco rl/runs/loco/best.pt --steps 7e5 && python rl/eval_nav.py
+python calc/scorecard.py
 ```
 Tested with CadQuery 2.8 / OCCT 7.9, MuJoCo 3.15, Blender 4.2 LTS.
 
