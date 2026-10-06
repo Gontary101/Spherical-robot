@@ -60,9 +60,9 @@ GEOFENCE = TR.HALF - 4.0
 
 # hardware configuration. Mk2 as built: 50 mm crown offset, worm-drive bob (60 deg/s nominal), P-only spine levelling,
 # no roll actuator. Variants are evaluated by rl/hw_study.py.
-HW_MK2 = dict(crown_d=0.050, lean_rate=60.0, wheel=None, level_pi=False, a_roll=4.0)
+HW_MK2 = dict(crown_d=0.050, lean_rate=60.0, wheel=None, level_pi=False, a_roll=4.0, cad=None)
 # Mk2.1 (rl/hw_study.py): crown offset 90 mm (+80 mm width), 180 deg/s lean actuator, PI spine levelling
-HW_MK21 = dict(crown_d=0.090, lean_rate=180.0, wheel=None, level_pi=True, a_roll=4.0)
+HW_MK21 = dict(crown_d=0.090, lean_rate=180.0, wheel=None, level_pi=True, a_roll=4.0, cad="out21")
 ADR_FACTORS = ("terrain", "slope", "friction", "push", "wind", "payload", "actuator", "sensor", "speed")
 TAU_PEND = 39.7                  # N m: pendulum gravity torque m g L at 90 deg (CAD)
 
@@ -203,7 +203,8 @@ class Loco2Env:
         xml = build_xml2(friction=S["mu"], torsional=S["tors"], rolling=S["roll_fr"], mass_scale=ms, com_shift=S["com"],
                          timestep=DT / N_SUB, terrain=terrain, tyre_r=S["tyre_r"], gravity=g,
                          payload=(S["payload"], S["payload_pos"]) if S["payload"] > 0.05 else None,
-                         mesh_obstacles=extra[0], mocap_obstacles=extra[1], crown_d=self.hw["crown_d"], roll_wheel=self.hw["wheel"])
+                         mesh_obstacles=extra[0], mocap_obstacles=extra[1], crown_d=self.hw["crown_d"], roll_wheel=self.hw["wheel"],
+                         cad=self.hw.get("cad"))
         self.m = mujoco.MjModel.from_xml_string(xml)
         if h is not None:
             self.m.hfield_data[:] = data.ravel()

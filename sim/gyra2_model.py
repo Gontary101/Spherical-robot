@@ -27,8 +27,17 @@ TYRE_CT, TYRE_CA = 1, 2
 WORLD_CT, WORLD_CA = 2, 1
 
 
-def inertial(body, scale_mass=1.0, com_shift=(0, 0, 0)):
-    b = MP2["bodies"][body]
+_MP_CACHE = {}
+
+
+def mass_props(cad="out2"):
+    if cad not in _MP_CACHE:
+        _MP_CACHE[cad] = json.load(open(os.path.join(ROOT, "cad", cad, "mass_properties.json")))
+    return _MP_CACHE[cad]
+
+
+def inertial(body, scale_mass=1.0, com_shift=(0, 0, 0), mp=None):
+    b = (mp or MP2)["bodies"][body]
     c = np.array(b["com_mm"]) / 1000.0 + np.array(com_shift)
     I = np.array(b["I_com_kgm2"]) * scale_mass
     fi = f"{I[0,0]:.6g} {I[1,1]:.6g} {I[2,2]:.6g} {I[0,1]:.6g} {I[0,2]:.6g} {I[1,2]:.6g}"
@@ -76,7 +85,7 @@ def obstacle_vertices(typ, size, n_seg=64):
 def build_xml2(slope_deg=0.0, friction=1.0, torsional=0.015, rolling=0.005, mass_scale=None,
                com_shift=(0, 0, 0), obstacles=(), lidar=False, timestep=0.001, arena=None, mesh_obstacles=(),
                terrain=None, tyre_r=None, payload=None, gravity=None,
-               mocap_obstacles=(), crown_d=None, roll_wheel=None, pods=True):
+               mocap_obstacles=(), crown_d=None, roll_wheel=None, pods=True, cad=None):
     """mass_scale: dict body->scale (domain randomisation). obstacles: list of (type, pos, size) primitives.
     mesh_obstacles: list of dicts {name, verts (local Nx3), pos, quat}: convex mesh geoms whose vertices are
     used verbatim for collision, ray-casting and rendering.
@@ -98,6 +107,8 @@ def build_xml2(slope_deg=0.0, friction=1.0, torsional=0.015, rolling=0.005, mass
     Rt = R if tyre_r is None else tyre_r
     Dc = D if crown_d is None else crown_d
     dD = Dc - D
+    mp = mass_props(cad) if cad else MP2          # cad="out21": exact Mk2.1 CAD masses/inertias (offset already in them)
+    dI = 0.0 if cad else dD
     pod_xml, pod_asset = "", ""
     if pods:                      # stacked cylinders following the CAD radial profile of each pod (6 mm slices)
         for side, sg in (("L", 1), ("R", -1)):
@@ -158,7 +169,7 @@ def build_xml2(slope_deg=0.0, friction=1.0, torsional=0.015, rolling=0.005, mass
     {obs_xml}
     <body name="spine" pos="0 0 {Rt + 0.001}">
       <freejoint name="root"/>
-      {inertial("spine", ms.get("spine", 1.0), com_shift)}
+      {inertial("spine", ms.get("spine", 1.0), com_shift, mp)}
       <site name="imu" pos="0 0 0"/>
       {f'<body name="payload" pos="{payload[1][0]:.4f} {payload[1][1]:.4f} {payload[1][2]:.4f}"><inertial pos="0 0 0" mass="{payload[0]:.4f}" diaginertia="{0.004 * payload[0]:.5f} {0.004 * payload[0]:.5f} {0.004 * payload[0]:.5f}"/></body>' if payload else ""}
       <site name="podL" pos="0 {0.285 + Dc} 0.0"/>
@@ -167,22 +178,22 @@ def build_xml2(slope_deg=0.0, friction=1.0, torsional=0.015, rolling=0.005, mass
       {wheel_xml}
       <body name="tyreL">
         <joint name="tyreL" type="hinge" axis="0 1 0" damping="0.01"/>
-        {inertial("tyreL", ms.get("tyre", 1.0), (0, dD, 0))}
+        {inertial("tyreL", ms.get("tyre", 1.0), (0, dI, 0), mp)}
         <geom name="tyreL" type="sphere" size="{Rt}" pos="0 {Dc} 0" contype="{TYRE_CT}" conaffinity="{TYRE_CA}"
               condim="6" friction="{friction} {torsional} {rolling}" rgba=".06 .06 .06 1" group="3"/>
       </body>
       <body name="tyreR">
         <joint name="tyreR" type="hinge" axis="0 1 0" damping="0.01"/>
-        {inertial("tyreR", ms.get("tyre", 1.0), (0, -dD, 0))}
+        {inertial("tyreR", ms.get("tyre", 1.0), (0, -dI, 0), mp)}
         <geom name="tyreR" type="sphere" size="{Rt}" pos="0 {-Dc} 0" contype="{TYRE_CT}" conaffinity="{TYRE_CA}"
               condim="6" friction="{friction} {torsional} {rolling}" rgba=".1 .1 .1 1" group="3"/>
       </body>
       <body name="yoke">
         <joint name="yoke" type="hinge" axis="0 1 0" damping="0.05"/>
-        {inertial("yoke", ms.get("yoke", 1.0))}
+        {inertial("yoke", ms.get("yoke", 1.0), (0, 0, 0), mp)}
         <body name="bob">
           <joint name="bob" type="hinge" axis="1 0 0" range="-0.698 0.698" limited="true"/>
-          {inertial("bob", ms.get("bob", 1.0))}
+          {inertial("bob", ms.get("bob", 1.0), (0, 0, 0), mp)}
         </body>
       </body>
     </body>

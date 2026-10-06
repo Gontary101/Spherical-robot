@@ -31,6 +31,7 @@ VARIANTS = {
     "roll wheel 15 N m": HW_MK2 | dict(wheel=W15),
     "crown 90 + lean 180 + PI level": HW_MK2 | dict(crown_d=0.090, lean_rate=180.0, level_pi=True),
     "Mk2.1": HW_MK2 | dict(crown_d=0.090, lean_rate=180.0, level_pi=True),
+    "Mk2.1 CAD": HW_MK2 | dict(crown_d=0.090, lean_rate=180.0, level_pi=True, cad="out21"),
     "crown 90 + lean 180 + PI + wheel 8": HW_MK2 | dict(crown_d=0.090, lean_rate=180.0, level_pi=True, wheel=W8),
 }
 
