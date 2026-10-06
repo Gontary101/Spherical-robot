@@ -58,7 +58,14 @@ EP_STEPS = 600
 ARENA = 8.0                      # half-size of the walled arena (16 x 16 m)
 V_RANGE = (-1.0, 3.5)
 W_RANGE = 2.5
-ROBOT_R = 0.36                   # half-width incl. pods (footprint radius used for planning / clearance)
+PLAN_MARGIN = 0.08               # planner keeps this much air between the robot's footprint and any mapped obstacle
+LIDAR_OVERSAMPLE = 4             # rays per beam bin; a beam reports the minimum (how a 2-D scan is cut from a 3-D cloud)
+
+
+def footprint_radius(hw):
+    """Circumscribed footprint radius from the hardware (CAD: sensor pods reach |y| = 0.353 m on Mk2 and move out with
+    the crown offset; the two crown spheres stay inside that circle)."""
+    return 0.353 + (hw["crown_d"] - 0.050)
 GRID = 0.1
 N_DYN = 6
 LOOKAHEAD = 2.5                  # planner subgoal distance along the path (m)
@@ -136,7 +143,10 @@ class Nav2Env:
         # navigation resets are frequent (short early episodes): reuse a per-worker terrain bank (flips/transposes add variety)
         self.loco.terrain_tol, self.loco.terrain_reuse, self.loco.terrain_cache = 0.3, 0.95, 24
         self.loco.lite = True
+        self.robot_r = footprint_radius(self.loco.hw)
         self.beam_ang = np.linspace(-np.pi, np.pi, N_BEAM, endpoint=False)
+        k = np.arange(LIDAR_OVERSAMPLE) - (LIDAR_OVERSAMPLE - 1) / 2
+        self.fine_ang = (self.beam_ang[:, None] + k[None, :] * (2 * np.pi / N_BEAM / LIDAR_OVERSAMPLE)).ravel()
         hf, vf = np.radians(45), np.radians(22.5)
         u, v = np.meshgrid(np.linspace(-hf, hf, DEPTH_W), np.linspace(vf, -vf, DEPTH_H) - np.radians(8))
         self.cam_dirs = np.stack([np.cos(v) * np.cos(u), np.cos(v) * np.sin(u), np.sin(v)], -1).reshape(-1, 3)
@@ -296,7 +306,7 @@ class Nav2Env:
             occ = self._occupancy(obs)
             from scipy.ndimage import distance_transform_edt
             clear = distance_transform_edt(~occ) * GRID
-            free = clear > ROBOT_R + 0.05
+            free = clear > self.robot_r + PLAN_MARGIN
             cand = np.argwhere(clear > 0.75)
             if len(cand) < 10:
                 continue
@@ -314,7 +324,7 @@ class Nav2Env:
         # prior map for the global planner: walls + a random subset of the free-standing obstacles
         from scipy.ndimage import distance_transform_edt as edt
         kept = [o for o in obs if o["wall"] or r.random() >= P["map_stale"]]
-        self.plan_free = edt(~self._occupancy(kept)) * GRID > ROBOT_R + 0.05
+        self.plan_free = edt(~self._occupancy(kept)) * GRID > self.robot_r + PLAN_MARGIN
         self.set_goal(np.array([self.gx[tuple(gi)], self.gy[tuple(gi)]]))
         self.static_specs = []
         for o in obs:
@@ -428,9 +438,10 @@ class Nav2Env:
         return np.minimum(dist, MAX_R)
 
     def _true_scan(self, pos, yaw):
-        a = self.beam_ang + yaw
+        a = self.fine_ang + yaw
         z = self.d.qpos[2]
-        return self._rays(np.array([pos[0], pos[1], z]), np.stack([np.cos(a), np.sin(a), np.zeros_like(a)], -1), self.g_obs)
+        r = self._rays(np.array([pos[0], pos[1], z]), np.stack([np.cos(a), np.sin(a), np.zeros_like(a)], -1), self.g_obs)
+        return r.reshape(N_BEAM, LIDAR_OVERSAMPLE).min(1)
 
     def _lidar(self, true):
         r, P = self.rng, self.P
@@ -540,7 +551,7 @@ class Nav2Env:
                 dp, dv = o["p"] - pos, o["v"]
                 ped[j] = [(c * dp[0] + s * dp[1]) / 5, (-s * dp[0] + c * dp[1]) / 5, c * dv[0] + s * dv[1], -s * dv[0] + c * dv[1]]
         critic = np.concatenate([1.0 - true / MAX_R, self._goal_feat(pos, yaw), [min(geo, 20) / 10], gd,
-                                 [t["v"] * 0.3, t["w"] * 0.4, lo.mu, (true.min() - ROBOT_R) / 2, self.P["k"]],
+                                 [t["v"] * 0.3, t["w"] * 0.4, lo.mu, (true.min() - self.robot_r) / 2, self.P["k"]],
                                  [np.linalg.norm(self.odo[:2] - pos), math.sin(self.odo[2] - yaw)], ped.ravel(), self.last_a]).astype(np.float32)
         return actor, critic
 
@@ -586,7 +597,7 @@ class Nav2Env:
         geo, _ = self._geo_at(pos)
         progress = float(np.clip(self.geo_prev - geo, -0.5, 0.5))
         self.geo_prev = geo
-        clearance = float(true.min()) - ROBOT_R
+        clearance = float(true.min()) - self.robot_r
         success = np.linalg.norm(self.goal - pos) < 0.5
         collided = hit_s or hit_d
         rew = (2.0 * progress - 0.01 - 0.5 * max(0.0, 0.5 - clearance) ** 2 - 0.05 * float(np.sum((a - self.last_a) ** 2))

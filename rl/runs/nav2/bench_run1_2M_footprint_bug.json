@@ -1,0 +1,314 @@
+{
+ "clutter": {
+  "nav2": {
+   "success": 0.625,
+   "collision": 0.1875,
+   "hit_dynamic": 0.0,
+   "fell": 0.0,
+   "timeout": 0.1875,
+   "spl": 0.5778372261746606
+  },
+  "vfh": {
+   "success": 0.25,
+   "collision": 0.6875,
+   "hit_dynamic": 0.0,
+   "fell": 0.0,
+   "timeout": 0.0625,
+   "spl": 0.24912798584224244
+  },
+  "oracle": {
+   "success": 0.8125,
+   "collision": 0.1875,
+   "hit_dynamic": 0.0,
+   "fell": 0.0,
+   "timeout": 0.0,
+   "spl": 0.7839242905512535
+  }
+ },
+ "forest (thin poles)": {
+  "nav2": {
+   "success": 0.25,
+   "collision": 0.75,
+   "hit_dynamic": 0.0,
+   "fell": 0.0,
+   "timeout": 0.0,
+   "spl": 0.21656093135572652
+  },
+  "vfh": {
+   "success": 0.375,
+   "collision": 0.5,
+   "hit_dynamic": 0.0,
+   "fell": 0.125,
+   "timeout": 0.0,
+   "spl": 0.375
+  },
+  "oracle": {
+   "success": 0.6875,
+   "collision": 0.3125,
+   "hit_dynamic": 0.0,
+   "fell": 0.0,
+   "timeout": 0.0,
+   "spl": 0.6845541878485191
+  }
+ },
+ "rooms, 1.0 m doors": {
+  "nav2": {
+   "success": 0.25,
+   "collision": 0.25,
+   "hit_dynamic": 0.0,
+   "fell": 0.0,
+   "timeout": 0.5,
+   "spl": 0.19937526886910967
+  },
+  "vfh": {
+   "success": 0.25,
+   "collision": 0.6875,
+   "hit_dynamic": 0.0,
+   "fell": 0.0,
+   "timeout": 0.0625,
+   "spl": 0.25
+  },
+  "oracle": {
+   "success": 0.3125,
+   "collision": 0.6875,
+   "hit_dynamic": 0.0,
+   "fell": 0.0,
+   "timeout": 0.0,
+   "spl": 0.30949570039663976
+  }
+ },
+ "maze": {
+  "nav2": {
+   "success": 0.4375,
+   "collision": 0.125,
+   "hit_dynamic": 0.0,
+   "fell": 0.0,
+   "timeout": 0.4375,
+   "spl": 0.4011613488403106
+  },
+  "vfh": {
+   "success": 0.1875,
+   "collision": 0.5625,
+   "hit_dynamic": 0.0,
+   "fell": 0.0625,
+   "timeout": 0.1875,
+   "spl": 0.1875
+  },
+  "oracle": {
+   "success": 0.5625,
+   "collision": 0.4375,
+   "hit_dynamic": 0.0,
+   "fell": 0.0,
+   "timeout": 0.0,
+   "spl": 0.5412667483689539
+  }
+ },
+ "mixed": {
+  "nav2": {
+   "success": 0.25,
+   "collision": 0.5,
+   "hit_dynamic": 0.0,
+   "fell": 0.0,
+   "timeout": 0.25,
+   "spl": 0.1815031230576561
+  },
+  "vfh": {
+   "success": 0.125,
+   "collision": 0.6875,
+   "hit_dynamic": 0.0,
+   "fell": 0.125,
+   "timeout": 0.0625,
+   "spl": 0.125
+  },
+  "oracle": {
+   "success": 0.5,
+   "collision": 0.5,
+   "hit_dynamic": 0.0,
+   "fell": 0.0,
+   "timeout": 0.0,
+   "spl": 0.4791909136879514
+  }
+ },
+ "maze, no map": {
+  "nav2": {
+   "success": 0.375,
+   "collision": 0.125,
+   "hit_dynamic": 0.0,
+   "fell": 0.0,
+   "timeout": 0.5,
+   "spl": 0.34985987723802625
+  },
+  "vfh": {
+   "success": 0.125,
+   "collision": 0.6875,
+   "hit_dynamic": 0.0,
+   "fell": 0.0625,
+   "timeout": 0.125,
+   "spl": 0.125
+  },
+  "oracle": {
+   "success": 0.5625,
+   "collision": 0.4375,
+   "hit_dynamic": 0.0,
+   "fell": 0.0,
+   "timeout": 0.0,
+   "spl": 0.5412667483689539
+  }
+ },
+ "mixed, 40 % stale map": {
+  "nav2": {
+   "success": 0.25,
+   "collision": 0.5,
+   "hit_dynamic": 0.0,
+   "fell": 0.0,
+   "timeout": 0.25,
+   "spl": 0.1815031230576561
+  },
+  "vfh": {
+   "success": 0.125,
+   "collision": 0.6875,
+   "hit_dynamic": 0.0,
+   "fell": 0.0,
+   "timeout": 0.1875,
+   "spl": 0.125
+  },
+  "oracle": {
+   "success": 0.5,
+   "collision": 0.5,
+   "hit_dynamic": 0.0,
+   "fell": 0.0,
+   "timeout": 0.0,
+   "spl": 0.4791909136879514
+  }
+ },
+ "6 pedestrians to 1.4 m/s": {
+  "nav2": {
+   "success": 0.5625,
+   "collision": 0.375,
+   "hit_dynamic": 0.125,
+   "fell": 0.0,
+   "timeout": 0.0625,
+   "spl": 0.5355165930006178
+  },
+  "vfh": {
+   "success": 0.375,
+   "collision": 0.625,
+   "hit_dynamic": 0.0,
+   "fell": 0.0,
+   "timeout": 0.0,
+   "spl": 0.375
+  },
+  "oracle": {
+   "success": 0.625,
+   "collision": 0.375,
+   "hit_dynamic": 0.1875,
+   "fell": 0.0,
+   "timeout": 0.0,
+   "spl": 0.6145688988416658
+  }
+ },
+ "LiDAR 60 deg blind sector": {
+  "nav2": {
+   "success": 0.1875,
+   "collision": 0.5,
+   "hit_dynamic": 0.0,
+   "fell": 0.0625,
+   "timeout": 0.3125,
+   "spl": 0.18643884117897963
+  },
+  "vfh": {
+   "success": 0.125,
+   "collision": 0.8125,
+   "hit_dynamic": 0.0,
+   "fell": 0.0,
+   "timeout": 0.0625,
+   "spl": 0.125
+  },
+  "oracle": {
+   "success": 0.5,
+   "collision": 0.5,
+   "hit_dynamic": 0.0,
+   "fell": 0.0,
+   "timeout": 0.0,
+   "spl": 0.4791909136879514
+  }
+ },
+ "depth camera dead": {
+  "nav2": {
+   "success": 0.0625,
+   "collision": 0.4375,
+   "hit_dynamic": 0.0,
+   "fell": 0.0,
+   "timeout": 0.5,
+   "spl": 0.0625
+  },
+  "vfh": {
+   "success": 0.1875,
+   "collision": 0.75,
+   "hit_dynamic": 0.0,
+   "fell": 0.0,
+   "timeout": 0.0625,
+   "spl": 0.1875
+  },
+  "oracle": {
+   "success": 0.5,
+   "collision": 0.5,
+   "hit_dynamic": 0.0,
+   "fell": 0.0,
+   "timeout": 0.0,
+   "spl": 0.4791909136879514
+  }
+ },
+ "dust: spurious returns 3 %": {
+  "nav2": {
+   "success": 0.25,
+   "collision": 0.3125,
+   "hit_dynamic": 0.0,
+   "fell": 0.0,
+   "timeout": 0.4375,
+   "spl": 0.24499392885720173
+  },
+  "vfh": {
+   "success": 0.125,
+   "collision": 0.875,
+   "hit_dynamic": 0.0,
+   "fell": 0.0,
+   "timeout": 0.0,
+   "spl": 0.125
+  },
+  "oracle": {
+   "success": 0.5,
+   "collision": 0.5,
+   "hit_dynamic": 0.0,
+   "fell": 0.0,
+   "timeout": 0.0,
+   "spl": 0.4791909136879514
+  }
+ },
+ "everything at once": {
+  "nav2": {
+   "success": 0.375,
+   "collision": 0.4375,
+   "hit_dynamic": 0.0,
+   "fell": 0.0,
+   "timeout": 0.1875,
+   "spl": 0.33074607009244084
+  },
+  "vfh": {
+   "success": 0.0625,
+   "collision": 0.8125,
+   "hit_dynamic": 0.0,
+   "fell": 0.0625,
+   "timeout": 0.0625,
+   "spl": 0.0625
+  },
+  "oracle": {
+   "success": 0.3125,
+   "collision": 0.6875,
+   "hit_dynamic": 0.25,
+   "fell": 0.0,
+   "timeout": 0.0,
+   "spl": 0.3125
+  }
+ }
+}

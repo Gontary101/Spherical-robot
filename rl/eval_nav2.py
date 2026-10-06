@@ -56,7 +56,7 @@ class VFH:
         bearing = math.atan2(math.sin(bearing), math.cos(bearing))
         ang = env.beam_ang
         k = int(round(np.radians(20) / (2 * np.pi / N_BEAM)))
-        free = np.array([scan[np.arange(i - k, i + k + 1) % N_BEAM].min() > 1.0 for i in range(N_BEAM)])
+        free = np.array([scan[np.arange(i - k, i + k + 1) % N_BEAM].min() > env.robot_r + 0.6 for i in range(N_BEAM)])
         if not free.any():
             return np.array([-0.6, 1.0])
         cost = np.abs(np.arctan2(np.sin(ang - bearing), np.cos(ang - bearing)))
