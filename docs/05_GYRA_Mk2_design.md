@@ -12,6 +12,16 @@ below is generated: CAD → mass properties → MuJoCo model → controllers/pol
 | Classical baseline | `sim/gyra2_sim.py` |
 | Learned control | `rl/` (asymmetric PPO), see [`06_learned_control.md`](06_learned_control.md) |
 
+![Mk2 hero](../media/mk2_hero.png)
+
+| Annotated cutaway | Front section (twin crowns, twin ring gears, seam slewing ring) |
+|---|---|
+| ![cutaway](../media/mk2_cutaway_annotated.png) | ![section](../media/mk2_section_front.png) |
+| **Pendulum 60°, bob 35° (driving + counter-leaning)** | **Exploded** |
+| ![posed](../media/mk2_cutaway_posed.png) | ![exploded](../media/mk2_exploded.png) |
+
+Interactive: [`docs/viewer/mk2.html`](viewer/mk2.html).
+
 ## 1. What changed vs Mk1 and why
 
 | | Mk1 | Mk2 | reason |

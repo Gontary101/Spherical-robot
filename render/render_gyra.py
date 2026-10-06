@@ -44,6 +44,7 @@ def args():
     ap.add_argument("--roll", type=float, default=0.0, help="robot lean (deg)")
     ap.add_argument("--spin", type=float, default=0.0, help="tyre rotation (deg)")
     ap.add_argument("--labels-only", action="store_true")
+    ap.add_argument("--ortho", type=float, default=0.655, help="orthographic frame width for section views (m)")
     return ap.parse_args(argv)
 
 
@@ -396,12 +397,12 @@ def main():
     elif s == "section_front":
         # true half-section at x = 0, orthographic view along -x
         cut(objs, ("",), (0.0, -1, -1), (1, 1, 1))
-        camera(sc, (2.0, 0, 0), (0, 0, -0.005), ortho=0.655)
+        camera(sc, (2.0, 0, 0), (0, 0, -0.005), ortho=a.ortho)
         bpy.data.objects["floor"].hide_render = True
     elif s == "section_side":
         # true section at y = +5 mm (just past the ring-gear mid-plane), view along -y
         cut(objs, ("",), (-1, 0.005, -1), (1, 1, 1))
-        camera(sc, (0, 2.0, 0), (0, 0, -0.005), ortho=0.655)
+        camera(sc, (0, 2.0, 0), (0, 0, -0.005), ortho=a.ortho)
         bpy.data.objects["floor"].hide_render = True
     else:
         raise SystemExit(f"unknown scene {s}")
