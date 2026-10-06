@@ -74,7 +74,8 @@ def obstacle_vertices(typ, size, n_seg=64):
 
 def build_xml2(slope_deg=0.0, friction=1.0, torsional=0.015, rolling=0.005, mass_scale=None,
                com_shift=(0, 0, 0), obstacles=(), lidar=False, timestep=0.001, arena=None, mesh_obstacles=(),
-               terrain=None, tyre_r=None, payload=None, gravity=None):
+               terrain=None, tyre_r=None, payload=None, gravity=None,
+               mocap_obstacles=()):
     """mass_scale: dict body->scale (domain randomisation). obstacles: list of (type, pos, size) primitives.
     mesh_obstacles: list of dicts {name, verts (local Nx3), pos, quat}: convex mesh geoms whose vertices are
     used verbatim for collision, ray-casting and rendering.
@@ -112,6 +113,13 @@ def build_xml2(slope_deg=0.0, friction=1.0, torsional=0.015, rolling=0.005, mass
         obs_xml += (f'<geom name="{o["name"]}" type="mesh" mesh="m_{o["name"]}" pos="{p[0]:.6f} {p[1]:.6f} {p[2]:.6f}" '
                     f'quat="{q[0]:.8f} {q[1]:.8f} {q[2]:.8f} {q[3]:.8f}" contype="{WORLD_CT}" conaffinity="{WORLD_CA}" '
                     f'rgba=".55 .45 .35 1" group="1"/>\n')
+    for o in mocap_obstacles:                  # moving obstacles (pedestrians, carts): mocap bodies, mesh geoms
+        v = " ".join(f"{c:.6f}" for c in np.asarray(o["verts"]).ravel())
+        asset_xml += f'<mesh name="m_{o["name"]}" vertex="{v}"/>\n'
+        p = o["pos"]
+        obs_xml += (f'<body name="{o["name"]}" mocap="true" pos="{p[0]:.6f} {p[1]:.6f} {p[2]:.6f}">'
+                    f'<geom name="{o["name"]}" type="mesh" mesh="m_{o["name"]}" contype="{WORLD_CT}" conaffinity="{WORLD_CA}" '
+                    f'rgba=".2 .5 .9 1" group="1"/></body>\n')
     sens = ""
     return f"""
 <mujoco model="gyra_mk2">

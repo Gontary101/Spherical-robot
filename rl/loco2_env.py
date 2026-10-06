@@ -68,8 +68,13 @@ def _rotz(yaw):
 
 
 class Loco2Env:
-    def __init__(self, seed=0, level=0.0, adaptive=True, scenario=None, record=False):
-        """scenario: fixed dict of overrides for evaluation (see eval_robust.py); disables the curriculum."""
+    def __init__(self, seed=0, level=0.0, adaptive=True, scenario=None, record=False, world_fn=None, ep_len=EP_LEN,
+                 external_cmd=False):
+        """scenario: fixed dict of overrides for evaluation (see eval_robust.py); disables the curriculum.
+        world_fn(S, hmap) -> (mesh_obstacles, mocap_obstacles): extra geometry compiled into the world (navigation).
+        external_cmd: commands are written to self.cmd by a higher level (no virtual operator)."""
+        self.world_fn, self.ep_len, self.external_cmd = world_fn, ep_len, external_cmd
+        self.spawn = None
         self.rng = np.random.default_rng(seed)
         self.level = level
         self.adaptive = adaptive and scenario is None
@@ -141,10 +146,12 @@ class Loco2Env:
             terrain = (asset, lo)
         sl, sd = S["slope"], S["slope_dir"]
         g = 9.81 * np.array([-np.sin(sl) * np.cos(sd), -np.sin(sl) * np.sin(sd), -np.cos(sl)])
+        extra = self.world_fn(S, h) if self.world_fn else ((), ())
         ms = dict(spine=S["mscale"][0], yoke=S["mscale"][1], bob=S["mscale"][2], tyre=S["mscale"][3])
         xml = build_xml2(friction=S["mu"], torsional=S["tors"], rolling=S["roll_fr"], mass_scale=ms, com_shift=S["com"],
                          timestep=DT / N_SUB, terrain=terrain, tyre_r=S["tyre_r"], gravity=g,
-                         payload=(S["payload"], S["payload_pos"]) if S["payload"] > 0.05 else None)
+                         payload=(S["payload"], S["payload_pos"]) if S["payload"] > 0.05 else None,
+                         mesh_obstacles=extra[0], mocap_obstacles=extra[1])
         self.m = mujoco.MjModel.from_xml_string(xml)
         if h is not None:
             self.m.hfield_data[:] = data.ravel()
@@ -279,6 +286,8 @@ class Loco2Env:
         self.next_cmd_t = self.d.time + r.uniform(1.5, 5.0)
 
     def _update_cmd(self):
+        if self.external_cmd:
+            return
         p = self.d.qpos[0:2]
         if self.d.time >= self.next_cmd_t:
             self._sample_cmd()
@@ -297,6 +306,10 @@ class Loco2Env:
         self.mu = S["mu"]
         d = self.d
         yaw = self.rng.uniform(-np.pi, np.pi)
+        if self.spawn is not None:
+            x, y, yaw = self.spawn
+            z0 = float(TR.height_at(self.hmap, np.array([x]), np.array([y]))[0]) if self.hmap is not None else 0.0
+            d.qpos[0:3] = [x, y, z0 + S["tyre_r"] + 0.002]
         d.qpos[3:7] = [np.cos(yaw / 2), 0, 0, np.sin(yaw / 2)]
         mujoco.mj_forward(self.m, d)
         self.last_a = np.zeros(N_ACT)
@@ -310,8 +323,9 @@ class Loco2Env:
         self.gust = np.zeros(2)
         self.wind_f = np.zeros(2)
         self.cmd = np.zeros(2)
-        self._sample_cmd()
-        self._update_cmd()
+        if not self.external_cmd:
+            self._sample_cmd()
+            self._update_cmd()
         self.ep_stats = dict(track=0.0, n=0, ev=0.0, ew=0.0, tilt=0.0, energy=0.0)
         t = self._truth()
         self.hist[:] = self._frame(t)
@@ -401,7 +415,7 @@ class Loco2Env:
         es["ew"] += ew ** 2
         es["tilt"] += t["pitch"] ** 2
         es["energy"] += (abs(tauL * wL) + abs(tauR * wR)) * DT
-        timeout = (self.steps >= EP_LEN or out) and not fell
+        timeout = (self.steps >= self.ep_len or out) and not fell
         done = fell or timeout
         info = {"ev": abs(ev), "ew": abs(ew), "fell": fell, "timeout": timeout, "terms": terms, "level": self.level}
         if done:

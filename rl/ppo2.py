@@ -68,6 +68,43 @@ class Actor2(nn.Module):
         return torch.distributions.Normal(mu, self.log_std.clamp(self.lo, self.hi).exp()), e
 
 
+class NavActor(nn.Module):
+    """LiDAR (3 stacked scans, circular 1-D conv) + depth image (2-D conv) + low-dim state -> (v, w) command."""
+    def __init__(self, n_beam, n_frames, dw, dh, n_low, n_act=2, init_std=0.4, min_std=0.05, max_std=0.6):
+        super().__init__()
+        self.nb, self.nf, self.dw, self.dh = n_beam, n_frames, dw, dh
+        self.lidar = nn.Sequential(
+            nn.Conv1d(n_frames, 16, 5, padding=2, padding_mode="circular"), nn.ELU(),
+            nn.Conv1d(16, 32, 5, stride=2, padding=2, padding_mode="circular"), nn.ELU(),
+            nn.Conv1d(32, 32, 3, stride=2, padding=1, padding_mode="circular"), nn.ELU(), nn.Flatten(),
+            nn.Linear(32 * ((n_beam + 3) // 4), 128), nn.ELU())
+        self.depth = nn.Sequential(
+            nn.Conv2d(1, 16, 3, padding=1), nn.ELU(),
+            nn.Conv2d(16, 32, 3, stride=2, padding=1), nn.ELU(),
+            nn.Conv2d(32, 32, 3, stride=2, padding=1), nn.ELU(), nn.Flatten())
+        with torch.no_grad():
+            nd = self.depth(torch.zeros(1, 1, dh, dw)).shape[1]
+        self.depth_fc = nn.Sequential(nn.Linear(nd, 128), nn.ELU())
+        self.pi = mlp(128 + 128 + n_low, n_act, (256, 128))
+        self.log_std = nn.Parameter(torch.full((n_act,), float(np.log(init_std))))
+        self.lo, self.hi = float(np.log(min_std)), float(np.log(max_std))
+        with torch.no_grad():
+            self.pi[-1].weight.mul_(0.01)
+            self.pi[-1].bias.zero_()
+
+    def mean(self, obs):
+        B = obs.shape[0]
+        nl = self.nb * self.nf
+        nd = self.dw * self.dh
+        li = self.lidar(obs[:, :nl].reshape(B, self.nf, self.nb))
+        de = self.depth_fc(self.depth(obs[:, nl:nl + nd].reshape(B, 1, self.dh, self.dw)))
+        return self.pi(torch.cat([li, de, obs[:, nl + nd:]], 1)), obs[:, :0]
+
+    def dist(self, obs):
+        mu, e = self.mean(obs)
+        return torch.distributions.Normal(mu, self.log_std.clamp(self.lo, self.hi).exp()), e
+
+
 class Deployable(nn.Module):
     """Raw observation -> normalise -> actor mean -> clamp. This is what runs on the robot."""
     def __init__(self, actor, mean, std, clip):
@@ -81,6 +118,20 @@ class Deployable(nn.Module):
         x = torch.clamp((obs - self.m) / self.s, -self.clip, self.clip)
         mu, _ = self.actor.mean(x)
         return torch.clamp(mu, -1, 1)
+
+
+class PermMirror:
+    """Mirror given directly as a full observation permutation + signs."""
+    def __init__(self, perm, signs, act_signs):
+        self.idx = torch.as_tensor(np.asarray(perm))
+        self.sg = torch.as_tensor(np.asarray(signs, np.float32))
+        self.asg = torch.as_tensor(np.asarray(act_signs, np.float32))
+
+    def obs(self, o_raw):
+        return o_raw[:, self.idx] * self.sg
+
+    def act(self, a):
+        return a * self.asg
 
 
 class Mirror:
@@ -181,7 +232,7 @@ class PPO2:
                 v = self.critic(oc[idx]).squeeze(-1)
                 v_cl = val_old[idx] + (v - val_old[idx]).clamp(-self.clip, self.clip)
                 v_loss = torch.max((v - ret_t[idx]) ** 2, (v_cl - ret_t[idx]) ** 2).mean()
-                est_loss = ((e - est_tgt[idx]) ** 2).mean()
+                est_loss = ((e - est_tgt[idx]) ** 2).mean() if self.n_est else torch.zeros(())
                 ent = d.entropy().sum(-1).mean()
                 loss = pi_loss + self.vf * v_loss + self.est_coef * est_loss - self.ent * ent
                 sym_loss = torch.zeros(())
@@ -250,7 +301,7 @@ def rollout2(env, agent, oa, oc, T):
         buf["oa_n"].append(agent.na(oa))
         buf["oa_raw"].append(oa.astype(np.float32))
         buf["oc_n"].append(agent.nc(oc))
-        buf["oc_raw"].append(oc[:, :agent.n_est].astype(np.float32))
+        buf["oc_raw"].append(oc[:, :max(agent.n_est, 1)].astype(np.float32))
         oa2, oc2, r, d, infos = env.step(np.clip(a, -1, 1))
         rs = agent.scale_reward(r, d).astype(np.float32)
         nv = agent.value(oc2)

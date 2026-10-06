@@ -18,6 +18,7 @@ from mathutils import Quaternion, Vector
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+sys.path.insert(0, os.path.join(HERE, "..", "sim"))
 import render_gyra as RG  # noqa: E402
 
 FPS = 24
@@ -26,7 +27,7 @@ FPS = 24
 def args():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     ap = argparse.ArgumentParser()
-    ap.add_argument("--mission", default=os.path.join(RG.ROOT, "media", "mission.npz"))
+    ap.add_argument("--mission", default=os.path.join(RG.ROOT, "media", "mission2.npz"))
     ap.add_argument("--out", required=True)
     ap.add_argument("--res", default="1280x720")
     ap.add_argument("--samples", type=int, default=12)
@@ -106,7 +107,39 @@ def striped_barrel_mat():
     return m
 
 
+def mesh_object(name, verts, faces, mat, smooth=False):
+    me = bpy.data.meshes.new(name)
+    me.from_pydata([tuple(v) for v in verts], [], [tuple(int(i) for i in f) for f in faces])
+    me.validate(clean_customdata=False)
+    me.update()
+    ob = bpy.data.objects.new(name, me)
+    bpy.context.scene.collection.objects.link(ob)
+    ob.data.materials.append(mat)
+    for poly in me.polygons:
+        poly.use_smooth = smooth
+    return ob
+
+
+def ground_mat():
+    m = bpy.data.materials.new("ground")
+    m.use_nodes = True
+    nt = m.node_tree
+    b = nt.nodes["Principled BSDF"]
+    noise = nt.nodes.new("ShaderNodeTexNoise")
+    noise.inputs["Scale"].default_value = 1.6
+    noise.inputs["Detail"].default_value = 8.0
+    ramp = nt.nodes.new("ShaderNodeValToRGB")
+    ramp.color_ramp.elements[0].color = (0.17, 0.17, 0.16, 1)
+    ramp.color_ramp.elements[1].color = (0.30, 0.29, 0.27, 1)
+    nt.links.new(noise.outputs["Fac"], ramp.inputs["Fac"])
+    nt.links.new(ramp.outputs["Color"], b.inputs["Base Color"])
+    b.inputs["Roughness"].default_value = 0.8
+    return m
+
+
 def build_world(sc, mission):
+    """Every obstacle, wall, pole, pedestrian and the terrain is built from the geometry read back from the
+    compiled MuJoCo model (no primitives, no bevels): what is rendered is what the robot collides with."""
     sc.world = bpy.data.worlds.new("sky")
     sc.world.use_nodes = True
     nt = sc.world.node_tree
@@ -122,37 +155,82 @@ def build_world(sc, mission):
     sun.data.energy = 2.2
     sun.data.angle = math.radians(3)
 
-    bpy.ops.mesh.primitive_plane_add(size=60, location=(0, 0, 0))
-    bpy.context.object.data.materials.append(concrete_floor())
+    gm = ground_mat()
+    h = mission["terrain"]
+    if h.size:
+        import terrain as TR
+        TR.N, TR.HALF = h.shape[0], float(mission["terrain_half"])
+        V, F = TR.mesh(h.astype(float))
+        mesh_object("terrain", V, F, gm, smooth=False)
+        z_out = float(h.min()) - 0.02
+    else:
+        z_out = 0.0
+        mesh_object("floor0", [(-8.5, -8.5, 0), (8.5, -8.5, 0), (8.5, 8.5, 0), (-8.5, 8.5, 0)], [(0, 1, 2, 3)], concrete_floor())
+    bpy.ops.mesh.primitive_plane_add(size=400, location=(0, 0, z_out))       # ground beyond the patch
+    bpy.context.object.data.materials.append(gm)
+    bpy.context.object.name = "outer_ground"
 
-    obs = json.loads(str(mission["obstacles"]))
     wall_m = concrete_floor()
     crate_m = RG.mat("crate", (0.16, 0.18, 0.21), rough=0.55)
     barrel_m = striped_barrel_mat()
-    for o in obs:
-        p, s, q = o["pos"], o["size"], o["quat"]
-        if o["type"] == "cylinder":
-            bpy.ops.mesh.primitive_cylinder_add(radius=s[0], depth=2 * s[1], location=p, vertices=40)
-            ob = bpy.context.object
-            ob.data.materials.append(barrel_m)
-            bpy.ops.object.shade_smooth()
+    pole_m = RG.mat("pole", (0.75, 0.6, 0.12), rough=0.4)
+    for o in json.loads(str(mission["static"])):
+        if o["wall"]:
+            mat = wall_m
+        elif o["kind"] == "cylinder":
+            r = max(abs(v[0] - o["verts"][0][0]) for v in o["verts"]) / 2
+            mat = pole_m if r < 0.16 else barrel_m
         else:
-            bpy.ops.mesh.primitive_cube_add(size=1, location=p)
-            ob = bpy.context.object
-            ob.scale = (2 * s[0], 2 * s[1], 2 * s[2])
-            ob.rotation_mode = "QUATERNION"
-            ob.rotation_quaternion = Quaternion(q)
-            ob.data.materials.append(wall_m if o["wall"] else crate_m)
-            bev = ob.modifiers.new("bevel", "BEVEL")
-            bev.width = 0.015
-            bev.segments = 2
-    # waypoint rings: cyan while pending, green once reached
+            mat = crate_m
+        mesh_object(o["name"], o["verts"], o["faces"], mat)
+    peds = []
+    dyn = json.loads(str(mission["dyn"]))
+    if dyn:
+        ped_m = RG.mat("pedestrian", (0.12, 0.35, 0.75), rough=0.5)
+        for i in range(int(mission["n_dyn"])):
+            ob = mesh_object(f"ped{i}", dyn["verts"], dyn["faces"], ped_m)
+            peds.append((ob, np.array(dyn["offset"])))
+    return peds
+
+
+def verify_geometry(sc, mission, report):
+    """Re-cast the MuJoCo probe rays against the Blender scene: rendered geometry must equal collision geometry."""
+    moving = [o for o in sc.objects if o.name.startswith("ped")]          # probes cover static geometry only
+    for o in moving:
+        o.hide_viewport = True
+    bpy.context.view_layer.update()
+    dg = bpy.context.evaluated_depsgraph_get()
+    P = mission["probes"]
+    errs, info = [], []
+    for p in P:
+        o, v, dist = Vector(p[0:3]), Vector(p[3:6]), p[6]
+        hit, loc, nrm, idx, ob, mtx = sc.ray_cast(dg, o, v, distance=20.0)
+        errs.append(abs((loc - o).length - dist) if hit else float("inf"))
+        info.append(dict(o=list(p[0:3]), v=list(p[3:6]), mujoco=float(dist), blender=(loc - o).length if hit else None,
+                         obj=ob.name if hit else None))
+    errs = np.array(errs)
+    worst = [info[i] | {"err": float(errs[i])} for i in np.argsort(-errs)[:12]]
+    res = dict(n_rays=int(len(errs)), max_err_m=float(errs.max()), p99_err_m=float(np.percentile(errs, 99)),
+               n_over_1mm=int((errs > 1e-3).sum()), worst=worst)
+    for o in moving:
+        o.hide_viewport = False
+    json.dump(res, open(report, "w"), indent=1)
+    print("GEOMETRY CHECK (MuJoCo rays vs Blender scene):", {k: v for k, v in res.items() if k != "worst"}, flush=True)
+    return res
+
+
+def waypoint_markers(mission):
     rings = []
+    h = mission["terrain"]
     for i, w in enumerate(mission["wps"]):
-        bpy.ops.mesh.primitive_torus_add(major_radius=0.55, minor_radius=0.025, location=(w[0], w[1], 0.03))
+        z = 0.0
+        if h.size:
+            import terrain as TR
+            z = float(TR.height_at(h.astype(float), w[0], w[1]))
+        bpy.ops.mesh.primitive_torus_add(major_radius=0.55, minor_radius=0.025, location=(w[0], w[1], z + 0.03))
         r = bpy.context.object
         r.data.materials.append(emission_mat(f"wp{i}", (0.1, 0.8, 1.0), 6.0))
-        bpy.ops.mesh.primitive_cylinder_add(radius=0.03, depth=1.6, location=(w[0], w[1], 0.8))
+        bpy.ops.mesh.primitive_cylinder_add(radius=0.03, depth=1.6, location=(w[0], w[1], z + 0.8))
         pole = bpy.context.object
         pole.data.materials.append(emission_mat(f"wpp{i}", (0.1, 0.8, 1.0), 3.0))
         rings.append((r, pole))
@@ -198,10 +276,14 @@ def main():
     mission = np.load(a.mission)
     F = mission["frames"]            # t, qpos[0:7], qL, qR, qyoke, qbob, v, w, roll, vcmd, wcmd
     reached = list(mission["reached"])
+    peds = build_world(sc, mission)
+    os.makedirs(os.path.dirname(a.out), exist_ok=True)
+    verify_geometry(sc, mission, os.path.join(os.path.dirname(a.out), "geometry_check.json"))
+    rings = waypoint_markers(mission)
     objs = RG.load()
     RG.assign(objs, RG.materials())
     rg = rig2(objs)
-    rings = build_world(sc, mission)
+    n_dyn = int(mission["n_dyn"])
 
     cam_data = bpy.data.cameras.new("chase")
     cam_data.lens = 30
@@ -229,6 +311,8 @@ def main():
     for i in range(1, len(pos_s)):
         pos_s[i] = pos_s[i - 1] + beta * (F[i, 1:3] - pos_s[i - 1])
 
+    ped_z = [np.full(len(F), z) for z in mission["dyn_z"]]          # mocap body heights, as simulated
+
     def state(frame):
         t = (frame - 1) / FPS
         i = min(int(round(t / 0.02)), len(F) - 1)
@@ -248,7 +332,10 @@ def main():
         for ob in (rg["tl"], rg["tr"], rg["yoke"], rg["bob"]):
             ob.keyframe_insert("rotation_euler", frame=frame)
         h = sm[i]
-        target = Vector((pos_s[i, 0], pos_s[i, 1], 0.32))
+        for j, (ob, off) in enumerate(peds):
+            ob.location = Vector(f[17 + 2 * j:19 + 2 * j].tolist() + [0.0]) + Vector(off) + Vector((0, 0, ped_z[j][i]))
+            ob.keyframe_insert("location", frame=frame)
+        target = Vector((pos_s[i, 0], pos_s[i, 1], f[3] + 0.02))
         back = Vector((math.cos(h), math.sin(h), 0))
         cam.location = target - back * 3.1 + Vector((0, 0, 1.25))
         d = (target + back * 0.9) - cam.location

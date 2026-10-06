@@ -35,7 +35,8 @@ def _band_noise(rng, lo_wl, hi_wl, n=None):
 
 
 def _grid():
-    x = (np.arange(N) + 0.5) * CELL - HALF
+    """World (X, Y) of every heightfield VERTEX, exactly as MuJoCo lays them out: x = -HALF + c * 2 HALF / (N - 1)."""
+    x = np.linspace(-HALF, HALF, N)
     return np.meshgrid(x, x)          # X varies along columns, Y along rows
 
 
@@ -109,14 +110,27 @@ def make(rng, family, k):
 
 
 def height_at(h, x, y):
-    """Bilinear height at world (x, y); MuJoCo hfield row index runs along +y, column along +x."""
-    fx = (x + HALF) / CELL - 0.5
-    fy = (y + HALF) / CELL - 0.5
-    fx = np.clip(fx, 0, N - 1.001)
-    fy = np.clip(fy, 0, N - 1.001)
-    i0, j0 = np.floor(fy).astype(int), np.floor(fx).astype(int)
-    ty, tx = fy - i0, fx - j0
-    return ((1 - ty) * ((1 - tx) * h[i0, j0] + tx * h[i0, j0 + 1]) + ty * ((1 - tx) * h[i0 + 1, j0] + tx * h[i0 + 1, j0 + 1]))
+    """Height of the heightfield surface at world (x, y), identical to what MuJoCo collides with and ray-casts:
+    vertices on the N x N grid spanning [-HALF, HALF], each cell split along its (r, c)-(r+1, c+1) diagonal."""
+    x, y = np.asarray(x, float), np.asarray(y, float)
+    sp = 2 * HALF / (N - 1)
+    c = np.clip((x + HALF) / sp, 0, N - 1 - 1e-9)
+    r = np.clip((y + HALF) / sp, 0, N - 1 - 1e-9)
+    c0, r0 = np.floor(c).astype(int), np.floor(r).astype(int)
+    u, v = c - c0, r - r0
+    z00, z01, z10, z11 = h[r0, c0], h[r0, c0 + 1], h[r0 + 1, c0], h[r0 + 1, c0 + 1]
+    upper = u >= v
+    return np.where(upper, z00 + u * (z01 - z00) + v * (z11 - z01), z00 + v * (z10 - z00) + u * (z11 - z10))
+
+
+def mesh(h):
+    """Triangle mesh (vertices, faces) of the heightfield with MuJoCo's exact triangulation (for rendering)."""
+    X, Y = _grid()
+    V = np.c_[X.ravel(), Y.ravel(), h.ravel()]
+    idx = np.arange(N * N).reshape(N, N)
+    a, b, c, d = idx[:-1, :-1].ravel(), idx[:-1, 1:].ravel(), idx[1:, :-1].ravel(), idx[1:, 1:].ravel()
+    F = np.concatenate([np.c_[a, b, d], np.c_[a, d, c]])
+    return V, F
 
 
 def hfield_xml(h, name="terrain"):
