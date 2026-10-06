@@ -79,8 +79,9 @@ def _clamp(x, lo, hi):
 class ClassicalController:
     """Cascade speed loop + differential yaw-rate loop + counter-lean + spine levelling."""
 
-    def __init__(self, dt):
+    def __init__(self, dt, lean_rate_deg=60.0):
         self.dt = dt
+        self.lean_rate = np.radians(lean_rate_deg)       # bob actuator slew limit (worm drive: 60 deg/s)
         self.iv = 0.0
         self.iw = 0.0
         self.bob = 0.0
@@ -110,7 +111,7 @@ class ClassicalController:
         # counter-lean: feed-forward from the commanded lateral acceleration + roll feedback
         a_ff = s["v"] * self.wc
         bob_des = _clamp(1.1 * a_ff / 9.81 + 1.2 * s["roll"] + 0.25 * s["roll_rate"], -0.698, 0.698)
-        step = np.radians(60) * self.dt
+        step = self.lean_rate * self.dt
         self.bob += _clamp(bob_des - self.bob, -step, step)
         level = 90 * s["pitch"] + 9 * s["pitch_rate"]
         return 0.5 * tau_sum - 0.5 * tau_diff, 0.5 * tau_sum + 0.5 * tau_diff, level, self.bob

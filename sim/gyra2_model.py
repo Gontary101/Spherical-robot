@@ -20,6 +20,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 MP2 = json.load(open(os.path.join(ROOT, "cad", "out2", "mass_properties.json")))
 R = 0.300
 D = 0.050
+POD_PROFILE = json.load(open(os.path.join(ROOT, "cad", "out2", "pod_profile.json")))  # CAD pod radius per |y| slice (m)
 
 # contact groups: robot tyres (1) collide with world (2) only
 TYRE_CT, TYRE_CA = 1, 2
@@ -75,13 +76,17 @@ def obstacle_vertices(typ, size, n_seg=64):
 def build_xml2(slope_deg=0.0, friction=1.0, torsional=0.015, rolling=0.005, mass_scale=None,
                com_shift=(0, 0, 0), obstacles=(), lidar=False, timestep=0.001, arena=None, mesh_obstacles=(),
                terrain=None, tyre_r=None, payload=None, gravity=None,
-               mocap_obstacles=()):
+               mocap_obstacles=(), crown_d=None, roll_wheel=None, pods=True):
     """mass_scale: dict body->scale (domain randomisation). obstacles: list of (type, pos, size) primitives.
     mesh_obstacles: list of dicts {name, verts (local Nx3), pos, quat}: convex mesh geoms whose vertices are
     used verbatim for collision, ray-casting and rendering.
     terrain: (hfield asset xml, z offset) from sim/terrain.py; the data is written into m.hfield_data after compiling.
     tyre_r: tyre crown radius (wear / manufacturing randomisation). payload: (mass kg, (x, y, z) m) bolted to the
-    spine. gravity: explicit gravity vector (overrides slope_deg)."""
+    spine. gravity: explicit gravity vector (overrides slope_deg).
+    crown_d: lateral offset of each tyre-half sphere centre (default D = 50 mm); pods and tyre masses move with it.
+    roll_wheel: dict(I=kg m^2 about the roll axis, mass=kg, tau=N m) adds a reaction wheel on the spine (hinge about x).
+    pods: collision geometry of the two sensor pods (stacked cylinders following the CAD radial profile, |y| 258-353 mm). A pod touching the ground is a
+    "pod strike" - with the tyre-half spheres truncated at the pod openings this is what really stops a roll."""
     ms = mass_scale or {}
     g = 9.81
     s = np.radians(slope_deg)
@@ -91,6 +96,19 @@ def build_xml2(slope_deg=0.0, friction=1.0, torsional=0.015, rolling=0.005, mass
     else:
         gy = 0.0
     Rt = R if tyre_r is None else tyre_r
+    Dc = D if crown_d is None else crown_d
+    dD = Dc - D
+    pod_xml, pod_asset = "", ""
+    if pods:                      # stacked cylinders following the CAD radial profile of each pod (6 mm slices)
+        for side, sg in (("L", 1), ("R", -1)):
+            for j, (y0, y1, r) in enumerate(POD_PROFILE[side]):
+                pod_xml += (f'<geom name="pod{side}{j}" type="cylinder" fromto="0 {sg * (y0 + dD):.4f} 0 0 {sg * (y1 + dD):.4f} 0" '
+                            f'size="{r:.4f}" contype="{TYRE_CT}" conaffinity="{TYRE_CA}" condim="3" rgba=".9 .5 .1 .3" group="3" mass="0"/>\n')
+    wheel_xml = ""
+    if roll_wheel:
+        I, mw = roll_wheel["I"], roll_wheel["mass"]
+        wheel_xml = (f'<body name="rollwheel" pos="0 0 -0.04"><joint name="rollwheel" type="hinge" axis="1 0 0" damping="0.0005"/>'
+                     f'<inertial pos="0 0 0" mass="{mw:.4f}" diaginertia="{I:.5f} {I / 2:.5f} {I / 2:.5f}"/></body>')
     obs_xml = ""
     if terrain is not None:
         asset_t, z0 = terrain
@@ -125,6 +143,7 @@ def build_xml2(slope_deg=0.0, friction=1.0, torsional=0.015, rolling=0.005, mass
 <mujoco model="gyra_mk2">
   <compiler angle="radian" inertiafromgeom="false"/>
   <asset>
+    {pod_asset}
     {asset_t if terrain is not None else ""}
     {asset_xml}
   </asset>
@@ -142,18 +161,20 @@ def build_xml2(slope_deg=0.0, friction=1.0, torsional=0.015, rolling=0.005, mass
       {inertial("spine", ms.get("spine", 1.0), com_shift)}
       <site name="imu" pos="0 0 0"/>
       {f'<body name="payload" pos="{payload[1][0]:.4f} {payload[1][1]:.4f} {payload[1][2]:.4f}"><inertial pos="0 0 0" mass="{payload[0]:.4f}" diaginertia="{0.004 * payload[0]:.5f} {0.004 * payload[0]:.5f} {0.004 * payload[0]:.5f}"/></body>' if payload else ""}
-      <site name="podL" pos="0 {0.285 + D} 0.0"/>
-      <site name="podR" pos="0 {-0.285 - D} 0.0"/>
+      <site name="podL" pos="0 {0.285 + Dc} 0.0"/>
+      <site name="podR" pos="0 {-0.285 - Dc} 0.0"/>
+      {pod_xml}
+      {wheel_xml}
       <body name="tyreL">
         <joint name="tyreL" type="hinge" axis="0 1 0" damping="0.01"/>
-        {inertial("tyreL", ms.get("tyre", 1.0))}
-        <geom name="tyreL" type="sphere" size="{Rt}" pos="0 {D} 0" contype="{TYRE_CT}" conaffinity="{TYRE_CA}"
+        {inertial("tyreL", ms.get("tyre", 1.0), (0, dD, 0))}
+        <geom name="tyreL" type="sphere" size="{Rt}" pos="0 {Dc} 0" contype="{TYRE_CT}" conaffinity="{TYRE_CA}"
               condim="6" friction="{friction} {torsional} {rolling}" rgba=".06 .06 .06 1" group="3"/>
       </body>
       <body name="tyreR">
         <joint name="tyreR" type="hinge" axis="0 1 0" damping="0.01"/>
-        {inertial("tyreR", ms.get("tyre", 1.0))}
-        <geom name="tyreR" type="sphere" size="{Rt}" pos="0 {-D} 0" contype="{TYRE_CT}" conaffinity="{TYRE_CA}"
+        {inertial("tyreR", ms.get("tyre", 1.0), (0, -dD, 0))}
+        <geom name="tyreR" type="sphere" size="{Rt}" pos="0 {-Dc} 0" contype="{TYRE_CT}" conaffinity="{TYRE_CA}"
               condim="6" friction="{friction} {torsional} {rolling}" rgba=".1 .1 .1 1" group="3"/>
       </body>
       <body name="yoke">
@@ -175,6 +196,7 @@ def build_xml2(slope_deg=0.0, friction=1.0, torsional=0.015, rolling=0.005, mass
     <motor name="driveR" tendon="driveR" ctrlrange="-90 90" ctrllimited="true"/>
     <motor name="level" joint="yoke" ctrlrange="-15 15" ctrllimited="true"/>
     <position name="lean" joint="bob" kp="1500" kv="60" ctrlrange="-0.698 0.698" forcerange="-120 120"/>
+    {f'<motor name="rollwheel" joint="rollwheel" ctrlrange="-{roll_wheel["tau"]} {roll_wheel["tau"]}" ctrllimited="true"/>' if roll_wheel else ""}
   </actuator>
   {sens}
 </mujoco>

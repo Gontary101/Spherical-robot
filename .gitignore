@@ -12,3 +12,7 @@ rl/runs/loco2/*.pt
 rl/runs/loco2/*.ts
 rl/runs/nav2/*.pt
 rl/runs/nav2/*.ts
+rl/runs/loco3/*.pt
+rl/runs/loco3/*.ts
+rl/runs/loco3/progress.csv
+rl/runs/loco3/train.log

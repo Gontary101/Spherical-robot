@@ -78,13 +78,13 @@ def make_policy(name, v2_path):
 
 
 def run_scenario(args):
-    name, pol_name, v2_path, n_ep, seed0 = args
+    name, pol_name, v2_path, n_ep, seed0, hw = args
     pol = make_policy(pol_name, v2_path)
     sc = dict(NOMINAL)
     sc.update(SCENARIOS[name])
     out = []
     for ep in range(n_ep):
-        env = Loco2Env(seed=seed0 + ep, scenario=sc)
+        env = Loco2Env(seed=seed0 + ep, scenario=sc, hw=hw)
         oa, oc = env.reset()
         dist = 0.0
         while True:
@@ -112,9 +112,11 @@ def main():
     ap.add_argument("--procs", type=int, default=4)
     ap.add_argument("--scenarios", nargs="*", default=None)
     ap.add_argument("--out", default=os.path.join(ROOT, "docs", "robustness"))
+    ap.add_argument("--hw", default="Mk2.1", help="hardware variant (rl/hw_study.py VARIANTS)")
     a = ap.parse_args()
+    from hw_study import VARIANTS
     names = a.scenarios or list(SCENARIOS)
-    jobs = [(n, p, a.v2, a.episodes, 5000) for n in names for p in a.policies]
+    jobs = [(n, p, a.v2, a.episodes, 5000, VARIANTS[a.hw]) for n in names for p in a.policies]
     with mp.get_context("fork").Pool(a.procs) as pool:
         res = pool.map(run_scenario, jobs, chunksize=1)
     table = {}

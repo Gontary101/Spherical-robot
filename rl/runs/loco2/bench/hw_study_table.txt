@@ -1,0 +1,19 @@
+scenario (fall %, classical ctrl) |           Mk2 as built |    fast lean 180 deg/s |     crown offset 90 mm |       roll wheel 8 N m |      roll wheel 15 N m | crown 90 + lean 180 +  | crown 90 + lean 180 + 
+flat, 3 m/s                    |                      6 |                      6 |                      0 |                      6 |                      6 |                      0 |                      0
+flat, 8 m/s                    |                     38 |                     56 |                     44 |                     50 |                     38 |                     50 |                     50
+hills                          |                     25 |                      0 |                      0 |                      0 |                      0 |                      0 |                      0
+rough + potholes               |                     19 |                     12 |                     12 |                      6 |                      6 |                      6 |                      0
+curbs / steps 6 cm             |                      0 |                      0 |                      0 |                      0 |                      0 |                      0 |                      0
+ramps to 15 deg                |                     19 |                     12 |                      6 |                     12 |                      6 |                      0 |                      6
+12 deg incline                 |                     88 |                     81 |                     56 |                     88 |                     88 |                     56 |                     56
+ice (mu 0.3)                   |                      6 |                      6 |                      6 |                      6 |                      0 |                      6 |                      6
+asphalt -> ice at 8 s          |                     12 |                     12 |                     12 |                     12 |                      6 |                     12 |                     12
+pushes to 350 N                |                     69 |                     50 |                     31 |                     56 |                     50 |                     12 |                      6
+wind 40 N + gusts              |                     44 |                     38 |                     19 |                     31 |                     31 |                     12 |                     12
+payload 10 kg off-centre       |                     38 |                     44 |                     12 |                     31 |                     25 |                     12 |                      6
+weak motors (70 %)             |                      6 |                      6 |                      0 |                      6 |                      6 |                      0 |                      0
+40 ms latency                  |                      6 |                      6 |                      0 |                      6 |                      6 |                      0 |                      0
+IMU bias + misalignment        |                      6 |                      6 |                      0 |                      6 |                      6 |                      0 |                      0
+everything at once             |                     38 |                     38 |                      6 |                     12 |                      6 |                      6 |                      0
+MEAN                           |                   26.2 |                   23.4 |                   12.9 |                   20.7 |                   17.6 |                   10.9 |                    9.8
+mean spine tilt (deg)          |                   1.00 |                   0.95 |                   0.72 |                   1.06 |                   1.14 |                   0.28 |                   0.33

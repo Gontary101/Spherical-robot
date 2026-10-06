@@ -58,6 +58,15 @@ RES_SUM, RES_DIFF, RES_BOB = 60.0, 60.0, 0.5
 GEOFENCE = TR.HALF - 4.0
 
 
+# hardware configuration. Mk2 as built: 50 mm crown offset, worm-drive bob (60 deg/s nominal), P-only spine levelling,
+# no roll actuator. Variants are evaluated by rl/hw_study.py.
+HW_MK2 = dict(crown_d=0.050, lean_rate=60.0, wheel=None, level_pi=False, a_roll=4.0)
+# Mk2.1 (rl/hw_study.py): crown offset 90 mm (+80 mm width), 180 deg/s lean actuator, PI spine levelling
+HW_MK21 = dict(crown_d=0.090, lean_rate=180.0, wheel=None, level_pi=True, a_roll=4.0)
+ADR_FACTORS = ("terrain", "slope", "friction", "push", "wind", "payload", "actuator", "sensor", "speed")
+TAU_PEND = 39.7                  # N m: pendulum gravity torque m g L at 90 deg (CAD)
+
+
 def _clamp(x, lo, hi):
     return lo if x < lo else (hi if x > hi else x)
 
@@ -69,11 +78,13 @@ def _rotz(yaw):
 
 class Loco2Env:
     def __init__(self, seed=0, level=0.0, adaptive=True, scenario=None, record=False, world_fn=None, ep_len=EP_LEN,
-                 external_cmd=False):
+                 external_cmd=False, hw=None):
         """scenario: fixed dict of overrides for evaluation (see eval_robust.py); disables the curriculum.
         world_fn(S, hmap) -> (mesh_obstacles, mocap_obstacles): extra geometry compiled into the world (navigation).
         external_cmd: commands are written to self.cmd by a higher level (no virtual operator)."""
         self.world_fn, self.ep_len, self.external_cmd = world_fn, ep_len, external_cmd
+        self.hw = dict(HW_MK21) | (hw or {})          # default: the adopted Mk2.1 hardware
+        self.adr = None                      # dict factor -> boundary, set by the trainer (VecEnv.set_attr)
         self.spawn = None
         self.rng = np.random.default_rng(seed)
         self.level = level
@@ -101,7 +112,48 @@ class Loco2Env:
         self.cache = self.cache[-10:]
         return h
 
+    def _sample_adr(self):
+        """Automatic Domain Randomisation (OpenAI 2019): every factor has its own range [0, b_f]. Half of the episodes
+        pin one factor at its boundary b_f; the trainer widens b_f when those episodes succeed and narrows it when they
+        fail, using outcomes pooled over all environments."""
+        r, B = self.rng, self.adr
+        test = str(r.choice(ADR_FACTORS)) if r.random() < 0.5 else None
+        k = {f: (B[f] if f == test else r.uniform(0, B[f])) for f in ADR_FACTORS}
+        S = dict(k=float(np.mean(list(B.values()))), adr_test=test)
+        S["family"] = str(r.choice(TR.FAMILIES[1:])) if (test == "terrain" or r.random() < 0.8) else "flat"
+        S["terrain_k"] = k["terrain"]
+        S["slope"] = np.radians(14 * k["slope"]) if (test == "slope" or r.random() < 0.4) else 0.0
+        S["slope_dir"] = r.uniform(-np.pi, np.pi)
+        mu_lo = 1.0 - 0.75 * k["friction"]
+        S["mu"] = mu_lo if test == "friction" else r.uniform(mu_lo, 1.2)
+        S["mu2"] = r.uniform(mu_lo, 1.2) if r.random() < 0.3 else None
+        S["mu_switch_t"] = r.uniform(4, 16)
+        S["tors"], S["roll_fr"] = r.uniform(0.008, 0.025), r.uniform(0.002, 0.008)
+        S["mscale"] = r.uniform(0.9, 1.1, 4)
+        S["com"] = r.uniform(-6, 6, 3) * 1e-3
+        S["payload"] = 10 * k["payload"] if (test == "payload" or r.random() < 0.5) else 0.0
+        S["payload_pos"] = np.array([r.uniform(-0.08, 0.08), r.uniform(-0.15, 0.15), r.uniform(-0.05, 0.10)])
+        S["tyre_r"] = R_NOM * r.uniform(0.985, 1.01)
+        lo = 1 - 0.3 * k["actuator"]
+        S["strength"] = r.uniform(lo, 1.1, 2) if test != "actuator" else np.array([lo, r.uniform(lo, 1.1)])
+        S["tau_noise"] = 0.05 * k["actuator"]
+        S["bob_slew"] = np.radians(r.uniform(45, 75))
+        S["delay"] = int(round(2 * k["actuator"])) if test == "actuator" else int(r.integers(0, 1 + int(round(2 * k["actuator"]))))
+        S["push_rate"] = 1 / 2.0 if test == "push" else (1 / 3.0 if r.random() < 0.8 else 0.0)
+        S["push_max"] = 50 + 300 * k["push"]
+        S["kick_max"] = 40 * k["push"]
+        S["wind"] = 40 * k["wind"] if (test == "wind" or r.random() < 0.5) else 0.0
+        S["wind_dir"] = r.uniform(-np.pi, np.pi)
+        S["gust"] = 10 * k["wind"]
+        S["gyro_bias"] = r.uniform(-0.03, 0.03, 3) * k["sensor"]
+        S["imu_tilt"] = np.radians(r.uniform(-1.5, 1.5, 2)) * k["sensor"]
+        S["glitch"] = 0.002 * k["sensor"]
+        S["v_max"] = 2.0 + 6.5 * k["speed"]
+        return S
+
     def _sample_world(self):
+        if self.adr is not None and not self.scenario:
+            return self._sample_adr()
         r, k = self.rng, self.level
         if self.adaptive and r.random() < 0.15:
             k = r.uniform(0, self.level)                       # replay easier levels: no forgetting
@@ -151,7 +203,7 @@ class Loco2Env:
         xml = build_xml2(friction=S["mu"], torsional=S["tors"], rolling=S["roll_fr"], mass_scale=ms, com_shift=S["com"],
                          timestep=DT / N_SUB, terrain=terrain, tyre_r=S["tyre_r"], gravity=g,
                          payload=(S["payload"], S["payload_pos"]) if S["payload"] > 0.05 else None,
-                         mesh_obstacles=extra[0], mocap_obstacles=extra[1])
+                         mesh_obstacles=extra[0], mocap_obstacles=extra[1], crown_d=self.hw["crown_d"], roll_wheel=self.hw["wheel"])
         self.m = mujoco.MjModel.from_xml_string(xml)
         if h is not None:
             self.m.hfield_data[:] = data.ravel()
@@ -164,8 +216,18 @@ class Loco2Env:
         self.bid = {n: m.body(n).id for n in ("spine", "tyreL", "tyreR", "yoke", "bob")}
         self.ground = [m.geom("floor").id] + ([m.geom("terrain").id] if h is not None else [])
         self.tyres = [m.geom("tyreL").id, m.geom("tyreR").id]
+        self.pods = [i for i in range(m.ngeom) if (m.geom(i).name or "").startswith("pod")]
+        self.wheel = (m.actuator("rollwheel").id, m.joint("rollwheel").dofadr[0]) if self.hw["wheel"] else None
         self.gtilt = np.array([np.sin(sl) * np.cos(sd), np.sin(sl) * np.sin(sd)])
         self.hmap = h
+
+    def _pod_strike(self):
+        """A sensor pod touching the ground (CAD pod hulls; ~47 deg of roll on flat ground) ends the episode."""
+        n = self.d.ncon
+        if n == 0:
+            return False
+        g = self.d.contact.geom[:n]
+        return bool(np.isin(g, self.pods).any())
 
     def _set_mu(self, mu):
         for g in self.ground + self.tyres:
@@ -247,7 +309,7 @@ class Loco2Env:
             cont, [S["tors"] * 50, S["roll_fr"] * 100], S["mscale"] - 1, S["com"] * 100, S["payload_pos"] * 5,
             S["strength"] - 1, [(S["tyre_r"] - R_NOM) * 50, S["delay"] * 0.5, self.level],
             [(c * pf[0] + s * pf[1]) / 200, (-s * pf[0] + c * pf[1]) / 200, self.kick / 40, float(self.push_left > 0)],
-            S["gyro_bias"] * 20, [(self.cmd[0] - t["v"]) * 0.25, (self.cmd[1] - t["w"]) * 0.5],
+            S["gyro_bias"] * 20, [(self.v_ref - t["v"]) * 0.25, (self.w_ref - t["w"]) * 0.5],
             self._height_scan(t) * 4,
         ])
         critic = np.concatenate([self._est_targets(t), self.hist[-1], cmd, priv]).astype(np.float32)
@@ -285,6 +347,37 @@ class Loco2Env:
         self.cmd_t0 = self.d.time
         self.next_cmd_t = self.d.time + r.uniform(1.5, 5.0)
 
+    def _ref_step(self, t):
+        """Feasible reference: the best the hardware can physically do toward the operator's command, given the TRUE
+        slope (uniform + local terrain), friction, payload, motor strength and roll capability. The reward tracks this
+        reference, so the policy is never paid to fight physics (the root cause of most falls); it still sees the raw
+        command and has to learn the limits from its own sensor history."""
+        S = self.S
+        u = self.gtilt.copy()                                     # uphill vector * sin(slope)
+        if self.hmap is not None and self.steps % 5 == 0:         # local terrain gradient, refreshed at 10 Hz
+            p = self.d.qpos[0:2]
+            e = 0.3
+            hx = TR.height_at(self.hmap, np.array([p[0] + e, p[0] - e]), np.array([p[1], p[1]]))
+            hy = TR.height_at(self.hmap, np.array([p[0], p[0]]), np.array([p[1] + e, p[1] - e]))
+            gr = np.array([(hx[0] - hx[1]) / (2 * e), (hy[0] - hy[1]) / (2 * e)])
+            self.u_terrain = gr / math.sqrt(1 + gr @ gr)
+        if self.hmap is not None:
+            u = u + self.u_terrain
+        c, s_ = math.cos(t["yaw"]), math.sin(t["yaw"])
+        u_f, u_l = c * u[0] + s_ * u[1], -s_ * u[0] + c * u[1]
+        mu_g = 0.7 * self.mu * 9.81
+        a_drive = 0.8 * TAU_PEND * min(S["strength"]) / ((45.0 + S["payload"]) * S["tyre_r"])
+        a_up = _clamp(a_drive - 9.81 * u_f, -mu_g, mu_g)
+        a_dn = _clamp(-a_drive - 9.81 * u_f, -mu_g, mu_g)
+        v0 = self.v_ref
+        self.v_ref += _clamp(self.cmd[0] - v0, a_dn * DT, a_up * DT)   # too steep to climb (a_up < 0) / brake (a_dn > 0)
+        # stability ellipse: the pendulum supplies both the longitudinal force and (through its low CoM) the roll
+        # stiffness, so the lateral capacity left is a_roll * sqrt(1 - f^2), f = pendulum torque fraction in use
+        f = min(1.0, abs((self.v_ref - v0) / DT + 9.81 * u_f) / max(a_drive, 1e-3))
+        a_lat = max(0.3, min(mu_g, self.hw["a_roll"] * math.sqrt(max(0.05, 1 - f * f))) - 9.81 * abs(u_l))
+        w_lim = min(3.0, a_lat / max(abs(self.v_ref), 0.3))
+        self.w_ref += _clamp(_clamp(self.cmd[1], -w_lim, w_lim) - self.w_ref, -4.0 * DT, 4.0 * DT)
+
     def _update_cmd(self):
         if self.external_cmd:
             return
@@ -315,7 +408,8 @@ class Loco2Env:
         self.last_a = np.zeros(N_ACT)
         self.prev_a = np.zeros(N_ACT)
         self.base_a = np.zeros(N_ACT)
-        self.ctrl = ClassicalController(DT)
+        self.ctrl = ClassicalController(DT, self.hw["lean_rate"])
+        self.lvl_i = 0.0
         self.a_queue = [np.zeros(N_ACT)] * 3
         self.bob_cmd = 0.0
         self.steps = 0
@@ -323,6 +417,8 @@ class Loco2Env:
         self.gust = np.zeros(2)
         self.wind_f = np.zeros(2)
         self.cmd = np.zeros(2)
+        self.v_ref, self.w_ref = 0.0, 0.0
+        self.u_terrain = np.zeros(2)
         if not self.external_cmd:
             self._sample_cmd()
             self._update_cmd()
@@ -369,7 +465,7 @@ class Loco2Env:
         tau_sum = (tl + tr) + RES_SUM * a_eff[0]
         tau_diff = (tr - tl) + RES_DIFF * a_eff[1]
         bob_target = _clamp(bob_c + RES_BOB * a_eff[2], -0.698, 0.698)
-        step = S["bob_slew"] * DT
+        step = S["bob_slew"] * self.hw["lean_rate"] / 60.0 * DT
         self.bob_cmd += _clamp(bob_target - self.bob_cmd, -step, step)
         wL, wR = self.qd("tyreL") - self.qd("yoke"), self.qd("tyreR") - self.qd("yoke")
         nz = 1 + S["tau_noise"] * r.normal(size=2)
@@ -378,14 +474,25 @@ class Loco2Env:
         tauR = MotorModel.limit_s(cmdR, wR, S["strength"][1]) * nz[1]
         d.ctrl[self.aid["driveL"]] = tauL
         d.ctrl[self.aid["driveR"]] = tauR
-        d.ctrl[self.aid["level"]] = _clamp(90 * t["pitch"] + 9 * t["pitch_rate"], -15, 15)
+        lvl = 90 * t["pitch"] + 9 * t["pitch_rate"]
+        if self.hw["level_pi"]:                          # PI levelling: no steady tilt under off-centre loads
+            self.lvl_i = _clamp(self.lvl_i + 150 * t["pitch"] * DT, -12, 12)
+            lvl += self.lvl_i
+        d.ctrl[self.aid["level"]] = _clamp(lvl, -15, 15)
         d.ctrl[self.aid["lean"]] = self.bob_cmd
+        if self.wheel:                                   # roll reaction wheel: damp roll, hold attitude, bleed wheel speed
+            W = self.hw["wheel"]
+            tw = W["kp"] * t["roll"] + W["kd"] * t["roll_rate"] - W["kw"] * d.qvel[self.wheel[1]]
+            if len(a) > 3:
+                tw += W["tau"] * a_eff[3]
+            d.ctrl[self.wheel[0]] = _clamp(tw, -W["tau"], W["tau"])
         mujoco.mj_step(self.m, d, nstep=N_SUB)
         self.steps += 1
         self._update_cmd()
         t = self._truth()
         # ---------------- reward (each term logged)
-        ev, ew = self.cmd[0] - t["v"], self.cmd[1] - t["w"]
+        self._ref_step(t)
+        ev, ew = self.v_ref - t["v"], self.w_ref - t["w"]
         sat = (max(abs(cmdL) - abs(tauL), 0) + max(abs(cmdR) - abs(tauR), 0)) / MotorModel.TAU_STALL
         power = max(tauL * wL, 0) + max(tauR * wR, 0)
         terms = dict(
@@ -401,7 +508,13 @@ class Loco2Env:
             bob_limit=-0.5 * max(abs(self.q("bob")) - 0.6, 0),
         )
         rew = sum(terms.values())
-        fell = abs(t["pend"]) > 2.4 or abs(t["roll"]) > 1.1 or abs(t["pitch"]) > 0.6 or not np.isfinite(d.qpos[2])
+        pod = abs(t["roll"]) > 0.5 and self._pod_strike()     # pods can only touch beyond ~44 deg of roll
+        fell = pod or abs(t["pend"]) > 2.4 or abs(t["roll"]) > 1.4 or abs(t["pitch"]) > 0.6 or not np.isfinite(d.qpos[2])
+        self.diag = dict(pend=t["pend"], roll=t["roll"], pitch=t["pitch"], v=t["v"], w=t["w"], cmd_v=self.cmd[0], cmd_w=self.cmd[1],
+                         sat=sat, tauL=tauL, tauR=tauR, cmdL=cmdL, cmdR=cmdR, level=float(d.ctrl[self.aid["level"]]),
+                         bob=self.q("bob"), push=float(self.push_left > 0), wL=wL, wR=wR,
+                         mode=("pod_strike" if pod else "pend_loop" if abs(t["pend"]) > 2.4 else "roll_over" if abs(t["roll"]) > 1.4 else
+                               "spine_pitch" if abs(t["pitch"]) > 0.6 else "nan" if fell else ""))
         out = math.hypot(d.qpos[0], d.qpos[1]) > GEOFENCE
         if fell:
             rew -= 20.0
@@ -422,7 +535,8 @@ class Loco2Env:
             n = es["n"]
             info["episode"] = dict(track=es["track"] / n, ev_rms=np.sqrt(es["ev"] / n), ew_rms=np.sqrt(es["ew"] / n),
                                    tilt_rms=np.degrees(np.sqrt(es["tilt"] / n)), energy=es["energy"], fell=fell,
-                                   level=self.S["k"], family=self.S["family"], length=n)
+                                   level=self.S["k"], family=self.S["family"], length=n, adr_test=self.S.get("adr_test"),
+                                   adr_ok=bool(not fell and es["track"] / n > 0.5))
             if self.adaptive:
                 if fell:
                     self.level = max(0.0, self.level - 0.05)
