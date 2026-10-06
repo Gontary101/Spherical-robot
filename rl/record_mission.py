@@ -41,7 +41,7 @@ def mission(seed, n_wp, nav, loco_ckpt):
     env = NavEnv(seed=seed, low_level="learned", loco_ckpt=loco_ckpt, randomize=False)
     env.rng = np.random.default_rng(seed)
     env.loco.rng = np.random.default_rng(seed)
-    oa, oc = env.reset()
+    oa, oc = env.reset()       # new world: every obstacle/wall is a convex mesh geom (collision == rendered geometry)
     rng = np.random.default_rng(seed + 1)
     wps = [env.goal.copy()]
     for _ in range(n_wp - 1):
@@ -83,15 +83,20 @@ def mission(seed, n_wp, nav, loco_ckpt):
 
 
 def obstacles(env):
-    m, out = env.m, []
-    for gid in list(env.obs_gid) + list(env.wall_gid):
-        p = m.geom_pos[gid]
-        if p[0] > 100:
-            continue
-        typ = "cylinder" if m.geom_type[gid] == mujoco.mjtGeom.mjGEOM_CYLINDER else "box"
-        out.append({"type": typ, "pos": p.tolist(), "size": m.geom_size[gid].tolist(), "quat": m.geom_quat[gid].tolist(),
-                    "wall": bool(gid in env.wall_gid)})
-    return out
+    """Compiled MuJoCo collision geometry (world vertices + faces) and a check against the spec."""
+    geo = env.mesh_world_geometry()
+    worst = 0.0
+    for g, spec in zip(geo, env.mesh_specs):
+        assert g["geom_type"] == int(mujoco.mjtGeom.mjGEOM_MESH), g["name"]
+        assert len(g["verts"]) == g["n_input_verts"], f"{g['name']}: hull dropped vertices"
+        R = np.zeros(9)
+        mujoco.mju_quat2Mat(R, np.asarray(spec["quat"], float))
+        want = np.asarray(spec["verts"]) @ R.reshape(3, 3).T + spec["pos"]
+        got = np.asarray(g["verts"])
+        d = max(np.min(np.linalg.norm(want[:, None] - got[None], axis=2), axis=1).max(),
+                np.min(np.linalg.norm(got[:, None] - want[None], axis=2), axis=1).max())
+        worst = max(worst, float(d))
+    return geo, worst
 
 
 def main():
@@ -106,13 +111,15 @@ def main():
         res = mission(seed, a.waypoints, nav, loco)
         if res is None:
             continue
-        n_obs = int(sum(1 for gid in res["env"].obs_gid if res["env"].m.geom_pos[gid][0] < 100))
+        n_obs = len(res["env"].obs_gid)
         print(f"seed {seed}: ok={res['ok']} reached {len(res['reached'])}/{a.waypoints} obstacles={n_obs} "
               f"t={res['frames'][-1, 0]:.1f}s", flush=True)
-        if res["ok"] and n_obs >= 16:
+        if res["ok"] and n_obs >= 14:
+            geo, worst = obstacles(res["env"])
+            print(f"collision meshes: {len(geo)} convex mesh geoms, max |spec - compiled| vertex error = {worst:.2e} m")
             np.savez_compressed(a.out, frames=res["frames"], scans=res["scans"], wps=res["wps"],
                                 reached=np.array(res["reached"]), beam_ang=res["env"].beam_ang,
-                                obstacles=json.dumps(obstacles(res["env"])), seed=seed)
+                                obstacles=json.dumps(geo), seed=seed)
             print("saved", a.out)
             return
     print("no fully successful mission found")

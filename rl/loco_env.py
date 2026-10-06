@@ -39,14 +39,15 @@ TAU_SUM, TAU_DIFF = 50.0, 50.0     # action scales (N m at the tyre)
 
 class LocoEnv:
     def __init__(self, seed=0, v_max=3.0, randomize=True, push=True, n_obstacles=0, arena=None,
-                 residual=True, difficulty=1.0):
+                 residual=True, difficulty=1.0, mesh_obstacles=()):
         self.rng = np.random.default_rng(seed)
         self.residual = residual
         self.difficulty = difficulty
         # obstacle slots are pre-allocated far away and moved/resized per episode (no recompiles)
         obst = [("cylinder" if i % 2 == 0 else "box", (200.0 + 3 * i, 200.0, 0.4), (0.2, 0.4) if i % 2 == 0 else (0.2, 0.2, 0.4))
                 for i in range(n_obstacles)]
-        self.m = mujoco.MjModel.from_xml_string(build_xml2(timestep=DT / N_SUB, obstacles=obst, arena=arena))
+        self.m = mujoco.MjModel.from_xml_string(build_xml2(timestep=DT / N_SUB, obstacles=obst, arena=arena,
+                                                             mesh_obstacles=mesh_obstacles))
         self.d = mujoco.MjData(self.m)
         m = self.m
         self.jid = {n: m.joint(n) for n in ("tyreL", "tyreR", "yoke", "bob")}

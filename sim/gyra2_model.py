@@ -49,9 +49,23 @@ class MotorModel:
         return np.clip(tau, -avail, avail)
 
 
+def obstacle_vertices(typ, size, n_seg=64):
+    """Convex vertex set of an obstacle in its own frame (the single source for collision AND rendering).
+    cylinder: size = (radius, half-height), n_seg-sided prism.  box: size = half-extents (x, y, z)."""
+    if typ == "cylinder":
+        r, h = size[0], size[1]
+        a = np.linspace(0, 2 * np.pi, n_seg, endpoint=False)
+        ring = np.stack([r * np.cos(a), r * np.sin(a)], 1)
+        return np.concatenate([np.c_[ring, np.full(n_seg, -h)], np.c_[ring, np.full(n_seg, h)]])
+    sx, sy, sz = size[:3]
+    return np.array([[x, y, z] for x in (-sx, sx) for y in (-sy, sy) for z in (-sz, sz)], dtype=float)
+
+
 def build_xml2(slope_deg=0.0, friction=1.0, torsional=0.015, rolling=0.005, mass_scale=None,
-               com_shift=(0, 0, 0), obstacles=(), lidar=False, timestep=0.001, arena=None):
-    """mass_scale: dict body->scale (domain randomisation). obstacles: list of (type, pos, size)."""
+               com_shift=(0, 0, 0), obstacles=(), lidar=False, timestep=0.001, arena=None, mesh_obstacles=()):
+    """mass_scale: dict body->scale (domain randomisation). obstacles: list of (type, pos, size) primitives.
+    mesh_obstacles: list of dicts {name, verts (local Nx3), pos, quat}: convex mesh geoms whose vertices are
+    used verbatim for collision, ray-casting and rendering."""
     ms = mass_scale or {}
     g = 9.81
     s = np.radians(slope_deg)
@@ -66,10 +80,21 @@ def build_xml2(slope_deg=0.0, friction=1.0, torsional=0.015, rolling=0.005, mass
         for i, (x, y, sx, sy) in enumerate([(L, 0, .1, L), (-L, 0, .1, L), (0, L, L, .1), (0, -L, L, .1)]):
             obs_xml += (f'<geom name="wall{i}" type="box" pos="{x} {y} .4" size="{sx} {sy} .4" '
                         f'contype="{WORLD_CT}" conaffinity="{WORLD_CA}" rgba=".6 .6 .65 1" group="1"/>\n')
+    asset_xml = ""
+    for o in mesh_obstacles:
+        v = " ".join(f"{c:.6f}" for c in np.asarray(o["verts"]).ravel())
+        asset_xml += f'<mesh name="m_{o["name"]}" vertex="{v}"/>\n'
+        p, q = o["pos"], o["quat"]
+        obs_xml += (f'<geom name="{o["name"]}" type="mesh" mesh="m_{o["name"]}" pos="{p[0]:.6f} {p[1]:.6f} {p[2]:.6f}" '
+                    f'quat="{q[0]:.8f} {q[1]:.8f} {q[2]:.8f} {q[3]:.8f}" contype="{WORLD_CT}" conaffinity="{WORLD_CA}" '
+                    f'rgba=".55 .45 .35 1" group="1"/>\n')
     sens = ""
     return f"""
 <mujoco model="gyra_mk2">
   <compiler angle="radian" inertiafromgeom="false"/>
+  <asset>
+    {asset_xml}
+  </asset>
   <option timestep="{timestep}" integrator="implicitfast" gravity="{gx:.5f} 0 {gz:.5f}"/>
   <default>
     <geom contype="0" conaffinity="0"/>

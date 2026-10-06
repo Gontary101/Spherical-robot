@@ -22,6 +22,9 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(__file__))
 from loco_env import LocoEnv  # noqa: E402
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "sim"))
+from gyra2_model import obstacle_vertices  # noqa: E402
+
 N_BEAM = 72
 MAX_R = 8.0
 DEPTH_W, DEPTH_H = 16, 8
@@ -79,13 +82,10 @@ def visible_from_pods(px, py):
 class NavEnv:
     def __init__(self, seed=0, low_level="classical", loco_ckpt=None, randomize=True):
         self.rng = np.random.default_rng(seed + 777)
-        self.loco = LocoEnv(seed=seed, v_max=3.5, randomize=randomize, push=False, n_obstacles=N_OBS, arena=ARENA)
-        self.loco._sample_cmd = self._hold_cmd
-        m = self.loco.m
-        self.m, self.d = m, self.loco.d
-        self.obs_gid = np.array([m.geom(f"obs{i}").id for i in range(N_OBS)])
-        self.wall_gid = np.array([m.geom(f"wall{i}").id for i in range(4)])
-        self.tyre_gid = np.array([m.geom("tyreL").id, m.geom("tyreR").id])
+        self.seed, self.randomize = seed, randomize
+        self.loco = None
+        self._layout()
+        self._build_world()                      # obstacles are re-sampled and the world recompiled every reset
         self.low_level = low_level
         if low_level == "learned":
             self.policy = NumpyActor(loco_ckpt)
@@ -106,7 +106,9 @@ class NavEnv:
 
     # -------------------------------------------------------------------- world generation
     def _layout(self):
-        r, m = self.rng, self.m
+        """Sample start, goal and obstacles. Returns nothing; fills self.specs with one dict per obstacle
+        and wall: {name, kind, size, verts (local), pos, quat, wall}."""
+        r = self.rng
         L = ARENA - 0.8
         self.start = np.array([r.uniform(-L, L), r.uniform(-L, L)])
         while True:
@@ -114,11 +116,8 @@ class NavEnv:
             if 4.0 < np.linalg.norm(self.goal - self.start) < 10.0:
                 break
         n_active = int(r.integers(8, N_OBS + 1))
-        placed = []
-        for i, gid in enumerate(self.obs_gid):
-            if i >= n_active:
-                m.geom_pos[gid] = [200 + 3 * i, 200, 0.4]
-                continue
+        placed, specs = [], []
+        for i in range(n_active):
             for _ in range(50):
                 p = np.array([r.uniform(-L, L), r.uniform(-L, L)])
                 if np.linalg.norm(p - self.start) > 1.3 and np.linalg.norm(p - self.goal) > 1.2 and \
@@ -126,18 +125,35 @@ class NavEnv:
                     break
             placed.append(p)
             h = r.uniform(0.25, 0.9)
-            if m.geom_type[gid] == mujoco.mjtGeom.mjGEOM_CYLINDER:
-                rad = r.uniform(0.12, 0.45)
-                m.geom_size[gid] = [rad, h / 2, 0]
-                m.geom_rbound[gid] = np.hypot(rad, h / 2)
+            if i % 2 == 0:
+                kind, size, quat = "cylinder", (r.uniform(0.12, 0.45), h / 2), (1.0, 0, 0, 0)
             else:
-                sx, sy = r.uniform(0.15, 0.6), r.uniform(0.15, 0.6)
-                m.geom_size[gid] = [sx, sy, h / 2]
-                m.geom_rbound[gid] = np.linalg.norm([sx, sy, h / 2])
+                kind, size = "box", (r.uniform(0.15, 0.6), r.uniform(0.15, 0.6), h / 2)
                 yaw = r.uniform(0, np.pi)
-                m.geom_quat[gid] = [np.cos(yaw / 2), 0, 0, np.sin(yaw / 2)]
-            m.geom_pos[gid] = [p[0], p[1], h / 2]
+                quat = (np.cos(yaw / 2), 0, 0, np.sin(yaw / 2))
+            specs.append(dict(name=f"obs{i}", kind=kind, size=size, pos=(p[0], p[1], h / 2), quat=quat, wall=False))
+        W = ARENA
+        for i, (x, y, sx, sy) in enumerate([(W, 0, .1, W), (-W, 0, .1, W), (0, W, W, .1), (0, -W, W, .1)]):
+            specs.append(dict(name=f"wall{i}", kind="box", size=(sx, sy, .4), pos=(x, y, .4), quat=(1.0, 0, 0, 0), wall=True))
+        for o in specs:
+            o["verts"] = obstacle_vertices(o["kind"], o["size"])
         self.obstacles = placed
+        self.mesh_specs = specs
+
+    def _build_world(self):
+        """Compile a fresh MuJoCo world in which every obstacle and wall is a convex mesh geom at its real
+        pose. The same vertex set is what the collision detector, the LiDAR/depth ray-caster and the renderer
+        see. (Moving/resizing primitive geoms of the static world body at runtime is NOT safe in MuJoCo: the
+        world-body BVH and geom AABBs keep their compile-time values and collisions are silently missed.)"""
+        old = self.loco
+        new = LocoEnv(seed=self.seed, v_max=3.5, randomize=self.randomize, push=False, mesh_obstacles=self.mesh_specs)
+        if old is not None:
+            new.rng = old.rng                     # keep one domain-randomisation stream across rebuilds
+        new._sample_cmd = self._hold_cmd
+        self.loco, self.m, self.d = new, new.m, new.d
+        self.obs_gid = np.array([new.m.geom(o["name"]).id for o in self.mesh_specs if not o["wall"]])
+        self.wall_gid = np.array([new.m.geom(o["name"]).id for o in self.mesh_specs if o["wall"]])
+        self.tyre_gid = np.array([new.m.geom("tyreL").id, new.m.geom("tyreR").id])
 
     # -------------------------------------------------------------------- sensing
     def _pose(self):
@@ -176,8 +192,28 @@ class NavEnv:
         return np.clip(z, 0, MAX_R)
 
     # -------------------------------------------------------------------- API
-    def reset(self):
-        self._layout()
+    def mesh_world_geometry(self):
+        """World-space vertices + triangle faces of every obstacle mesh, read back from the compiled
+        MuJoCo model (i.e. exactly what the collision detector and ray-caster use)."""
+        mujoco.mj_forward(self.m, self.d)
+        out = []
+        for o in self.mesh_specs:
+            gid = self.m.geom(o["name"]).id
+            mid = self.m.geom_dataid[gid]
+            va, vn = self.m.mesh_vertadr[mid], self.m.mesh_vertnum[mid]
+            fa, fn = self.m.mesh_faceadr[mid], self.m.mesh_facenum[mid]
+            v = self.m.mesh_vert[va:va + vn].astype(float)
+            R = self.d.geom_xmat[gid].reshape(3, 3)
+            world = v @ R.T + self.d.geom_xpos[gid]
+            out.append(dict(name=o["name"], kind=o["kind"], wall=o["wall"], verts=world.tolist(),
+                            faces=self.m.mesh_face[fa:fa + fn].tolist(), n_input_verts=len(o["verts"]),
+                            geom_type=int(self.m.geom_type[gid])))
+        return out
+
+    def reset(self, new_world=True):
+        if new_world:
+            self._layout()
+            self._build_world()
         lo = self.loco
         oa, _ = lo.reset()
         self.d.qpos[0:2] = self.start
