@@ -1,0 +1,74 @@
+{
+ "classical": {
+  "speed_steps": {
+   "rms_v_err": 0.7653194820754237,
+   "rms_w_err": 0.02580070734275782,
+   "max_roll_deg": 0.06013733036172129,
+   "max_spine_pitch_deg": 0.7748303274684618,
+   "fell": false
+  },
+  "spin_3": {
+   "rms_v_err": 0.016054642002510135,
+   "rms_w_err": 1.359331297941055,
+   "max_roll_deg": 0.05163876401228948,
+   "max_spine_pitch_deg": 0.1729405539850762,
+   "fell": false
+  },
+  "turn_6ms": {
+   "rms_v_err": 0.42367862429654013,
+   "rms_w_err": 1.283672056037972,
+   "max_roll_deg": 68.83373522181937,
+   "max_spine_pitch_deg": 15.319389907664725,
+   "fell": true
+  },
+  "slalom_4ms": {
+   "rms_v_err": 0.24562231919398486,
+   "rms_w_err": 0.8459819278433891,
+   "max_roll_deg": 5.99612112338524,
+   "max_spine_pitch_deg": 0.5732157848619327,
+   "fell": false
+  },
+  "push_300N_peak_roll_deg": 13.645397731539555,
+  "random_commands_randomised_dynamics": {
+   "mean_abs_v_err": 1.7275449347256673,
+   "mean_abs_w_err": 0.8325044826355589,
+   "fall_rate": 0.6666666666666666
+  }
+ },
+ "learned": {
+  "speed_steps": {
+   "rms_v_err": 0.747298730047528,
+   "rms_w_err": 0.1572332872847897,
+   "max_roll_deg": 0.3887748412098585,
+   "max_spine_pitch_deg": 0.7051672717529951,
+   "fell": false
+  },
+  "spin_3": {
+   "rms_v_err": 0.18298053207849982,
+   "rms_w_err": 1.1518076655112692,
+   "max_roll_deg": 0.13727514487920392,
+   "max_spine_pitch_deg": 0.2044904945837415,
+   "fell": false
+  },
+  "turn_6ms": {
+   "rms_v_err": 0.28488871263795007,
+   "rms_w_err": 0.3244284085973697,
+   "max_roll_deg": 7.323267465992178,
+   "max_spine_pitch_deg": 0.7007326169808834,
+   "fell": false
+  },
+  "slalom_4ms": {
+   "rms_v_err": 0.17313865407016812,
+   "rms_w_err": 0.5263698515852401,
+   "max_roll_deg": 1.4659971065263369,
+   "max_spine_pitch_deg": 0.5815498374646866,
+   "fell": false
+  },
+  "push_300N_peak_roll_deg": 10.815093343760786,
+  "random_commands_randomised_dynamics": {
+   "mean_abs_v_err": 1.3515273695734509,
+   "mean_abs_w_err": 0.46982677889610036,
+   "fall_rate": 0.08333333333333333
+  }
+ }
+}
