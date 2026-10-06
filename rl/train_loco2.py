@@ -84,6 +84,7 @@ def main():
     ap.add_argument("--level0", type=float, default=0.0, help="initial curriculum level of every env (when resuming)")
     ap.add_argument("--adr", action="store_true", help="per-factor automatic domain randomisation instead of the level")
     ap.add_argument("--adr0", type=float, default=0.5)
+    ap.add_argument("--adr-slope", type=float, default=None, help="override one factor's start bound (resume)")
     ap.add_argument("--hw", default="", help="hardware variant name from rl/hw_study.py VARIANTS")
     ap.add_argument("--max-std", type=float, default=0.5)
     ap.add_argument("--ent", type=float, default=0.002)
@@ -98,6 +99,8 @@ def main():
     env = VecEnv(Loco2Env, n_workers=a.workers, envs_per_worker=a.envs, seed=7, hw=hw)
     env.set_attr(level=a.level0)
     adr = ADR(a.adr0) if a.adr else None
+    if adr and a.adr_slope is not None:
+        adr.b["slope"] = a.adr_slope
     if adr:
         env.set_attr(adr=dict(adr.b))
     oa, oc = env.reset()
@@ -107,7 +110,11 @@ def main():
         load_partial(agent, a.init)
     steps = 0
     if a.resume:
-        steps = int(agent.load(a.resume).get("steps", 0))
+        ex = agent.load(a.resume)
+        steps = int(ex.get("steps", 0))
+        if adr and ex.get("adr"):
+            adr.b = dict(ex["adr"])
+            env.set_attr(adr=dict(adr.b))
     f = open(os.path.join(a.out, "progress.csv"), "a", newline="")
     wr = None
     t0 = time.time()
@@ -162,7 +169,7 @@ def main():
                   f"tilt {row.get('ep_tilt', 0):.2f} est {st['est_loss']:.3f} sym {st['sym_loss']:.4f} kl {st['kl']:.4f} "
                   f"lr {st['lr']:.1e} std {row['std']:.3f}" + (" adr " + " ".join(f"{f[:4]}={v:.2f}" for f, v in adr.b.items()) if adr else ""),
                   flush=True)
-            extra = {"steps": steps}
+            extra = {"steps": steps, "adr": dict(adr.b) if adr else None}
             agent.save(os.path.join(a.out, "last.pt"), extra)
             score = row["level_mean"] - row.get("ep_fall", 1.0)
             if score > best and steps > 2e6:
@@ -170,7 +177,7 @@ def main():
                 agent.save(os.path.join(a.out, "best_train.pt"), extra)
                 agent.export(os.path.join(a.out, "actor.ts"), ACT_OBS)
         if steps >= next_mile:
-            agent.save(os.path.join(a.out, f"m{next_mile // 1_000_000:03d}M.pt"), {"steps": steps})
+            agent.save(os.path.join(a.out, f"m{next_mile // 1_000_000:03d}M.pt"), {"steps": steps, "adr": dict(adr.b) if adr else None})
             next_mile += 5_000_000
     agent.save(os.path.join(a.out, "final.pt"), {"steps": steps})
     agent.export(os.path.join(a.out, "actor_final.ts"), ACT_OBS)
