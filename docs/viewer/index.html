@@ -81,7 +81,7 @@ dd { margin: 0; font-family: var(--mono); font-size: 12.5px; text-align: right; 
       <div class="ctl"><label for="bob">Lean bob</label><output id="bobV">0°</output>
         <input id="bob" type="range" min="-30" max="30" value="0" step="1">
         <small>A worm drive slides the 10.9 kg battery + lead bob along a ±30° arc. That leans the robot, and precession turns it.</small></div>
-      <div class="ctl"><label for="gim">CMG gimbals (scissor)</label><output id="gimV">0°</output>
+      <div class="ctl" id="gimCtl"><label for="gim">CMG gimbals (scissor)</label><output id="gimV">0°</output>
         <input id="gim" type="range" min="-90" max="90" value="0" step="1">
         <small>Near 0°: pure roll torque (wobble damping). Parked at ±90° and swept together: pure yaw torque (turn in place).</small></div>
       <div class="ctl"><label for="exp">Explode</label><output id="expV">0%</output>
@@ -166,7 +166,7 @@ function grp(name, parent, pos) { const g = new THREE.Group(); if (pos) g.positi
 grp('tyre', robot); grp('spine', robot); grp('yoke', robot); grp('bob', G.yoke);
 grp('cmgL', G.spine, [0, CMG_Y, CMG_Z]); grp('cmgR', G.spine, [0, -CMG_Y, CMG_Z]);
 const inner = { cmgL: grp('cmgLi', G.cmgL, [0, -CMG_Y, -CMG_Z]), cmgR: grp('cmgRi', G.cmgR, [0, CMG_Y, -CMG_Z]) };
-const parentOf = { tyre: G.tyre, spine: G.spine, yoke: G.yoke, bob: G.bob, cmgL: inner.cmgL, flyL: inner.cmgL, cmgR: inner.cmgR, flyR: inner.cmgR };
+const parentOf = { tyre: G.tyre, tyreL: G.tyre, tyreR: G.tyre, spine: G.spine, yoke: G.yoke, bob: G.bob, cmgL: inner.cmgL, flyL: inner.cmgL, cmgR: inner.cmgR, flyR: inner.cmgR };
 
 // floor shadow disc
 const floor = new THREE.Mesh(new THREE.CircleGeometry(0.42, 64), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.16 }));
@@ -192,6 +192,7 @@ new THREE.GLTFLoader().parse(bin, '', gltf => {
     parts.push({ mesh: m, e, base: new THREE.Vector3() });
   }
   document.getElementById('loading').hidden = true;
+  if (!MAN.some(e => e.g.startsWith('cmg'))) document.getElementById('gimCtl').hidden = true;
   apply();
 }, err => { document.getElementById('loading').textContent = 'Could not load the model: ' + err; });
 

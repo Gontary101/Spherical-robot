@@ -22,7 +22,8 @@ PBR = {  # material -> (metallic, roughness, alpha)
 
 
 def main():
-    out = os.path.join(HERE, "out")
+    tag = sys.argv[1] if len(sys.argv) > 1 else "out"          # "out" (Mk1) or "out2" (Mk2)
+    out = os.path.join(HERE, tag)
     man = json.load(open(os.path.join(out, "manifest.json")))
     scene = trimesh.Scene()
     for e in man:
@@ -39,7 +40,7 @@ def main():
         T = np.array([[1, 0, 0, 0], [0, 0, 1, 0], [0, -1, 0, 0], [0, 0, 0, 1]], float)
         m.apply_transform(T)
         scene.add_geometry(m, node_name=e["name"], geom_name=e["name"])
-    path = os.path.join(out, "gyra_mk1.glb")
+    path = os.path.join(out, "gyra_mk1.glb" if tag == "out" else "gyra_mk2.glb")
     scene.export(path)
     print("wrote", path, os.path.getsize(path) // 1024, "KiB")
 

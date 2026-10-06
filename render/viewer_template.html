@@ -1,4 +1,4 @@
-<title>GYRA Mk1 Viewer</title>
+<title>__TITLE__</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -66,8 +66,8 @@ dd { margin: 0; font-family: var(--mono); font-size: 12.5px; text-align: right; 
   <div class="stage">
     <canvas id="c" tabindex="0" aria-label="3-D model of the GYRA Mk1 spherical robot"></canvas>
     <div class="badge">
-      <h1>GYRA MK1</h1>
-      <p>600 mm rubber-tyred spherical robot: pendulum drive, levelled sensor spine, scissored CMG pair.</p>
+      <h1>__H1__</h1>
+      <p>__SUB__</p>
     </div>
     <div class="hint">drag to orbit · scroll to zoom · right-drag to pan</div>
     <div id="loading">loading 89 parts…</div>
@@ -76,17 +76,17 @@ dd { margin: 0; font-family: var(--mono); font-size: 12.5px; text-align: right; 
     <div class="group">
       <h2>Pose the mechanism</h2>
       <div class="ctl"><label for="pitch">Pendulum pitch</label><output id="pitchV">0°</output>
-        <input id="pitch" type="range" min="-75" max="75" value="0" step="1">
-        <small>The drive motors push against the yoke. It swings forward and gravity rolls the tyre. Hard stop ±75°.</small></div>
+        <input id="pitch" type="range" min="-__PMAX__" max="__PMAX__" value="0" step="1">
+        <small>__PITCH_HELP__</small></div>
       <div class="ctl"><label for="bob">Lean bob</label><output id="bobV">0°</output>
-        <input id="bob" type="range" min="-30" max="30" value="0" step="1">
-        <small>A worm drive slides the 10.9 kg battery + lead bob along a ±30° arc. That leans the robot, and precession turns it.</small></div>
-      <div class="ctl"><label for="gim">CMG gimbals (scissor)</label><output id="gimV">0°</output>
+        <input id="bob" type="range" min="-__BMAX__" max="__BMAX__" value="0" step="1">
+        <small>__BOB_HELP__</small></div>
+      <div class="ctl" id="gimCtl"><label for="gim">CMG gimbals (scissor)</label><output id="gimV">0°</output>
         <input id="gim" type="range" min="-90" max="90" value="0" step="1">
         <small>Near 0°: pure roll torque (wobble damping). Parked at ±90° and swept together: pure yaw torque (turn in place).</small></div>
       <div class="ctl"><label for="exp">Explode</label><output id="expV">0%</output>
         <input id="exp" type="range" min="0" max="100" value="0" step="1">
-        <small>Tyre halves, pods, CMG modules and the bob pull apart along their assembly directions.</small></div>
+        <small>__EXP_HELP__</small></div>
       <div class="row">
         <button id="xray" aria-pressed="false">X-ray tyre</button>
         <button id="pods" aria-pressed="false">Hide pod shields</button>
@@ -97,27 +97,16 @@ dd { margin: 0; font-family: var(--mono); font-size: 12.5px; text-align: right; 
     <div class="group">
       <h2>Bodies</h2>
       <div class="legend">
-        <span class="sw" style="background:#1d1d20"></span><span>Tyre: spins about the axle</span>
-        <span class="sw" style="background:#a9aeb5"></span><span>Spine: axle, pods, CMGs, kept level</span>
+        <span class="sw" style="background:#1d1d20"></span><span>__TYRE_LEGEND__</span>
+        <span class="sw" style="background:#a9aeb5"></span><span>__SPINE_LEGEND__</span>
         <span class="sw" style="background:#cdb08a"></span><span>Yoke: pendulum pitch body, drive train</span>
-        <span class="sw" style="background:#2f5fb8"></span><span>Bob: battery + lead, lateral lean</span>
+        <span class="sw" style="background:#2f5fb8"></span><span>__BOB_LEGEND__</span>
       </div>
     </div>
     <div class="group">
       <h2>Key figures</h2>
       <dl>
-        <dt>Diameter</dt><dd>600 mm</dd>
-        <dt>Mass (CAD)</dt><dd>41.4 kg</dd>
-        <dt>CoM below centre</dt><dd>59 mm</dd>
-        <dt>Top speed</dt><dd>6.4 m/s</dd>
-        <dt>Drive ratio</dt><dd>30 : 1</dd>
-        <dt>Rated grade</dt><dd>10°</dd>
-        <dt>Lean torque</dt><dd>11.2 N·m</dd>
-        <dt>CMG torque (pair)</dt><dd>18.5 N·m</dd>
-        <dt>Flywheel h</dt><dd>2.31 N·m·s @ 10 krpm</dd>
-        <dt>Turn radius @ 2 m/s</dt><dd>5.8 m (sim)</dd>
-        <dt>Battery</dt><dd>468 Wh</dd>
-        <dt>Draft afloat</dt><dd>246 mm</dd>
+__FIGURES__
       </dl>
     </div>
   </aside>
@@ -166,7 +155,7 @@ function grp(name, parent, pos) { const g = new THREE.Group(); if (pos) g.positi
 grp('tyre', robot); grp('spine', robot); grp('yoke', robot); grp('bob', G.yoke);
 grp('cmgL', G.spine, [0, CMG_Y, CMG_Z]); grp('cmgR', G.spine, [0, -CMG_Y, CMG_Z]);
 const inner = { cmgL: grp('cmgLi', G.cmgL, [0, -CMG_Y, -CMG_Z]), cmgR: grp('cmgRi', G.cmgR, [0, CMG_Y, -CMG_Z]) };
-const parentOf = { tyre: G.tyre, spine: G.spine, yoke: G.yoke, bob: G.bob, cmgL: inner.cmgL, flyL: inner.cmgL, cmgR: inner.cmgR, flyR: inner.cmgR };
+const parentOf = { tyre: G.tyre, tyreL: G.tyre, tyreR: G.tyre, spine: G.spine, yoke: G.yoke, bob: G.bob, cmgL: inner.cmgL, flyL: inner.cmgL, cmgR: inner.cmgR, flyR: inner.cmgR };
 
 // floor shadow disc
 const floor = new THREE.Mesh(new THREE.CircleGeometry(0.42, 64), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.16 }));
@@ -192,6 +181,7 @@ new THREE.GLTFLoader().parse(bin, '', gltf => {
     parts.push({ mesh: m, e, base: new THREE.Vector3() });
   }
   document.getElementById('loading').hidden = true;
+  if (!MAN.some(e => e.g.startsWith('cmg'))) document.getElementById('gimCtl').hidden = true;
   apply();
 }, err => { document.getElementById('loading').textContent = 'Could not load the model: ' + err; });
 
