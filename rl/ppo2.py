@@ -117,7 +117,7 @@ class PPO2:
         self.lr_max, self.lr_min = lr_max, lr_min
         self.n_est = n_est
         self.mirror = mirror
-        self.na, self.nc = RunningNorm(n_actor), RunningNorm(n_critic)
+        self.na, self.nc = RunningNorm(n_actor), RunningNorm(n_critic, min_var=1e-2)
         self.ret_rms = RunningNorm(1)
         self.ret_acc = None
 
@@ -158,7 +158,7 @@ class PPO2:
         act, logp_old = flat(buf["act"]), flat(buf["logp"])
         adv_t, ret_t, val_old = flat(adv), flat(ret), flat(buf["val"])
         adv_t = (adv_t - adv_t.mean()) / (adv_t.std() + 1e-8)
-        est_tgt = oc[:, :self.n_est]                       # normalised privileged targets
+        est_tgt = flat(buf["oc_raw"])[:, :self.n_est]      # privileged targets, pre-scaled to O(1) by the env
         if self.mirror is not None:
             m_ = torch.as_tensor(self.na.mean, dtype=torch.float32)
             s_ = torch.as_tensor(np.sqrt(self.na.var + 1e-8), dtype=torch.float32)
@@ -240,7 +240,7 @@ class PPO2:
 
 def rollout2(env, agent, oa, oc, T):
     N = env.n
-    keys = ("oa_n", "oa_raw", "oc_n", "act", "logp", "val", "rew", "raw_rew", "done", "boot", "next_val")
+    keys = ("oa_n", "oa_raw", "oc_n", "oc_raw", "act", "logp", "val", "rew", "raw_rew", "done", "boot", "next_val")
     buf = {k: [] for k in keys}
     infos_all = []
     for _ in range(T):
@@ -250,6 +250,7 @@ def rollout2(env, agent, oa, oc, T):
         buf["oa_n"].append(agent.na(oa))
         buf["oa_raw"].append(oa.astype(np.float32))
         buf["oc_n"].append(agent.nc(oc))
+        buf["oc_raw"].append(oc[:, :agent.n_est].astype(np.float32))
         oa2, oc2, r, d, infos = env.step(np.clip(a, -1, 1))
         rs = agent.scale_reward(r, d).astype(np.float32)
         nv = agent.value(oc2)

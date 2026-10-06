@@ -10,11 +10,12 @@ import torch.nn as nn
 
 
 class RunningNorm:
-    def __init__(self, n, clip=8.0):
+    def __init__(self, n, clip=8.0, min_var=0.0):
         self.mean = np.zeros(n)
         self.var = np.ones(n)
         self.count = 1e-4
         self.clip = clip
+        self.min_var = min_var          # floor: features that are constant early in a curriculum must not explode later
 
     def update(self, x):
         bm, bv, bc = x.mean(0), x.var(0), x.shape[0]
@@ -25,7 +26,7 @@ class RunningNorm:
         self.count = tot
 
     def __call__(self, x):
-        return np.clip((x - self.mean) / np.sqrt(self.var + 1e-8), -self.clip, self.clip).astype(np.float32)
+        return np.clip((x - self.mean) / np.sqrt(np.maximum(self.var, self.min_var) + 1e-8), -self.clip, self.clip).astype(np.float32)
 
     def state(self):
         return {"mean": self.mean.tolist(), "var": self.var.tolist(), "count": float(self.count)}
