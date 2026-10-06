@@ -58,6 +58,7 @@ EP_STEPS = 600
 ARENA = 8.0                      # half-size of the walled arena (16 x 16 m)
 V_RANGE = (-1.0, 3.5)
 W_RANGE = 2.5
+COST_ALPHA, COST_RANGE = 4.0, 0.6   # costmap: up to 5x traversal cost within 0.6 m of the footprint touching anything
 PLAN_MARGIN = 0.08               # planner keeps this much air between the robot's footprint and any mapped obstacle
 LIDAR_OVERSAMPLE = 4             # rays per beam bin; a beam reports the minimum (how a 2-D scan is cut from a 3-D cloud)
 
@@ -283,12 +284,20 @@ class Nav2Env:
             self._graph_cache = (np.concatenate(rows), np.concatenate(cols), np.concatenate(w))
         return self._graph_cache
 
-    def _geodesic(self, free, goal_cell):
+    def _geodesic(self, free, goal_cell, clear=None):
+        """Dijkstra distance-to-goal over free cells. With a clearance map the edge cost grows near obstacles
+        (costmap inflation, as in production planners): paths run down the middle of corridors and doorways instead
+        of grazing corners at exactly the inflation radius, where any tracking lag in a turn clips the jamb."""
         n = self.n_grid
         r_, c_, w = self._graph()
         fl = free.ravel()
         keep = fl[r_] & fl[c_]
-        G = csr_matrix((w[keep], (r_[keep], c_[keep])), shape=(n * n, n * n))
+        w = w[keep]
+        if clear is not None:
+            cl = clear.ravel()
+            c_mid = 0.5 * (cl[r_[keep]] + cl[c_[keep]]) - self.robot_r
+            w = w * (1.0 + COST_ALPHA * np.clip((COST_RANGE - c_mid) / COST_RANGE, 0, 1) ** 2)
+        G = csr_matrix((w, (r_[keep], c_[keep])), shape=(n * n, n * n))
         dist = dijkstra(G, directed=False, indices=goal_cell[0] * n + goal_cell[1])
         return dist.reshape(n, n)
 
@@ -324,7 +333,9 @@ class Nav2Env:
         # prior map for the global planner: walls + a random subset of the free-standing obstacles
         from scipy.ndimage import distance_transform_edt as edt
         kept = [o for o in obs if o["wall"] or r.random() >= P["map_stale"]]
-        self.plan_free = edt(~self._occupancy(kept)) * GRID > self.robot_r + PLAN_MARGIN
+        self.plan_clear = edt(~self._occupancy(kept)) * GRID
+        self.plan_free = self.plan_clear > self.robot_r + PLAN_MARGIN
+        self.clear = clear
         self.set_goal(np.array([self.gx[tuple(gi)], self.gy[tuple(gi)]]))
         self.static_specs = []
         for o in obs:
@@ -356,9 +367,10 @@ class Nav2Env:
         """New goal: true geodesic field (reward / critic) + planner field and descent pointers (actor subgoal)."""
         self.goal = np.asarray(goal, float)
         gc = self._cell(self.goal)
-        self.geo = self._geodesic(self.free, gc)
+        self.geo = self._geodesic(self.free, gc, self.clear)            # potential for the progress reward / critic
         self.geo[~np.isfinite(self.geo)] = 99.0
-        pg = self._geodesic(self.plan_free, gc)
+        self.geo_len = self._geodesic(self.free, gc)                     # plain shortest length (SPL metric)
+        pg = self._geodesic(self.plan_free, gc, self.plan_clear)
         pg[~np.isfinite(pg)] = 1e6
         n = self.n_grid
         best = pg.copy()
@@ -519,7 +531,8 @@ class Nav2Env:
         self.last_a = np.zeros(2)
         self.steps = 0
         self.geo_prev, _ = self._geo_at(pos)
-        self.geo0 = self.geo_prev
+        gl = self.geo_len[self._cell(pos)]
+        self.geo0 = float(gl) if np.isfinite(gl) else self.geo_prev
         self.path_len = 0.0
         true = self._true_scan(pos, yaw)
         scan = self._lidar(true)
