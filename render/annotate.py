@@ -17,7 +17,7 @@ TEXT = {
     "drive": "Drive motor 6374 (x2) + belt",
     "pinion": "24T steel pinion (x2)",
     "bob": "Lean bob: ballast (Mk1 lead / Mk2 tungsten)",
-    "battery": "Battery (Mk1 468 Wh / Mk2 936 Wh)",
+    "battery": "Li-ion battery in the bob",
     "yoke": "Pendulum yoke + curved lean rails",
     "axle": "CFRP spine axle (kept level)",
     "bay": "Electronics bay (power, IMU, radios)",
@@ -31,7 +31,9 @@ FONT_B = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 
 def main():
     src, dst = sys.argv[1], sys.argv[2]
-    keys = sys.argv[3:] or list(TEXT)
+    args = sys.argv[3:]
+    title = next((a.split("=", 1)[1] for a in args if a.startswith("title=")), "GYRA Mk1")
+    keys = [a for a in args if not a.startswith("title=")] or list(TEXT)
     im = Image.open(src).convert("RGB")
     W, H = im.size
     pts = json.load(open(src.replace(".png", "_labels.json")))
@@ -71,7 +73,7 @@ def main():
                                  outline=(20, 20, 22, 60))
             dr.text((tx, y), txt, font=f, fill=(15, 15, 18, 255), anchor="lm")
     fb = ImageFont.truetype(FONT_B, int(34 * s))
-    dr.text((36 * s, 36 * s), "GYRA Mk1", font=fb, fill=(15, 15, 18, 255), anchor="lm")
+    dr.text((36 * s, 36 * s), title, font=fb, fill=(15, 15, 18, 255), anchor="lm")
     im.save(dst)
     print("wrote", dst)
 
