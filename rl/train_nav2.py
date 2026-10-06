@@ -37,10 +37,12 @@ def main():
     ap.add_argument("--envs", type=int, default=8)
     ap.add_argument("--horizon", type=int, default=64)
     ap.add_argument("--resume", default="")
+    ap.add_argument("--level0", type=float, default=0.0)
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     os.environ["GYRA_LOW"] = os.path.abspath(a.low)
     env = VecEnv(Nav2Env, n_workers=a.workers, envs_per_worker=a.envs, seed=11)
+    env.set_attr(level=a.level0)
     oa, oc = env.reset()
     agent = make_agent(oc.shape[1])
     steps = int(agent.load(a.resume).get("steps", 0)) if a.resume else 0

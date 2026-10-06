@@ -40,10 +40,12 @@ def main():
     ap.add_argument("--envs", type=int, default=12)
     ap.add_argument("--horizon", type=int, default=100)
     ap.add_argument("--resume", default="")
+    ap.add_argument("--level0", type=float, default=0.0, help="initial curriculum level of every env (when resuming)")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     torch.set_num_threads(4)
     env = VecEnv(Loco2Env, n_workers=a.workers, envs_per_worker=a.envs, seed=7)
+    env.set_attr(level=a.level0)
     oa, oc = env.reset()
     agent = make_agent(oc.shape[1])
     steps = 0
@@ -83,8 +85,11 @@ def main():
             for fam in TR.FAMILIES:
                 sel = [e["fell"] for e in E if e["family"] == fam]
                 row[f"fall_{fam}"] = np.mean(sel) if sel else np.nan
-        if wr is None:
-            wr = csv.DictWriter(f, fieldnames=list(row.keys()), extrasaction="ignore")
+        if wr is None:              # declare every column up front (episode stats appear only after the first episodes end)
+            names = list(row.keys())
+            names += [k for k in ("ep_fall", "ep_track", "ep_ev", "ep_ew", "ep_tilt", "ep_len") + tuple(f"fall_{x}" for x in TR.FAMILIES)
+                      if k not in names]
+            wr = csv.DictWriter(f, fieldnames=names, extrasaction="ignore")
             if f.tell() == 0:
                 wr.writeheader()
         wr.writerow({k: (round(v, 5) if isinstance(v, float) else v) for k, v in row.items()})
