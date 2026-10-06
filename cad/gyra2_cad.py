@@ -11,8 +11,12 @@ What changes vs Mk1 (cad/gyra_cad.py, whose helpers this file reuses):
   * nothing of the spine sits in the pendulum's swept volume -> the pendulum can swing 360 deg
   * axle, pods and bays move outward by D_CROWN
 
-    python cad/gyra2_cad.py [--check]
-Outputs go to cad/out2/.
+    python cad/gyra2_cad.py [--check]                 # Mk2   -> cad/out2/
+    GYRA_VARIANT=mk21 python cad/gyra2_cad.py         # Mk2.1 -> cad/out21/
+
+Mk2.1 (root-cause fix of the sideways roll-overs, docs/08 sec. 2): crown offset 50 -> 90 mm (wider stance, roll
+stiffness independent of the pendulum angle) and the worm-driven bob lean replaced by a back-drivable BLDC + ball-screw
+drive (60 -> 180 deg/s, so the lean no longer rate-saturates against the ~2 s rocking mode).
 """
 from __future__ import annotations
 
@@ -35,10 +39,11 @@ from params import (AXLE_HALF, AXLE_ID, AXLE_OD, CLOCKSPRING_D, CLOCKSPRING_Y, D
                     LEVEL_MOTOR_D, LEVEL_MOTOR_POS, LUG_ARC_DEG, LUG_SKEW_DEG, N_LUG_PITCH, R_OUT,
                     R_SHELL_IN, R_SHELL_OUT, R_TREAD_BASE, RIM_TRACK_R, Y_EDGE)
 
-OUT2 = os.path.join(os.path.dirname(__file__), "out2")
+VARIANT = os.environ.get("GYRA_VARIANT", "mk2")
+OUT2 = os.path.join(os.path.dirname(__file__), "out21" if VARIANT == "mk21" else "out2")
 
 # ---------------------------------------------------------------------------- Mk2 parameters
-D_CROWN = 50.0                   # crown offset of each half -> patches 100 mm apart
+D_CROWN = 90.0 if VARIANT == "mk21" else 50.0   # crown offset of each half -> patches 2*D_CROWN apart
 SEAM_GAP = 2.5                   # half-gap at the equator (slewing ring sits in it)
 RING_Y = (8.0, 24.0)             # |y| span of each half's internal ring gear
 PULLEY_Y = (26.0, 34.0)          # |y| span of the belt pulleys
@@ -200,13 +205,17 @@ def build_bob2() -> list[Part]:
     P = []
     w = extrude_yz(sector_yz(206.0, BOB_R2[1], -BOB_HALF2, BOB_HALF2), -BOB_X2 + 2, BOB_X2 - 2)
     batt = extrude_yz(sector_yz(BOB_R2[0] + 3, 203.0, -BOB_HALF2 + 1.5, BOB_HALF2 - 1.5), -BOB_X2 + 4, 30.0)
-    worm = cq.Solid.makeCylinder(15.0, 24.0, Vector(34.0, 0, -180.0), Vector(1, 0, 0))
+    if VARIANT == "mk21":        # BLDC + ball-screw lean drive: back-drivable, 180 deg/s
+        worm = cq.Solid.makeCylinder(17.0, 30.0, Vector(30.0, 0, -180.0), Vector(1, 0, 0))
+    else:                        # worm drive: self-locking, 60 deg/s
+        worm = cq.Solid.makeCylinder(15.0, 24.0, Vector(34.0, 0, -180.0), Vector(1, 0, 0))
     sec = sector_yz(BOB_R2[0], BOB_R2[1], -BOB_HALF2 - 2, BOB_HALF2 + 2)
     carriage = [extrude_yz(sec, BOB_X2, BOB_X2 + 4), extrude_yz(sec, -BOB_X2 - 4, -BOB_X2)]
     pin = cyl_dir(10.0, 8.0, Vector(BOB_X2 + 4, 0, -195.0), Vector(1, 0, 0))
     P.append(Part("bob_tungsten", w, "bob", "lead", mass=TUNGSTEN_KG))
     P.append(Part("bob_battery", batt, "bob", "battery", mass=BATTERY2_KG))
-    P.append(Part("bob_worm_motor", worm, "bob", "motor_black", mass=0.35))
+    P.append(Part("bob_lean_drive" if VARIANT == "mk21" else "bob_worm_motor", worm, "bob", "motor_black",
+                  mass=0.45 if VARIANT == "mk21" else 0.35))
     P.append(Part("bob_carriage", cq.Compound.makeCompound(carriage), "bob", "alu_dark", rho="al"))
     P.append(Part("bob_lean_pinion", pin, "bob", "steel", rho="steel"))
     return P
