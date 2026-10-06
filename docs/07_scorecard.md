@@ -7,16 +7,16 @@ estimates from its paper's mass table using the same formulas as GYRA. All GYRA 
 |---|---|---|---|---|
 | Diameter × width | 800 × 800 mm | 600 × 600 mm | 600 × 700 mm | 600 × 700 mm |
 | Mass | 125-160 kg | 41.4 kg | 45.1 kg | same |
-| Turn in place (mean yaw rate) | not possible (turns only while rolling) | 9°/s (CMG ratchet) | 163°/s @3 rad/s cmd · 258°/s @6 | see eval |
-| Turn radius at 6 m/s | ~27 m (lean-precession estimate) | ~48 m (estimate) | 17.9 m (stable classical) | see eval |
+| Turn in place (mean yaw rate) | not possible (turns only while rolling) | 9°/s (CMG ratchet) | 163°/s @3 rad/s cmd · 258°/s @6 | 176°/s @3 rad/s cmd |
+| Turn radius at 6 m/s | ~27 m (lean-precession estimate) | ~48 m (estimate) | 17.9 m (0.4 rad/s cmd; falls at 0.6) | 18.9 m at 0.6 rad/s cmd, no fall |
 | Sensor-pod pitch, 0→3 m/s→0 | ≈ pendulum pitch (~40-46°) | 0.75° | 0.39° | same loop |
 | Max grade (sim) | ~18° static est., 10° tested | 10° | 14° | 14° |
 | Top stable speed | 10 m/s (paper) | 6.4 m/s (motor) | 8.5 m/s | — |
 | Battery | ≈ 2.4 kWh (13S 50 Ah) | 468 Wh | 936 Wh | 936 Wh |
 | Lateral shove 300 N @ 3 m/s, peak roll | — | — | 13.6° | 10.8° |
 | Random commands, randomised dynamics + pushes: fall rate | — | — | 67% | 8% |
-| … mean |speed error| | — | — | 1.73 m/s | 1.35 m/s |
-| … mean |yaw-rate error| | — | — | 0.83 rad/s | 0.47 rad/s |
+| … mean abs speed error | — | — | 1.73 m/s | 1.35 m/s |
+| … mean abs yaw-rate error | — | — | 0.83 rad/s | 0.47 rad/s |
 | 6 m/s turn (0.6 rad/s cmd): RMS yaw-rate err / max roll / fell | — | — | 1.28 / 69° / True | 0.32 / 7° / False |
 | 4 m/s slalom (±0.8 rad/s): RMS yaw-rate err / max roll / fell | — | — | 0.85 / 6° / False | 0.53 / 1° / False |
 | speed steps to 8 m/s: RMS yaw-rate err / max roll / fell | — | — | 0.03 / 0° / False | 0.16 / 0° / False |

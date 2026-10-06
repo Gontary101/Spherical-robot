@@ -75,4 +75,60 @@ Baseline: a classical **VFH-style gap follower** using the same masked scan and 
 same drifting odometry, driving through the same low-level policy.
 
 ## 3. Results
-*(filled in from `rl/runs/*/eval.json` when training completes)*
+
+### 3.1 Locomotion (deterministic tests, `rl/runs/loco/eval.json`)
+Deployed policy: the residual PPO checkpoint at 3.9 M steps (`rl/runs/loco/best.pt`,
+TorchScript `actor.pt` + `actor_obs_norm.json`).
+
+| test | classical alone | **classical + learned residual** |
+|---|---|---|
+| **6 m/s turn, 0.6 rad/s command** | **falls** (roll 69°), RMS yaw error 1.28 rad/s | **stable**, roll 7°, RMS yaw error 0.32 rad/s, radius 18.9 m |
+| 4 m/s slalom (±0.8 rad/s) | yaw error 0.85 rad/s, roll oscillation to 6° | yaw error 0.53 rad/s, roll ≤ 1.5° |
+| **random commands + randomised dynamics + shoves** (12 × 21 s) | **67% falls**, abs errors 1.73 m/s / 0.83 rad/s | **8% falls**, 1.35 m/s / 0.47 rad/s |
+| 300 N shove at 3 m/s, peak roll | 13.6° | 10.8° |
+| turn in place, 3 rad/s command | 171°/s | 176°/s |
+| speed steps 0 → 8 m/s | RMS speed error 0.77 (acceleration-limited) | 0.75 |
+
+![locomotion evaluation](../media/rl_loco_eval.png)
+
+**Remaining flaw:** the learned residual has a small yaw-rate bias, about 0.2 rad/s at
+low speed when commanded straight. RMS yaw error on the straight speed-step test is
+0.16 vs 0.03 for the
+classical loop. A heading-hold term or a symmetry-augmented training batch (mirror
+left/right) is the next fix.
+
+**What didn't work (kept for the record).**
+1. *End-to-end PPO* (`rl/runs/archive/loco_e2e`) plateaued at ~0.6 m/s speed error
+   with ~35 % falls, and its exploration noise kept growing.
+2. *Training on to 8.5 M steps* with the hardest curriculum stage (7 m/s, 10.5° slopes,
+   225 N shoves) **degraded** the policy: 42 % falls on the evaluation suite, against
+   8 % at 3.9 M (`rl/runs/archive/loco_residual_to_8p5M/eval_8p5M.json`). The
+   deployed checkpoint was chosen by evaluation, not by training reward.
+
+### 3.2 Autonomous navigation (100 fixed random maps, `rl/runs/nav/eval.json`)
+Both navigators drive through the same deployed locomotion policy and see the same
+masked LiDAR and drifting odometry.
+
+| | VFH-style baseline | **learned (asymmetric PPO)** |
+|---|---|---|
+| success | 72% | **79%** |
+| collisions | 11% | **2%** |
+| falls | 2% | 6% |
+| time to goal (successes) | 9.6 s | **6.5 s** |
+| mean speed (successes) | 0.86 m/s | **1.35 m/s** |
+
+The learned navigator has **5.5× fewer collisions** and reaches goals **1.6× faster**.
+It falls more often (6%): it asks the low-level for more aggressive
+manoeuvres, and some of them exceed what the locomotion policy can hold. Next step:
+fine-tune the two levels jointly, or add the low-level's roll margin to the navigator's
+observation.
+
+## 4. Deploying on hardware
+* Run `actor.pt` (TorchScript) at 50 Hz on the Jetson. Observation = 4-frame history
+  of gyro, gravity vector, pendulum/bob/drive encoders, previous action and the
+  classical base action, plus the command, normalised with `actor_obs_norm.json`.
+* The classical cascade runs alongside on the same estimates. The residual is added
+  with the same ±25 N·m / ±25 N·m / ±0.35 rad clipping as in training.
+* The levelling motor keeps its own PD loop.
+* The navigator runs at 10 Hz on the Mid-360 scans (flattened to the 72-beam 2-D scan),
+  the stereo depth from the two front cameras, and the wheel/gyro odometry.

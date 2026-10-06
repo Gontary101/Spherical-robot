@@ -1,0 +1,10 @@
+{
+ "classical": {
+  "radius_6ms_m": null,
+  "spin_mean_dps": 171.4358763238827
+ },
+ "learned": {
+  "radius_6ms_m": 18.92091457726581,
+  "spin_mean_dps": 176.06203237466184
+ }
+}

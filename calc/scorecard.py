@@ -22,6 +22,7 @@ mk2 = load("sim/out/mk2_summary.json")
 loco = load("rl/runs/loco/eval.json")
 nav = load("rl/runs/nav/eval.json")
 mp2 = load("cad/out2/mass_properties.json")
+xm = load("rl/runs/loco/extra_metrics.json")
 
 
 def f(x, fmt="{:.1f}", none="—"):
@@ -48,10 +49,11 @@ rows = [
      f"{mp2.get('robot', {}).get('mass', 45.1):.1f} kg", "same"),
     ("Turn in place (mean yaw rate)", "not possible (turns only while rolling)", f"{mk1_spin:.0f}°/s (CMG ratchet)",
      f"{mk2.get('spin3_yaw_rate_dps', 0):.0f}°/s @3 rad/s cmd · {mk2.get('spin6_yaw_rate_dps', 0):.0f}°/s @6",
-     "see eval"),
+     f(xm.get("learned", {}).get("spin_mean_dps"), "{:.0f}°/s @3 rad/s cmd")),
     ("Turn radius at 6 m/s", f"~{rt_turn6:.0f} m (lean-precession estimate)",
      f"~{size1.get('turn_radius_m', {}).get('6 m/s', 48):.0f} m (estimate)",
-     f"{mk2.get('min_turn_radius_at_6ms_m', 0):.1f} m (stable classical)", "see eval"),
+     f"{mk2.get('min_turn_radius_at_6ms_m', 0):.1f} m (0.4 rad/s cmd; falls at 0.6)",
+     f(xm.get("learned", {}).get("radius_6ms_m"), "{:.1f} m at 0.6 rad/s cmd, no fall")),
     ("Sensor-pod pitch, 0→3 m/s→0", "≈ pendulum pitch (~40-46°)", f"{mk1.get('drive_peak_spine_pitch_deg', 0.75):.2f}°",
      f"{mk2.get('drive_peak_spine_pitch_deg', 0.39):.2f}°", "same loop"),
     ("Max grade (sim)", "~18° static est., 10° tested", "10°", "14°", "14°"),
@@ -64,8 +66,8 @@ rc = C.get("random_commands_randomised_dynamics", {})
 rl_ = L.get("random_commands_randomised_dynamics", {})
 rows += [
     ("Random commands, randomised dynamics + pushes: fall rate", "—", "—", f(rc.get("fall_rate"), "{:.0%}"), f(rl_.get("fall_rate"), "{:.0%}")),
-    ("… mean |speed error|", "—", "—", f(rc.get("mean_abs_v_err"), "{:.2f} m/s"), f(rl_.get("mean_abs_v_err"), "{:.2f} m/s")),
-    ("… mean |yaw-rate error|", "—", "—", f(rc.get("mean_abs_w_err"), "{:.2f} rad/s"), f(rl_.get("mean_abs_w_err"), "{:.2f} rad/s")),
+    ("… mean abs speed error", "—", "—", f(rc.get("mean_abs_v_err"), "{:.2f} m/s"), f(rl_.get("mean_abs_v_err"), "{:.2f} m/s")),
+    ("… mean abs yaw-rate error", "—", "—", f(rc.get("mean_abs_w_err"), "{:.2f} rad/s"), f(rl_.get("mean_abs_w_err"), "{:.2f} rad/s")),
 ]
 for test, label in (("turn_6ms", "6 m/s turn (0.6 rad/s cmd)"), ("slalom_4ms", "4 m/s slalom (±0.8 rad/s)"),
                     ("speed_steps", "speed steps to 8 m/s")):
