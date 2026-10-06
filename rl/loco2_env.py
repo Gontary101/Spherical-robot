@@ -92,6 +92,8 @@ class Loco2Env:
         self.scenario = scenario
         self.record = record
         self.cache = []
+        self.lite = False
+        self.terrain_tol, self.terrain_reuse, self.terrain_cache = 0.12, 0.8, 10
         self.hist = np.zeros((HIST, FRAME))
         self.m = None
         sx = np.arange(SCAN) - SCAN // 2
@@ -103,13 +105,13 @@ class Loco2Env:
     def _terrain(self, family, k):
         r = self.rng
         for i, (fam, kk, h) in enumerate(self.cache):
-            if fam == family and abs(kk - k) < 0.12 and r.random() < 0.8:
+            if fam == family and abs(kk - k) < self.terrain_tol and r.random() < self.terrain_reuse:
                 h = h[::-1] if r.random() < 0.5 else h
                 h = h[:, ::-1] if r.random() < 0.5 else h
                 return h.T if r.random() < 0.5 else h
         h = TR.make(r, family, k)
         self.cache.append((family, k, h))
-        self.cache = self.cache[-10:]
+        self.cache = self.cache[-self.terrain_cache:]
         return h
 
     def _sample_adr(self):
@@ -543,7 +545,10 @@ class Loco2Env:
                     self.level = max(0.0, self.level - 0.05)
                 elif es["track"] / n > 0.6 and self.S["k"] >= self.level - 1e-9:
                     self.level = min(1.0, self.level + 0.05)
-        obs = self._obs(t)
+        if self.lite:                                    # navigation only needs the actor observation
+            obs = (np.concatenate([self.hist.reshape(-1), self.cmd * np.array([0.25, 0.5])]).astype(np.float32), None)
+        else:
+            obs = self._obs(t)
         return obs, float(rew) * DT * 5, done, info
 
     # mirror maps (robot is left/right symmetric) for the symmetry loss ------------------------------------

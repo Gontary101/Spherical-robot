@@ -68,21 +68,43 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 
 class LowLevel:
-    """Frozen locomotion v2 policy (python module so its estimator head is available to navigation)."""
+    """Frozen locomotion policy (incl. its estimator head) evaluated in NumPy: identical maths to the PyTorch Actor2
+    (checked in __main__), ~5x faster than a batch-1 PyTorch call inside the 50 Hz loop."""
     def __init__(self, ckpt):
-        torch.set_num_threads(1)               # one env per core: intra-op threads only oversubscribe
         ck = torch.load(ckpt, weights_only=False)
-        self.actor = Actor2(HIST, FRAME, N_CMD, N_EST, N_ACT)
-        self.actor.load_state_dict(ck["actor"])
-        self.actor.eval()
-        self.m = np.array(ck["na"]["mean"], np.float32)
-        self.s = np.sqrt(np.array(ck["na"]["var"], np.float32) + 1e-8)
+        W = {k: v.numpy().astype(np.float64) for k, v in ck["actor"].items()}
+        self.W = W
+        self.m = np.array(ck["na"]["mean"], np.float64)
+        self.s = np.sqrt(np.array(ck["na"]["var"], np.float64) + 1e-8)
+        # conv weights as (C_in*k, C_out) matrices for an im2col + matmul formulation
+        self.convs = [(W[f"enc.conv.{i}.weight"].shape[2], W[f"enc.conv.{i}.weight"].transpose(1, 2, 0).reshape(-1, W[f"enc.conv.{i}.weight"].shape[0]),
+                       W[f"enc.conv.{i}.bias"]) for i in (0, 2, 4)]
+        self.pi = [(W[f"pi.{i}.weight"], W[f"pi.{i}.bias"]) for i in (0, 2, 4, 6)]
 
-    @torch.no_grad()
+    @staticmethod
+    def _elu(x):
+        return np.where(x > 0, x, np.expm1(np.minimum(x, 0)))
+
+    @staticmethod
+    def _conv(x, k, wm, b):                   # x (L, C_in) time-major, stride 2, no padding -> (L_out, C_out)
+        n = (x.shape[0] - k) // 2 + 1
+        cols = np.lib.stride_tricks.as_strided(x, (n, x.shape[1], k), (x.strides[0] * 2, x.strides[1], x.strides[0]))
+        return cols.reshape(n, -1) @ wm + b
+
     def __call__(self, oa):
-        x = torch.as_tensor(np.clip((oa - self.m) / self.s, -8, 8)[None].astype(np.float32))
-        mu, e = self.actor.mean(x)
-        return np.clip(mu.numpy()[0], -1, 1), e.numpy()[0]
+        x = np.clip((oa - self.m) / self.s, -8, 8)
+        h = x[:HIST * FRAME].reshape(HIST, FRAME)
+        z = np.ascontiguousarray(h)
+        for k, wm, b in self.convs:
+            z = np.ascontiguousarray(self._elu(self._conv(z, k, wm, b)))
+        z = self._elu(self.W["enc.fc.0.weight"] @ z.T.reshape(-1) + self.W["enc.fc.0.bias"])     # torch flattens (C, L)
+        e = self.W["est.weight"] @ z + self.W["est.bias"]
+        y = np.concatenate([h[-1], x[HIST * FRAME:], z, e])
+        for i, (w, b) in enumerate(self.pi):
+            y = w @ y + b
+            if i < 3:
+                y = self._elu(y)
+        return np.clip(y, -1, 1), e
 
 
 def _box(name, cx, cy, sx, sy, h, yaw=0.0, wall=False):
@@ -111,6 +133,9 @@ class Nav2Env:
         self.level, self.adaptive, self.scenario = level, adaptive and scenario is None, scenario
         self.low = LowLevel(low_ckpt or os.environ.get("GYRA_LOW", os.path.join(ROOT, "rl/runs/loco2/best_train.pt")))
         self.loco = Loco2Env(seed=seed, adaptive=False, world_fn=self._world, ep_len=10 ** 9, external_cmd=True)
+        # navigation resets are frequent (short early episodes): reuse a per-worker terrain bank (flips/transposes add variety)
+        self.loco.terrain_tol, self.loco.terrain_reuse, self.loco.terrain_cache = 0.3, 0.95, 24
+        self.loco.lite = True
         self.beam_ang = np.linspace(-np.pi, np.pi, N_BEAM, endpoint=False)
         hf, vf = np.radians(45), np.radians(22.5)
         u, v = np.meshgrid(np.linspace(-hf, hf, DEPTH_W), np.linspace(vf, -vf, DEPTH_H) - np.radians(8))
