@@ -4,3 +4,7 @@ sim/out/runs.npz
 cad/out/*.log
 rl/runs/*/last.pt
 rl/runs/*/pid
+rl/runs/loco2/progress.csv
+rl/runs/loco2/train.log
+rl/runs/nav2/progress.csv
+rl/runs/nav2/train.log
