@@ -123,6 +123,14 @@ manoeuvres, and some of them exceed what the locomotion policy can hold. Next st
 fine-tune the two levels jointly, or add the low-level's roll margin to the navigator's
 observation.
 
+![navigation paths](../media/rl_nav_paths.png)
+
+Example maps from the evaluation set (`rl/plot_nav.py`). On map 9037 **both**
+navigators circle about 1.5 m short of the true goal. Their wheel/gyro odometry has
+drifted, so they "arrive" in the odometry frame. On hardware this failure mode
+disappears once the odometry is fused with the dual-antenna RTK GNSS and LiDAR SLAM.
+In simulation it is the right stress test for a policy that sees only drifting odometry.
+
 ## 4. Deploying on hardware
 * Run `actor.pt` (TorchScript) at 50 Hz on the Jetson. Observation = 4-frame history
   of gyro, gravity vector, pendulum/bob/drive encoders, previous action and the
