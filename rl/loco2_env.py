@@ -313,6 +313,7 @@ class Loco2Env:
             S["strength"] - 1, [(S["tyre_r"] - R_NOM) * 50, S["delay"] * 0.5, self.level],
             [(c * pf[0] + s * pf[1]) / 200, (-s * pf[0] + c * pf[1]) / 200, self.kick / 40, float(self.push_left > 0)],
             S["gyro_bias"] * 20, [(self.v_ref - t["v"]) * 0.25, (self.w_ref - t["w"]) * 0.5],
+            [self.e_s * 5, self.e_psi * 5],
             self._height_scan(t) * 4,
         ])
         critic = np.concatenate([self._est_targets(t), self.hist[-1], cmd, priv]).astype(np.float32)
@@ -421,6 +422,7 @@ class Loco2Env:
         self.wind_f = np.zeros(2)
         self.cmd = np.zeros(2)
         self.v_ref, self.w_ref = 0.0, 0.0
+        self.e_s, self.e_psi = 0.0, 0.0
         self.u_terrain = np.zeros(2)
         if not self.external_cmd:
             self._sample_cmd()
@@ -496,11 +498,19 @@ class Loco2Env:
         # ---------------- reward (each term logged)
         self._ref_step(t)
         ev, ew = self.v_ref - t["v"], self.w_ref - t["w"]
+        # leaky integrals of the along-track and heading errors: a persistent bias (creeping when told to stop, turning
+        # when told to go straight) grows into a large error and is no longer free under the wide tracking kernels
+        self.e_s += (-ev - 0.2 * self.e_s) * DT
+        self.e_psi += (-ew - 0.2 * self.e_psi) * DT
         sat = (max(abs(cmdL) - abs(tauL), 0) + max(abs(cmdR) - abs(tauR), 0)) / MotorModel.TAU_STALL
         power = max(tauL * wL, 0) + max(tauR * wR, 0)
         terms = dict(
             track_v=1.0 * math.exp(-ev ** 2 / 0.25),
             track_w=0.75 * math.exp(-ew ** 2 / 0.25),
+            track_v_fine=0.5 * math.exp(-ev ** 2 / 0.01),
+            track_w_fine=0.5 * math.exp(-ew ** 2 / 0.01),
+            hold_dist=0.5 * math.exp(-self.e_s ** 2 / 0.0025),
+            hold_heading=0.5 * math.exp(-self.e_psi ** 2 / 0.0025),
             steady=0.25 * math.exp(-(t["pitch_rate"] ** 2 + t["roll_rate"] ** 2) / 0.25),
             tilt=-1.0 * t["pitch"] ** 2 - 0.2 * max(abs(t["roll"]) - 0.15, 0) ** 2,
             act_rate=-0.02 * float(np.sum((a - self.last_a) ** 2)),

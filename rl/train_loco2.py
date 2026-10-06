@@ -57,20 +57,21 @@ def make_agent(n_critic, n_act=N_ACT, max_std=0.5, ent=0.002):
 
 
 def load_partial(agent, path):
-    """Warm start from a checkpoint whose action dimension may differ (new actuator): copy every matching tensor,
-    and for the last policy layer copy the overlapping rows (new rows stay at their near-zero init)."""
+    """Warm start from a checkpoint whose action or observation sizes may differ: every tensor's overlapping block is
+    copied (new action rows / new input columns keep their fresh init), normaliser statistics likewise."""
     ck = torch.load(path, weights_only=False)
     for net, key in ((agent.actor, "actor"), (agent.critic, "critic")):
         own = net.state_dict()
         for k, v in ck[key].items():
-            if k in own and own[k].shape == v.shape:
-                own[k] = v
-            elif k in own and own[k].dim() == v.dim() and own[k].shape[1:] == v.shape[1:]:
-                n = min(own[k].shape[0], v.shape[0])
-                own[k][:n] = v[:n]
+            if k in own and own[k].dim() == v.dim():
+                sl = tuple(slice(0, min(a, b)) for a, b in zip(own[k].shape, v.shape))
+                own[k][sl] = v[sl]
         net.load_state_dict(own)
-    agent.na.load(ck["na"])
-    agent.nc.load(ck["nc"])
+    for norm, key in ((agent.na, "na"), (agent.nc, "nc")):
+        st = ck[key]
+        n = min(len(norm.mean), len(st["mean"]))
+        norm.mean[:n], norm.var[:n] = np.array(st["mean"])[:n], np.array(st["var"])[:n]
+        norm.count = st["count"]
 
 
 def main():
