@@ -13,13 +13,13 @@ estimates from its paper's mass table using the same formulas as GYRA. All GYRA 
 | Max grade (sim) | ~18° static est., 10° tested | 10° | 14° | 14° |
 | Top stable speed | 10 m/s (paper) | 6.4 m/s (motor) | 8.5 m/s | — |
 | Battery | ≈ 2.4 kWh (13S 50 Ah) | 468 Wh | 936 Wh | 936 Wh |
-| Lateral shove 300 N @ 3 m/s, peak roll | — | — | 14.4° | — |
-| Random commands, randomised dynamics + pushes: fall rate | — | — | — | — |
-| … mean |speed error| | — | — | — | — |
-| … mean |yaw-rate error| | — | — | — | — |
-| 6 m/s turn (0.6 rad/s cmd): RMS yaw-rate err / max roll / fell | — | — | — / — / — | — / — / — |
-| 4 m/s slalom (±0.8 rad/s): RMS yaw-rate err / max roll / fell | — | — | — / — / — | — / — / — |
-| speed steps to 8 m/s: RMS yaw-rate err / max roll / fell | — | — | — / — / — | — / — / — |
-| Autonomous nav, 100 random maps: success | L4 autonomy claimed (no data) | — | — (VFH baseline) | — (learned) |
-| … collision rate | — | — | — | — |
-| … mean speed on successful runs | — | — | — | — |
+| Lateral shove 300 N @ 3 m/s, peak roll | — | — | 13.6° | 10.8° |
+| Random commands, randomised dynamics + pushes: fall rate | — | — | 67% | 8% |
+| … mean |speed error| | — | — | 1.73 m/s | 1.35 m/s |
+| … mean |yaw-rate error| | — | — | 0.83 rad/s | 0.47 rad/s |
+| 6 m/s turn (0.6 rad/s cmd): RMS yaw-rate err / max roll / fell | — | — | 1.28 / 69° / True | 0.32 / 7° / False |
+| 4 m/s slalom (±0.8 rad/s): RMS yaw-rate err / max roll / fell | — | — | 0.85 / 6° / False | 0.53 / 1° / False |
+| speed steps to 8 m/s: RMS yaw-rate err / max roll / fell | — | — | 0.03 / 0° / False | 0.16 / 0° / False |
+| Autonomous nav, 100 random maps: success | L4 autonomy claimed (no data) | — | 72% (VFH baseline) | 79% (learned) |
+| … collision rate | — | — | 11% | 2% |
+| … mean speed on successful runs | — | — | 0.86 m/s | 1.35 m/s |

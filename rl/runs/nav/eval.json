@@ -1,0 +1,18 @@
+{
+ "vfh_baseline": {
+  "success_rate": 0.72,
+  "collision_rate": 0.11,
+  "fall_rate": 0.02,
+  "mean_time_success_s": 9.572222222222223,
+  "path_efficiency": 0.9984472839835709,
+  "mean_speed_success_ms": 0.8611515902444131
+ },
+ "learned": {
+  "success_rate": 0.79,
+  "collision_rate": 0.02,
+  "fall_rate": 0.06,
+  "mean_time_success_s": 6.540506329113923,
+  "path_efficiency": 0.8696089197971925,
+  "mean_speed_success_ms": 1.352036389800234
+ }
+}
