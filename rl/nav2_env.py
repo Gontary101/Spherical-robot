@@ -18,8 +18,13 @@ Ground and robot: terrain, friction, slopes, payload, pushes, wind, weak motors,
 Sensor faults: blind LiDAR sector (dirty window), spurious returns (dust/rain), depth-camera blackout and frame drops,
 encoder-scale and gyro-bias odometry drift.
 
+Global planner: in 70 % of episodes a prior map exists (walls + a random 60-100 % of the free-standing obstacles:
+the map is stale, and pedestrians are never in it); Dijkstra on it gives a subgoal 2.5 m ahead along the path from the
+odometry pose. Without a map the subgoal is the goal itself. The learned policy is the local planner / controller.
+
 Actor observation (deployable):
-  LiDAR 72 beams x 3 frames (0.2 s), front stereo depth 24 x 12, odometry goal (dist, bearing), encoder speed,
+  LiDAR 72 beams x 3 frames (0.2 s), front stereo depth 24 x 12, odometry goal (dist, bearing), planner subgoal
+  (dist, bearing) + map flag, encoder speed,
   gyro yaw rate, previous action, episode-time fraction, the locomotion policy's own estimate of body velocity / slope /
   friction / payload / wind / motor strength (10)
 Critic observation (privileged): true scan, true goal, geodesic distance + direction to goal, true v/w, friction,
@@ -56,7 +61,8 @@ W_RANGE = 2.5
 ROBOT_R = 0.36                   # half-width incl. pods (footprint radius used for planning / clearance)
 GRID = 0.1
 N_DYN = 6
-ACT_OBS = N_BEAM * LIDAR_FRAMES + DEPTH_W * DEPTH_H + 3 + 2 + 2 + 1 + N_EST
+LOOKAHEAD = 2.5                  # planner subgoal distance along the path (m)
+ACT_OBS = N_BEAM * LIDAR_FRAMES + DEPTH_W * DEPTH_H + 3 + 4 + 2 + 2 + 1 + N_EST
 FAMILIES = ("clutter", "forest", "rooms", "maze", "mixed")
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
@@ -136,6 +142,8 @@ class Nav2Env:
         P["lidar_spurious"] = 0.01 * k
         P["depth_blackout"] = r.random() < 0.1 * k
         P["depth_drop"] = 0.1 * k
+        P["map"] = r.random() < 0.7
+        P["map_stale"] = r.uniform(0, 0.4)
         if self.scenario:
             P.update(self.scenario.get("nav", {}))
         return P
@@ -277,10 +285,12 @@ class Nav2Env:
         else:
             raise RuntimeError("no feasible layout")
         self.start = np.array([self.gx[tuple(si)], self.gy[tuple(si)]])
-        self.goal = np.array([self.gx[tuple(gi)], self.gy[tuple(gi)]])
         self.free = free
-        self.geo = self._geodesic(free, tuple(gi))            # distance-to-goal field (static obstacles)
-        self.geo[~np.isfinite(self.geo)] = 99.0
+        # prior map for the global planner: walls + a random subset of the free-standing obstacles
+        from scipy.ndimage import distance_transform_edt as edt
+        kept = [o for o in obs if o["wall"] or r.random() >= P["map_stale"]]
+        self.plan_free = edt(~self._occupancy(kept)) * GRID > ROBOT_R + 0.05
+        self.set_goal(np.array([self.gx[tuple(gi)], self.gy[tuple(gi)]]))
         self.static_specs = []
         for o in obs:
             fp = _footprint(o)
@@ -306,6 +316,47 @@ class Nav2Env:
             dyn_specs.append(dict(name=f"dyn{i}", verts=obstacle_vertices("cylinder", (0.25, 0.8), n_seg=32), pos=(p[0], p[1], z0 + 0.8)))
         self.dyn_free = clear > 0.5
         return self.static_specs, dyn_specs
+
+    def set_goal(self, goal):
+        """New goal: true geodesic field (reward / critic) + planner field and descent pointers (actor subgoal)."""
+        self.goal = np.asarray(goal, float)
+        gc = self._cell(self.goal)
+        self.geo = self._geodesic(self.free, gc)
+        self.geo[~np.isfinite(self.geo)] = 99.0
+        pg = self._geodesic(self.plan_free, gc)
+        pg[~np.isfinite(pg)] = 1e6
+        n = self.n_grid
+        best = pg.copy()
+        nxt = np.arange(n * n).reshape(n, n)
+        idx = nxt.copy()
+        P = np.pad(pg, 1, constant_values=1e7)
+        I = np.pad(idx, 1, constant_values=-1)
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                if dy == 0 and dx == 0:
+                    continue
+                cand = P[1 + dy:1 + dy + n, 1 + dx:1 + dx + n]
+                ci = I[1 + dy:1 + dy + n, 1 + dx:1 + dx + n]
+                better = cand < best
+                best = np.where(better, cand, best)
+                nxt = np.where(better, ci, nxt)
+        self.plan_geo, self.plan_next = pg, nxt.ravel()
+
+    def subgoal(self, pos):
+        """Point LOOKAHEAD metres down the planner's shortest path from pos (goal itself without a map)."""
+        if not self.P["map"]:
+            return self.goal
+        i, j = self._cell(pos)
+        c = i * self.n_grid + j                    # blocked cells point to their best neighbour, so drift is tolerated
+        for _ in range(int(LOOKAHEAD / GRID)):
+            c2 = self.plan_next[c]
+            if c2 == c:
+                break
+            c = c2
+        if self.plan_geo.flat[c] < GRID * 1.5 or self.plan_geo.flat[c] >= 1e6:
+            return self.goal
+        i, j = divmod(int(c), self.n_grid)
+        return np.array([self.gx[i, j], self.gy[i, j]])
 
     # ================================================================== pedestrians
     def _move_dyn(self, dt):
@@ -439,8 +490,8 @@ class Nav2Env:
         self.scans = [scan] * LIDAR_FRAMES
         return self._obs(pos, yaw, t, true)
 
-    def _goal_feat(self, pos, yaw):
-        dv = self.goal - pos
+    def _goal_feat(self, pos, yaw, goal=None):
+        dv = (self.goal if goal is None else goal) - pos
         b = math.atan2(dv[1], dv[0]) - yaw
         return np.array([min(np.linalg.norm(dv), 10) / 10, math.sin(b), math.cos(b)])
 
@@ -450,6 +501,7 @@ class Nav2Env:
         depth = self._depth(pos, yaw)
         actor = np.concatenate([1.0 - np.concatenate(self.scans[::-1]) / MAX_R, 1.0 - depth / MAX_R,
                                 self._goal_feat(self.odo[:2], self.odo[2]),
+                                self._goal_feat(self.odo[:2], self.odo[2], self.subgoal(self.odo[:2])), [float(self.P["map"])],
                                 [v_est * 0.3, (t["w"] + self.rng.normal(0, 0.02)) * 0.4], self.last_a,
                                 [self.steps / EP_STEPS], self.est]).astype(np.float32)
         geo, gdir = self._geo_at(pos)
@@ -547,9 +599,9 @@ class Nav2Env:
             perm += [base + i * DEPTH_W + (DEPTH_W - 1 - j) for j in range(DEPTH_W)]
             sg += [1] * DEPTH_W
         base += DEPTH_W * DEPTH_H
-        perm += [base, base + 1, base + 2]
-        sg += [1, -1, 1]                                          # goal dist, sin(bearing), cos(bearing)
-        base += 3
+        perm += [base + i for i in range(7)]
+        sg += [1, -1, 1, 1, -1, 1, 1]                             # goal / subgoal (dist, sin, cos), map flag
+        base += 7
         perm += [base, base + 1, base + 2, base + 3, base + 4]
         sg += [1, -1, 1, -1, 1]                                   # v, w, last a (v, w), time
         base += 5

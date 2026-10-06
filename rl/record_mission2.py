@@ -101,9 +101,11 @@ def oracle(oa, env):
     if np.linalg.norm(g) < 1e-6:
         g = env.goal - pos
     err = (math.atan2(g[1], g[0]) - yaw + np.pi) % (2 * np.pi) - np.pi
-    clear = float(env._true_scan(pos, yaw).min()) - 0.36
-    v = float(np.clip(min(2.0, 0.4 + 1.5 * clear), 0.2, 2.0)) * max(0.0, math.cos(err)) ** 2
-    w = float(np.clip(2.0 * err, -2.5, 2.5))
+    scan = env._true_scan(pos, yaw)
+    clear = float(scan.min()) - 0.36
+    front = float(scan[np.abs(env.beam_ang) < 0.6].min()) - 0.36
+    v = float(np.clip(min(1.6, 0.2 + 1.0 * min(clear + 0.2, front)), 0.0, 1.6)) * (max(0.0, math.cos(err)) ** 4 if abs(err) < 0.7 else 0.0)
+    w = float(np.clip(2.5 * err, -2.5, 2.5))
     return np.array([(v - (-1.0)) / 4.5 * 2 - 1, w / 2.5])
 
 
@@ -137,9 +139,7 @@ def mission(seed, family, n_wp, k, n_dyn, nav, low):
             g = new_goal(env, rng)
             if g is None:
                 break
-            env.goal = g[0]
-            env.geo = env._geodesic(env.free, g[1])
-            env.geo[~np.isfinite(env.geo)] = 99.0
+            env.set_goal(g[0])
             env.geo_prev, _ = env._geo_at(env.d.qpos[0:2])
             wps.append(env.goal.copy())
             pos, yaw, _ = env._pose()
