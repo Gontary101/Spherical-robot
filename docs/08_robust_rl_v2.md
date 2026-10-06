@@ -90,8 +90,80 @@ Consequences and fix:
 ### Results
 (pending: training in progress)
 
-## 2. Navigation v2
+## 2. Root-cause analysis of the remaining falls (why v2 plateaued)
+
+At 15M steps v2 had the lowest tracking error and spine tilt, but its fall rate had
+stalled (9.4 % mean over 16 scenarios, versus 10.2 % for v1 and 18 % for classical).
+Rather than patch scenario by scenario, every fall was instrumented
+(`rl/diagnose_falls.py`) and each suspected mechanism tested in isolation.
+
+**What the falls are.** All of them, for every controller and in all seven failing
+scenarios, are sideways roll-overs. Drive-torque saturation before a fall is ~0,
+so the "pendulum torque limit" hypothesis was wrong.
+
+**Mechanism 1: the pendulum spends roll stability.** On a 12° incline (to hold
+position) or when braking from 6 m/s, the pendulum swings to 45-70°. The robot's roll
+stiffness comes from its low CoM (CoM drop ∝ cos θ_pendulum) plus the twin-crown
+stance, and the bob's lean axis tilts with the yoke. Large pendulum angles therefore
+halve both the passive roll stiffness and the bob's authority. Traces show a growing
+roll oscillation (−60° → +58° within 0.5 s) at exactly those moments. Longitudinal
+and lateral capability are coupled: a **stability ellipse**, not independent limits.
+
+**Mechanism 2: the only roll actuator is too slow.** The worm-driven bob (60°/s)
+needs ~0.7 s to cross its range, which is comparable to the ~2 s rocking period. It
+rate-saturates and arrives half a cycle late (roll +32° while the bob is still at
+−15°), pumping energy into the oscillation. The feedback sign is correct; flipping
+it falls at 16°.
+
+**Mechanism 3: the simulation's failure definition was not physical.** "Fall" was
+roll > 63°, and the tyre halves were full spheres. Per the CAD, each half is a sphere
+cap truncated at the pod opening, and the LiDAR pod touches the ground at ~45-48° of
+roll. The sim now carries the pods' collision geometry (stacked cylinders following
+the CAD radial profile; strike at 44.5°), and a pod strike ends the episode.
+
+**Mechanism 4: the task paid the policy to fight physics.** The reward demanded exact
+tracking of any operator command, including speed/turn combinations outside the
+coupled envelope. Tracking them anyway is precisely what produces mechanism 1.
+
+**Two false leads, kept for the record.**
+* "Lateral capability collapses above 4 m/s" was an artefact: fast straight-line
+  test runs left the 60 m terrain patch and hit the geofence. Without it, Mk2.1 turns
+  at > 4 m/s² at 6 m/s with ~0° roll. Steady turning is not roll-limited; transient
+  braking-while-turning is (mechanism 1).
+* A roll reaction wheel looked attractive (RT-G uses one). Measured, it adds ~1 point
+  over the geometric fix and introduces gyroscopic roll-yaw-pitch coupling, so it was
+  not adopted.
+
+### Fixes, each at the layer of its cause
+| layer | fix | evidence |
+|---|---|---|
+| hardware | **Mk2.1**: twin-crown offset 50 → 90 mm (width 700 → 780 mm), bob lean actuator 60 → 180°/s (back-drivable ball-screw in place of the worm), PI spine levelling | classical controller, same scenarios: falls 26.2 % → **10.9 %**, spine tilt 1.00° → **0.28°** (`rl/hw_study.py`) |
+| simulation | pod collision geometry from CAD; failure = pod strike or pendulum loop | strike at 44.5° (CAD vertex analysis: 45-48°) |
+| task | reward tracks a **feasible reference**: operator command shaped by the true slope (uniform + local terrain), friction, payload, motor strength and the stability ellipse. The policy still sees the raw command | — |
+| curriculum | **ADR**: nine factors (terrain, slope, friction, pushes, wind, payload, actuator faults, sensor faults, speed), each with its own range, widened at ≥ 80 % and narrowed below 50 % success on pooled boundary tests | — |
+| optimisation | entropy bonus removed, policy std capped at 0.35 (the bob action's std had drifted to its 0.5 cap) | — |
+
+Hardware study (classical controller, fall %, 16 episodes per cell):
+
+| scenario | Mk2 | lean 180°/s | crown 90 mm | wheel 8 N·m | wheel 15 N·m | **Mk2.1** | Mk2.1 + wheel |
+|---|---|---|---|---|---|---|---|
+| hills | 25 | 0 | 0 | 0 | 0 | **0** | 0 |
+| rough + potholes | 19 | 12 | 12 | 6 | 6 | **6** | 0 |
+| ramps to 15° | 19 | 12 | 6 | 12 | 6 | **0** | 6 |
+| 12° incline | 88 | 81 | 56 | 88 | 88 | **56** | 56 |
+| pushes to 350 N | 69 | 50 | 31 | 56 | 50 | **12** | 6 |
+| wind 40 N + gusts | 44 | 38 | 19 | 31 | 31 | **12** | 12 |
+| payload 10 kg off-centre | 38 | 44 | 12 | 31 | 25 | **12** | 6 |
+| flat, 8 m/s | 38 | 56 | 44 | 50 | 38 | **50** | 50 |
+| everything at once | 38 | 38 | 6 | 12 | 6 | **6** | 0 |
+| **mean, all 16** | 26.2 | 23.4 | 12.9 | 20.7 | 17.6 | **10.9** | 9.8 |
+
+The remaining classical failures (12° incline, 8 m/s) are braking/climbing-while-
+turning beyond the stability ellipse: the classical controller tracks the raw command.
+That is the job of the feasible-reference policy below.
+
+## 3. Navigation v2
 (pending)
 
-## 3. Robustness matrices
+## 4. Robustness matrices
 (pending)
