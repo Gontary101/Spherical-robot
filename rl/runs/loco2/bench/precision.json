@@ -1,0 +1,29 @@
+{
+ "classical": {
+  "hold_heading_deg": 0.27244320037551045,
+  "hold_disp_cm": 2.3338149078811825,
+  "spin_heading_deg": 73.3154419977678,
+  "spin_disp_cm": 1.198845139031546,
+  "creep_heading_deg": 0.4315387274356265,
+  "creep_lateral_cm": 1.2150369737571078,
+  "stop_overrun_cm": 83.5883537834172
+ },
+ "rl/runs/loco3/best.pt": {
+  "hold_heading_deg": 11.922200310845817,
+  "hold_disp_cm": 43.311171656865675,
+  "spin_heading_deg": 30.773668475762744,
+  "spin_disp_cm": 21.183189165066217,
+  "creep_heading_deg": 26.69276341030688,
+  "creep_lateral_cm": 87.49305476682831,
+  "stop_overrun_cm": 63.3975254099056
+ },
+ "rl/runs/loco31/best.pt": {
+  "hold_heading_deg": 9.065897195384304,
+  "hold_disp_cm": 30.595914846120195,
+  "spin_heading_deg": 0.8405286291914231,
+  "spin_disp_cm": 9.87634969236855,
+  "creep_heading_deg": 12.717959004216143,
+  "creep_lateral_cm": 44.09879039516233,
+  "stop_overrun_cm": 57.32097838837946
+ }
+}
