@@ -76,7 +76,7 @@ class HUD:
                 ("command", f"{f[15]:4.1f} m/s {math.degrees(f[16]):+4.0f} °/s"), ("waypoint", wp_txt),
                 ("time", f"{t:5.1f} s")]
         y0 = self.H - (len(rows) * 24 + 22) * s
-        d.rounded_rectangle([12 * s, y0, 262 * s, self.H - 12 * s], radius=10 * s, fill=(12, 14, 18, 170))
+        d.rounded_rectangle([12 * s, y0, 318 * s, self.H - 12 * s], radius=10 * s, fill=(12, 14, 18, 170))
         for j, (lab, val) in enumerate(rows):
             yy = y0 + (12 + j * 24) * s
             d.text((24 * s, yy + 3 * s), lab.upper(), font=self.f_lab, fill=(160, 166, 175, 255))
@@ -144,8 +144,8 @@ def main():
     mission = np.load(a.mission)
     W, H = Image.open(files[0]).size
     hud = HUD(mission, W, H)
-    w = imageio_ffmpeg.write_frames(a.out, (W, H), fps=FPS, codec="libx264", quality=8, macro_block_size=8,
-                                    output_params=["-pix_fmt", "yuv420p", "-movflags", "+faststart"])
+    w = imageio_ffmpeg.write_frames(a.out, (W, H), fps=FPS, codec="libx264", quality=8, macro_block_size=2, pix_fmt_out="yuv420p",
+                                    output_params=["-movflags", "+faststart"])
     w.send(None)
     last = None
     for j, (p, n) in enumerate(zip(files, nums)):
