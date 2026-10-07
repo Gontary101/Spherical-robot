@@ -73,22 +73,56 @@ Consequences and fix:
 * **Deployable artifact:** one TorchScript module with the observation normaliser
   folded in (`rl/runs/loco2/actor.ts`).
 
-### Reward (per step; every term is logged separately)
+### Reward (final v3.1; per step, every term logged separately)
+Errors are measured against the **feasible reference** (sec. 2), not the raw operator command.
+
 | term | weight | |
 |---|---|---|
-| speed tracking | +1.0 · exp(−e_v²/0.25) | |
-| yaw-rate tracking | +0.75 · exp(−e_ω²/0.25) | |
+| speed tracking | +1.0 · exp(−e_v²/0.25) + 0.5 · exp(−e_v²/0.01) | coarse + fine kernels |
+| yaw-rate tracking | +0.75 · exp(−e_ω²/0.25) + 0.5 · exp(−e_ω²/0.01) | |
+| distance / heading hold | +0.5 · exp(−E_s²/0.0025) + 0.5 · exp(−E_ψ²/0.0025) | E = leaky (0.2/s) integrals of the along-track and heading errors: a persistent bias is never free |
 | steady sensor platform | +0.25 · exp(−(ω_pitch² + ω_roll²)/0.25) | camera/LiDAR stability is the robot's selling point |
-| spine attitude | −1.0 θ_pitch² − 0.2 max(\|roll\| − 0.15, 0)² | |
+| spine attitude | −1.0 θ_pitch² − 0.5 θ_roll² | level in both axes |
+| residual size | −0.02 \|a\|² | deviate from the classical loop only when it pays |
 | action rate, smoothness | −0.02 \|Δa\|², −0.01 \|Δ²a\|² | |
 | mechanical power | −4·10⁻⁴ Σ max(τω, 0) | |
 | torque saturation | −0.3 · clipped torque / stall torque | |
 | pendulum slosh | −0.01 ω_pend² | |
 | bob near its stop | −0.5 max(\|bob\| − 0.6, 0) | |
-| fall (pendulum loops, roll > 63°, spine > 34°) | −20, episode ends | |
+| failure: **pod strike** (CAD pod geometry touches the ground), pendulum loop-over, spine > 34° | −20, episode ends | |
 
 ### Results
-(pending: training in progress)
+Final policy: **v3.1** (`rl/runs/loco31/best.pt`, `actor.ts`), fine-tuned from v3 (15M steps) for 9M steps.
+Robustness on the CAD-exact Mk2.1 model, 16 scenarios × 24 episodes (`rl/eval_robust.py`):
+
+| controller / hardware | falls | mean spine tilt | speed RMSE vs feasible ref |
+|---|---|---|---|
+| classical, Mk2 as built | 27.7 % | 0.99° | 0.48 m/s |
+| v1 policy, Mk2 | 19.5 % | 0.89° | 0.46 m/s |
+| v2 policy (15M), Mk2 | 16.8 % | 0.83° | 0.37 m/s |
+| classical, Mk2.1 | 12.5 % | 0.26° | 0.46 m/s |
+| **v3.1 policy, Mk2.1** | **1.8 %** (7 / 384) | **0.21°** | **0.33 m/s** |
+
+The remaining v3.1 falls: 350 N lateral pushes 12.5 % (beyond the roll capacity of the hardware: even an ideal bob
+lean cannot recover a 350 N × 0.3 s side push), 12° incline 12.5 %, rough ground 4 %; 13 of 16 scenarios have none.
+
+Low-speed precision (`rl/precision_test.py`, flat, 4 seeds), which tight-space navigation depends on:
+
+| | classical | v3 | **v3.1** |
+|---|---|---|---|
+| spin in place: heading error vs command | 73° | 31° | **0.8°** |
+| spin in place: displacement | 1 cm | 21 cm | 10 cm |
+| creep 0.3 m/s, 10 s: heading drift | 0.4° | 27° | 13° |
+| hold still 6 s: heading / displacement | 0.3° / 2 cm | 12° / 43 cm | 9° / 31 cm |
+| stop from 1 m/s: overrun | 84 cm | 63 cm | 57 cm |
+
+How v3.1 came about: navigation exposed a yaw bias in v3 (−0.08 rad/s while "holding still"). Channel isolation
+showed it came entirely from the differential-torque residual (switching it off gives 0.0005 rad/s), and it went
+with the bob action pinned at ±1 in a self-reinforcing lean (the policy observes its own last action, so
+leaned-left and leaned-right are both stable modes that still satisfy the symmetry loss). The σ = 0.5 tracking
+kernels made such small persistent errors almost free. Integrated-error terms, roll penalty and residual cost fix
+spinning and stopping; the classical controller's yaw integrator still holds better at a standstill, and the navigation
+layer closes the heading loop at 10 Hz anyway.
 
 ## 2. Root-cause analysis of the remaining falls (why v2 plateaued)
 
