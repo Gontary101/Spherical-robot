@@ -34,6 +34,7 @@ def args():
     ap.add_argument("--start", type=int, default=1)
     ap.add_argument("--end", type=int, default=0)
     ap.add_argument("--step", type=int, default=1)
+    ap.add_argument("--cad", default="out21")
     return ap.parse_args(argv)
 
 
@@ -164,8 +165,7 @@ def build_world(sc, mission):
         mesh_object("terrain", V, F, gm, smooth=False)
         z_out = float(h.min()) - 0.02
     else:
-        z_out = 0.0
-        mesh_object("floor0", [(-8.5, -8.5, 0), (8.5, -8.5, 0), (8.5, 8.5, 0), (-8.5, 8.5, 0)], [(0, 1, 2, 3)], concrete_floor())
+        z_out = 0.0                     # flat world: the ground plane below IS the MuJoCo floor plane (z = 0)
     bpy.ops.mesh.primitive_plane_add(size=400, location=(0, 0, z_out))       # ground beyond the patch
     bpy.context.object.data.materials.append(gm)
     bpy.context.object.name = "outer_ground"
@@ -257,7 +257,7 @@ def rig2(objs):
 
 def main():
     a = args()
-    RG.CAD_OUT = os.path.join(RG.ROOT, "cad", "out2")
+    RG.CAD_OUT = os.path.join(RG.ROOT, "cad", a.cad)                 # Mk2.1 CAD: the hardware the policies run on
     sc = RG.reset()
     W, H = (int(v) for v in a.res.split("x"))
     sc.render.resolution_x, sc.render.resolution_y = W, H
