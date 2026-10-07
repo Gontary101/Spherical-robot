@@ -1,0 +1,122 @@
+{
+ "clutter": {
+  "nav2": {
+   "success": 0.625,
+   "collision": 0.125,
+   "hit_dynamic": 0.0,
+   "fell": 0.0,
+   "timeout": 0.25,
+   "spl": 0.6007556531975783
+  }
+ },
+ "forest (thin poles)": {
+  "nav2": {
+   "success": 0.5,
+   "collision": 0.5,
+   "hit_dynamic": 0.0,
+   "fell": 0.0,
+   "timeout": 0.0,
+   "spl": 0.47788458107815823
+  }
+ },
+ "rooms, 1.0 m doors": {
+  "nav2": {
+   "success": 0.4375,
+   "collision": 0.375,
+   "hit_dynamic": 0.0,
+   "fell": 0.0625,
+   "timeout": 0.125,
+   "spl": 0.3760317592089961
+  }
+ },
+ "maze": {
+  "nav2": {
+   "success": 0.75,
+   "collision": 0.0,
+   "hit_dynamic": 0.0,
+   "fell": 0.0,
+   "timeout": 0.25,
+   "spl": 0.6600333407017228
+  }
+ },
+ "mixed": {
+  "nav2": {
+   "success": 0.5,
+   "collision": 0.4375,
+   "hit_dynamic": 0.0,
+   "fell": 0.0,
+   "timeout": 0.0625,
+   "spl": 0.4052644561736166
+  }
+ },
+ "maze, no map": {
+  "nav2": {
+   "success": 0.625,
+   "collision": 0.0625,
+   "hit_dynamic": 0.0,
+   "fell": 0.0,
+   "timeout": 0.3125,
+   "spl": 0.5355793580587176
+  }
+ },
+ "mixed, 40 % stale map": {
+  "nav2": {
+   "success": 0.625,
+   "collision": 0.3125,
+   "hit_dynamic": 0.0,
+   "fell": 0.0,
+   "timeout": 0.0625,
+   "spl": 0.5266317427877995
+  }
+ },
+ "6 pedestrians to 1.4 m/s": {
+  "nav2": {
+   "success": 0.625,
+   "collision": 0.25,
+   "hit_dynamic": 0.25,
+   "fell": 0.0625,
+   "timeout": 0.0625,
+   "spl": 0.5450888677400194
+  }
+ },
+ "LiDAR 60 deg blind sector": {
+  "nav2": {
+   "success": 0.5625,
+   "collision": 0.25,
+   "hit_dynamic": 0.0,
+   "fell": 0.0,
+   "timeout": 0.1875,
+   "spl": 0.5293777213583997
+  }
+ },
+ "depth camera dead": {
+  "nav2": {
+   "success": 0.5625,
+   "collision": 0.3125,
+   "hit_dynamic": 0.0,
+   "fell": 0.0,
+   "timeout": 0.125,
+   "spl": 0.5434353143997331
+  }
+ },
+ "dust: spurious returns 3 %": {
+  "nav2": {
+   "success": 0.5,
+   "collision": 0.3125,
+   "hit_dynamic": 0.0,
+   "fell": 0.0,
+   "timeout": 0.1875,
+   "spl": 0.4703552288899197
+  }
+ },
+ "everything at once": {
+  "nav2": {
+   "success": 0.25,
+   "collision": 0.625,
+   "hit_dynamic": 0.0625,
+   "fell": 0.0,
+   "timeout": 0.125,
+   "spl": 0.16733713875852266
+  }
+ }
+}
