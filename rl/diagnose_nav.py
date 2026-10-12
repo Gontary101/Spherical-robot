@@ -54,6 +54,7 @@ def run(args):
                       shield=shield)
         oa, oc = env.reset()
         hist = deque(maxlen=10)
+        maps = deque(maxlen=30)                         # shield: map snapshots of the last 3 s, for "when was it known"
         stopped, revs, last_w = 0, 0, 0.0
         while True:
             a = nav(oa, env)
@@ -62,6 +63,9 @@ def run(args):
             hist.append(dict(pos=pos.copy(), yaw=yaw, meas=env.scans[-1].copy(), true=env._true_scan(pos, yaw),
                              depth_dead=bool(env.P["depth_blackout"]), interv=bool(info.get("intervened", False)),
                              cmd=env.loco.cmd.copy(), v=float(t["v"])))
+            if env.shield:
+                maps.append((env.lmap.L.copy(), env.lmap.origin.copy(), env.odo.copy(), pos.copy(), yaw,
+                             float(env.loco.cmd[0]), float(t["v"])))
             stopped += abs(t["v"]) < 0.1
             if t["w"] * last_w < 0 and abs(t["w"]) > 0.3:
                 revs += 1
@@ -110,7 +114,25 @@ def run(args):
                 dth = env.odo[2] - yaw
                 c_, s_ = math.cos(dth), math.sin(dth)
                 cpo = env.odo[:2] + np.array([c_ * rel[0] - s_ * rel[1], s_ * rel[0] + c_ * rel[1]])
-                rec_sh = dict(map_dist=float(env.lmap.clearance(cpo[None])[0]),
+                # when did the contact point enter the map (occupied cell within 0.10 m), and when did braking start?
+                known = []
+                from local_map import OCC_TH
+                for L_, org, odo_, pos_, yaw_, cv, vv in maps:
+                    d_ = odo_[2] - yaw_
+                    rel_ = cp - pos_
+                    c2, s2 = math.cos(d_), math.sin(d_)
+                    q = odo_[:2] + np.array([c2 * rel_[0] - s2 * rel_[1], s2 * rel_[0] + c2 * rel_[1]])
+                    ij = np.floor((q - org) / env.lmap.cell).astype(int)
+                    k2 = 2
+                    win = L_[max(ij[1] - k2, 0):ij[1] + k2 + 1, max(ij[0] - k2, 0):ij[0] + k2 + 1]
+                    known.append(bool(win.size and (win > OCC_TH).any()))
+                first_known = next((i for i, k in enumerate(known) if k), None)
+                n = len(maps)
+                brake = next((i for i in range(n - 1, -1, -1) if maps[i][5] > 0.05), -1) + 1   # last step with cmd v > 0
+                rec_sh = dict(known_s_before=(n - first_known) * 0.1 if first_known is not None else 0.0,
+                              brake_s_before=(n - brake) * 0.1, v_at_brake=maps[min(brake, n - 1)][6],
+                              dist_at_brake=float(np.linalg.norm(cp - maps[min(brake, n - 1)][3])),
+                              map_dist=float(env.lmap.clearance(cpo[None])[0]),
                               interv_1s=int(sum(h["interv"] for h in hist)),
                               cmd_last=[round(float(x), 2) for x in hist[-1]["cmd"]],
                               v_hist=[round(h["v"], 2) for h in hist],
@@ -161,7 +183,8 @@ def main():
         print("  by scenario:", dict(Counter(r["scenario"] for r in C)))
         for r in C:
             if "map_dist" in r:
-                print(f"   {r['scenario'][:14]:14s} ep {r['ep']:2d} {r['kind']:10s} {r['side']:5s} v {r['speed']:.2f} map_dist "
+                print(f"   {r['scenario'][:14]:14s} ep {r['ep']:2d} {r['side']:5s} v {r['speed']:.2f} | in map {r['known_s_before']:.1f} s "
+                      f"before, braking {r['brake_s_before']:.1f} s before at {r['v_at_brake']:.2f} m/s, {r['dist_at_brake']:.2f} m away | map_dist "
                       f"{r['map_dist']:.2f} interv {r['interv_1s']} push {r['push']} cmd {r['cmd_last']} v {r['v_hist']} "
                       f"cmd_v {r['cmd_v_hist']}")
     T = [r for r in F if r["failure"] == "timeout"]

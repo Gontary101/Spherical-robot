@@ -63,6 +63,18 @@ COST_ALPHA, COST_RANGE = 4.0, 0.6   # costmap: up to 5x traversal cost within 0.
 PLAN_MARGIN = 0.08               # planner keeps this much air between the robot's footprint and any mapped obstacle
 MAP_RAYS = 1152                  # the pods' 3-D LiDARs return dense clouds: 0.31 deg rays for the local map
 SHIELD_COST = 1.0                # reward per unit of safety-filter correction (action units, 0..2 per step)
+MAP_3D = True                    # map scan cut from 3-D returns (low obstacles below the hub plane are seen)
+
+
+def MAP_ELEV(z0, d_near=0.4, d_far=6.0, band=0.10):
+    """Downward elevations (rad) whose rays cross the height band [0, band] at geometrically spaced distances that
+    tile [d_near, d_far] without gaps: ray k covers d in [(z0 - band) / tan e_k, z0 / tan e_k]."""
+    ratio = z0 / max(z0 - band, 1e-3)
+    n = int(np.ceil(np.log(d_far / d_near) / np.log(ratio))) + 1
+    d_hi = d_far * ratio ** -np.arange(n)                       # far end of each ray's band
+    return -np.arctan(z0 / d_hi)
+
+
 SPAWN_FREE = 0.6                 # radius known clear at the start (the start keeps > 0.75 m from every obstacle)
 LIDAR_OVERSAMPLE = 4             # rays per beam bin; a beam reports the minimum (how a 2-D scan is cut from a 3-D cloud)
 
@@ -566,6 +578,8 @@ class Nav2Env:
         self.oa_lo = np.concatenate([lo.hist.reshape(-1), lo.cmd * np.array([0.25, 0.5])]).astype(np.float32)
         self.obs_gid = set(self.m.geom(o["name"]).id for o in self.static_specs)
         self.dyn_gid = set(self.m.geom(f"dyn{i}").id for i in range(len(self.dyn)))
+        self.is_obst = np.zeros(self.m.ngeom + 1, bool)               # geom id -> obstacle (static or pedestrian)
+        self.is_obst[list(self.obs_gid | self.dyn_gid)] = True
         self.tyre_gid = set(lo.tyres)
         self.lidar_sector = (self.rng.uniform(-np.pi, np.pi), self.rng.uniform(np.radians(30), np.radians(70))) if P["lidar_sector"] else None
         pos, yaw, t = self._pose()
@@ -601,12 +615,38 @@ class Nav2Env:
             self._map_update()
         return obs
 
+    def _scan3d_low(self, pos, yaw):
+        """The pods' Mid-360s sweep densely in elevation: per azimuth (1.25 deg), the nearest obstacle return over
+        downward rings whose ground footprints are spaced so that every obstacle taller than OBST_H (0.10 m) between
+        0.4 and 6 m is hit (ray height z0 - d tan(e) passes through [0, 0.10 m] at every distance). Returns the
+        horizontal range of the nearest obstacle hit per azimuth; ground hits (terrain geom: ground segmentation)
+        are not obstacles."""
+        z0 = self.d.qpos[2]
+        a = self.map_ang[::4] + yaw                 # 1.25 deg: low obstacles are >= 0.24 m wide, i.e. >= 2.3 deg at 6 m
+        el = MAP_ELEV(z0)
+        ce, se = np.cos(el)[:, None], np.sin(el)[:, None]
+        dirs = np.stack([ce * np.cos(a)[None], ce * np.sin(a)[None], np.broadcast_to(se, (len(el), len(a)))], -1).reshape(-1, 3)
+        n = len(dirs)
+        dist, gid = np.zeros(n), np.zeros(n, np.int32)
+        # obstacles only (ray-heightfield tests are 5x the cost); a return below the terrain surface at its xy would
+        # have hit the ground first: rejected
+        mujoco.mj_multiRay(self.m, self.d, np.array([pos[0], pos[1], z0]), dirs.reshape(-1), self.g_obs, 1,
+                           self.loco.bid["spine"], gid, dist, None, n, MAX_R)
+        hit = (gid >= 0) & (dist >= 0)
+        if hit.any() and self.loco.hmap is not None:
+            p = np.array([pos[0], pos[1], z0]) + dirs[hit] * dist[hit, None]
+            hit[np.flatnonzero(hit)] = p[:, 2] > TR.height_at(self.loco.hmap, p[:, 0], p[:, 1]) + 0.01
+        horiz = np.where(hit, dist * np.cos(np.repeat(el, len(a))), MAX_R).reshape(len(el), len(a))
+        return np.repeat(horiz.min(0), 4)
+
     def _map_scan(self):
         """Dense masked LiDAR for the map: same sensor model as the policy scan (pod self-occlusion, noise, dropouts,
-        dust, dead sector) at 0.31 deg resolution."""
+        dust, dead sector) at 0.31 deg resolution, cut from the 3-D returns (horizontal ring + downward rings)."""
         pos, yaw, _ = self._pose()
         a = self.map_ang + yaw
         true = self._rays(np.array([pos[0], pos[1], self.d.qpos[2]]), np.stack([np.cos(a), np.sin(a), np.zeros_like(a)], -1), self.g_obs)
+        if MAP_3D:
+            true = np.minimum(true, self._scan3d_low(pos, yaw))
         r, P = self.rng, self.P
         vis = (true >= self.map_rmin) | (true >= MAX_R - 1e-6)
         meas = np.where(vis, true, MAX_R) + r.normal(0, 0.02, len(true))
