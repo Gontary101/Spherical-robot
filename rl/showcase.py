@@ -40,7 +40,9 @@ ROUTE = [((-8.0, -19.0), "Rolling hills"), ((6.0, -18.0), "Rolling hills"), ((18
          ((17.5, -6.0), "Pole forest"), ((17.0, 6.5), "Pole forest"),
          ((16.0, 16.0), "Doorways"), ((8.5, 16.0), "Doorways"), ((1.0, 16.0), "Doorways"), ((-5.0, 16.0), "Doorways"),
          ((-21.0, 17.0), "Open field"), ((-21.0, -5.0), "Open field"),
-         ((-10.0, -2.0), "Boulder garden"), ((2.0, 2.0), "Boulder garden")]
+         ((-10.0, -2.0), "Boulder garden"), ((2.0, 2.0), "Boulder garden"),
+         ((-9.0, -14.5), "Back over the hills"), ((-21.0, -10.0), "Back over the hills"),
+         ((-14.0, 12.0), "Final sprint"), ((-7.0, 20.0), "Final sprint")]
 
 
 def showcase_terrain():
