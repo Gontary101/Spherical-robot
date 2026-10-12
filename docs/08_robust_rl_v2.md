@@ -197,7 +197,71 @@ turning beyond the stability ellipse: the classical controller tracks the raw co
 That is the job of the feasible-reference policy below.
 
 ## 3. Navigation v2
-(pending)
 
-## 4. Robustness matrices
-(pending)
+Final policy: `rl/runs/nav2/best.pt` / `actor.ts` (6M steps), driving through locomotion v3.1 on Mk2.1.
+
+**Stack.** A global planner (Dijkstra on a **costmap** over a prior map that is stale: walls plus 60-100 % of the
+free-standing obstacles, never pedestrians; none at all in 30 % of episodes) gives a subgoal 2.5 m ahead. The
+learned policy is the local planner/controller. It sees the masked pod LiDAR (3 frames, each beam the minimum of 4
+rays), a 24 × 12 front depth image, odometry goal and subgoal, speed, gyro, and the locomotion policy's own estimate
+of velocity, slope, friction, payload and wind. The critic additionally gets the true scan, true geodesic field,
+pedestrian states and odometry error.
+
+**World generator** (recompiled per episode, every obstacle a convex mesh): clutter, thin-pole forest, rooms with
+doors down to 1.0 m, randomized mazes, mixes; up to 6 pedestrians (half of them attentive) at up to 1.4 m/s;
+locomotion-v2 terrain and disturbances underneath; sensor faults (blind LiDAR sector, spurious returns, dead or
+dropping depth camera, odometry drift).
+
+**Root causes found and fixed while getting here** (each measured with the privileged oracle, so the policy is not
+the confound):
+
+| finding | evidence | fix |
+|---|---|---|
+| planner footprint not updated for the wider Mk2.1 (0.393 m half-width, planner assumed 0.36) | every oracle collision was a near-zero-speed side scrape | footprint derived from the hardware config + 8 cm margin |
+| 72-beam scan misses 5 cm poles | forest worst scenario | each beam = min of 4 rays across its bin |
+| shortest paths graze door jambs and corners | remaining oracle collisions: turning past jambs | clearance-weighted costmap Dijkstra |
+| locomotion drifts at low speed (yaw bias, 21 cm spin displacement) | channel isolation (sec. 1) | locomotion v3.1 |
+
+Oracle success over the course of these fixes: 73 % → 88 %; learned policy: 49 % → 59 % with collisions 38 % → 20 %.
+
+**Benchmark** (`rl/eval_nav2.py`): 12 scenarios × 16 fixed-seed episodes on rough ground with light disturbances.
+Cells are success / collision (%). VFH uses the same masked LiDAR, odometry and planner subgoal; the oracle uses the
+true pose and true geodesic field.
+
+| scenario | VFH | **learned (6M)** | oracle (privileged) |
+|---|---|---|---|
+| clutter | 38 / 44 | **75 / 6** | 100 / 0 |
+| forest (thin poles) | 31 / 62 | **56 / 44** | 100 / 0 |
+| rooms, 1.0 m doors | 19 / 81 | **62 / 19** | 38 / 62 |
+| maze | 38 / 44 | **75 / 12** | 100 / 0 |
+| mixed | 38 / 62 | **56 / 19** | 94 / 6 |
+| maze, no map | 25 / 62 | **56 / 0** | 100 / 0 |
+| mixed, 40 % stale map | 38 / 56 | **56 / 12** | 94 / 6 |
+| 6 pedestrians to 1.4 m/s | 38 / 56 | **69 / 31** | 81 / 19 |
+| LiDAR 60 deg blind sector | 31 / 62 | **50 / 19** | 94 / 6 |
+| depth camera dead | 38 / 62 | **50 / 31** | 94 / 6 |
+| dust: spurious returns 3 % | 38 / 62 | **56 / 6** | 94 / 6 |
+| everything at once | 19 / 81 | **44 / 44** | 69 / 31 |
+| **mean** | 32.3 / 61.5 | **58.9 / 20.3** | 88.0 / 12.0 |
+
+The learned planner beats the classical one in every scenario: 1.8× the success at a third of the collisions. It
+also beats the privileged oracle through the 1.0 m doors, where precise slow alignment matters more than map
+knowledge. The remaining gap to the oracle is concentrated where perception is degraded: thin poles, a blind LiDAR
+sector, a dead depth camera. Part of that gap is the sensing itself, not the policy. A clean five-waypoint mission is
+still not routine: the video's mission was the first fully successful one in 17 seeds (~59 % per goal implies ~7 %
+for five in a row).
+
+## 4. Reproducing the numbers
+
+| what | command | result file |
+|---|---|---|
+| locomotion robustness (16 scenarios) | `python rl/eval_robust.py --policies classical v2 --v2 rl/runs/loco31/actor.ts --hw "Mk2.1 CAD" --episodes 24` | `rl/runs/loco2/bench/mk21cad_v31_final.json` |
+| as-built Mk2 baselines | `python rl/eval_robust.py --policies classical v1 v2 --v2 rl/runs/loco2/v2_final_run1.ts --hw "Mk2 as built"` | `rl/runs/loco2/bench/mk2_baselines_podstrike.json` |
+| fall root-cause diagnosis | `python rl/diagnose_falls.py` | `rl/runs/loco2/bench/fall_diagnosis.json` |
+| hardware study | `python rl/hw_study.py --episodes 16` | `rl/runs/loco2/bench/hw_study.json` |
+| low-speed precision | `python rl/precision_test.py --policies classical rl/runs/loco3/best.pt rl/runs/loco31/best.pt` | `rl/runs/loco2/bench/precision.json` |
+| navigation (12 scenarios) | `python rl/eval_nav2.py --policies nav2 vfh oracle --nav rl/runs/nav2/actor.ts --low rl/runs/loco31/best.pt` | `rl/runs/nav2/bench/run3_*.json` |
+| mission + video | `python rl/record_mission2.py ...` then `render/render_mission2.sh` | `media/mission2.npz`, `media/gyra_mk21_mission.mp4` |
+
+Training: `rl/train_loco2.py --adr --hw Mk2.1 ...` (locomotion), `rl/train_nav2.py --low rl/runs/loco31/best.pt ...`
+(navigation). Everything runs on 4 CPU cores: ~1.3 k locomotion steps/s, ~270 navigation steps/s.
