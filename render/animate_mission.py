@@ -286,7 +286,7 @@ def main():
     n_dyn = int(mission["n_dyn"])
 
     cam_data = bpy.data.cameras.new("chase")
-    cam_data.lens = 30
+    cam_data.lens = 26
     cam_data.clip_start = 0.05
     cam = bpy.data.objects.new("chase", cam_data)
     sc.collection.objects.link(cam)
@@ -337,8 +337,9 @@ def main():
             ob.keyframe_insert("location", frame=frame)
         target = Vector((pos_s[i, 0], pos_s[i, 1], f[3] + 0.02))
         back = Vector((math.cos(h), math.sin(h), 0))
-        cam.location = target - back * 3.1 + Vector((0, 0, 1.25))
-        d = (target + back * 0.9) - cam.location
+        # drone-style chase: high enough to look over the 0.8 m walls instead of sitting behind them
+        cam.location = target - back * 2.6 + Vector((0, 0, 2.3))
+        d = (target + back * 1.2) - cam.location
         cam.rotation_euler = d.to_track_quat("-Z", "Y").to_euler()
         cam.keyframe_insert("location", frame=frame)
         cam.keyframe_insert("rotation_euler", frame=frame)

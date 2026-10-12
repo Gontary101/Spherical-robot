@@ -65,10 +65,11 @@ class HUD:
         i = self.idx(t)
         f = self.F[i]
         # ---- title panel
-        d.rounded_rectangle([12 * s, 12 * s, 548 * s, 66 * s], radius=10 * s, fill=(12, 14, 18, 170))
+        sub = "learned local planner (LiDAR + depth + odometry + stale-map subgoal) → learned locomotion · MuJoCo"
+        tw = max(d.textlength(sub, font=self.f_sub), d.textlength("GYRA Mk2.1 · autonomous mission", font=self.f_title))
+        d.rounded_rectangle([12 * s, 12 * s, 36 * s + tw, 66 * s], radius=10 * s, fill=(12, 14, 18, 170))
         d.text((24 * s, 22 * s), "GYRA Mk2.1 · autonomous mission", font=self.f_title, fill=(245, 245, 245, 255))
-        d.text((24 * s, 46 * s), "learned local planner (LiDAR + depth + odometry + stale-map subgoal) → learned locomotion · MuJoCo",
-               font=self.f_sub, fill=(200, 205, 212, 255))
+        d.text((24 * s, 46 * s), sub, font=self.f_sub, fill=(200, 205, 212, 255))
         # ---- telemetry panel
         k = sum(1 for r in self.reached if t >= r)
         wp_txt = f"{min(k + 1, len(self.wps))}/{len(self.wps)}" if k < len(self.wps) else "done"
@@ -120,7 +121,7 @@ class HUD:
                (cx + 6 * s * math.cos(-yaw + 2.5), cy + 6 * s * math.sin(-yaw + 2.5)),
                (cx + 6 * s * math.cos(-yaw - 2.5), cy + 6 * s * math.sin(-yaw - 2.5))]
         d.polygon(tri, fill=ACCENT)
-        d.text((x0, y0m + mm + 4 * s), "map · LiDAR returns (red) · pedestrians (blue)", font=self.f_lab, fill=(190, 195, 202, 255))
+        d.text((x0, y0m + mm + 4 * s), "map · LiDAR (red) · people (blue)", font=self.f_lab, fill=(190, 195, 202, 255))
         if speedup > 1:
             txt = f"{speedup}× speed"
             tw = d.textlength(txt, font=self.f_badge)
