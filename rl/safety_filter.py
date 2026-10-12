@@ -42,6 +42,11 @@ class SafetyFilter:
             self.tab_t = np.r_[0.0, T["t"]]
             self.tab_s = np.array(T["speed_edges"][:-1])
             self.err_tab = np.c_[np.zeros(len(T["p95"])), np.array(T["p95"])]
+            self.lat_tab = self.al_tab = None
+            if "p95_lat" in T:                                     # anisotropic: cross-track inflates the footprint,
+                z = np.zeros(len(T["p95_lat"]))                    # along-track shifts it along the path
+                self.lat_tab = np.c_[z, np.array(T["p95_lat"])]
+                self.al_tab = np.c_[z, np.array(T["p95_along"])]
         vs = np.linspace(-1.0, 3.5, 19)
         ws = np.linspace(-2.5, 2.5, 21)
         self.cand = np.array([(v, w) for v in vs for w in ws])
@@ -68,7 +73,7 @@ class SafetyFilter:
         w = np.full(N, float(w0))
         X, Y, TH = np.full(N, x), np.full(N, y), np.full(N, th)
         aw = 1 - math.exp(-self.dt / self.tau_w)
-        pts, ts = [], []
+        pts, ts, hs = [], [], []
         t = 0.0
         while t < self.period + self.dead - 1e-9:                  # react: dead time, then move toward the command
             if t >= self.dead:
@@ -80,6 +85,7 @@ class SafetyFilter:
             t += self.dt
             pts.append(np.stack([X, Y], -1))
             ts.append(np.full(N, t))
+            hs.append(TH)
         self.t_react = t                                            # prediction error grows only until braking starts:
         d_stop = self.stop_dist(v)                                  # the braking table is itself a worst-case envelope
         kappa = np.where(np.abs(v) > 0.05, w / np.maximum(np.abs(v), 0.05), 0.0)
@@ -97,15 +103,33 @@ class SafetyFilter:
                 Xb, Yb = Xb + sgn * ds * np.cos(THb), Yb + sgn * ds * np.sin(THb)
                 pts.append(np.stack([Xb, Yb], -1))
                 ts.append(t + t_stop * k / n_brake)
+                hs.append(THb)
+        self.heads = np.stack(hs, 1)
         return np.stack(pts, 1), np.stack(ts, 1)
 
     def admissible(self, lmap, pose, v0, w0, cmds):
         cmds = np.atleast_2d(cmds)
         P, ts = self._rollout(pose, v0, w0, cmds)
+        speed = np.maximum(abs(v0), np.abs(cmds[:, 0]))[:, None]
+        if self.err_tab is not None and self.lat_tab is not None:
+            row = np.clip(np.searchsorted(self.tab_s, speed[:, 0], side="right") - 1, 0, len(self.tab_s) - 1)
+            th = np.minimum(ts, self.t_react)          # error grows while reacting; braking is a worst-case envelope
+            El, Ea = np.empty_like(th), np.empty_like(th)
+            for j in np.unique(row):
+                sel = row == j
+                El[sel] = np.interp(th[sel], self.tab_t, self.lat_tab[j])
+                Ea[sel] = np.interp(th[sel], self.tab_t, self.al_tab[j])
+            u = np.stack([np.cos(self.heads), np.sin(self.heads)], -1) * Ea[..., None]
+            Q = np.stack([P, P + u, P - u], 0)                     # nominal, ahead and behind along the path
+            cl = lmap.clearance(Q.reshape(-1, 2), unknown_is_obstacle=True).reshape(Q.shape[:3]).min(0)
+            need = self.r + self.margin + El + self.k_spin * np.abs(cmds[:, 1])[:, None]
+            margin = cl - need
+            self._last = margin
+            slack = margin.min(1)
+            return slack >= 0, slack
         clear = lmap.clearance(P.reshape(-1, 2), unknown_is_obstacle=True).reshape(P.shape[:2])
         # prediction-error margin: grows with the reaction horizon and the speed involved (sysid: p95 ~0.25 m per
         # s per m/s), plus the translation a fast spin causes on this pendulum robot
-        speed = np.maximum(abs(v0), np.abs(cmds[:, 0]))[:, None]
         if self.err_tab is not None:
             row = np.clip(np.searchsorted(self.tab_s, speed[:, 0], side="right") - 1, 0, len(self.tab_s) - 1)
             th = np.minimum(ts, self.t_react)          # error grows while reacting; braking is a worst-case envelope

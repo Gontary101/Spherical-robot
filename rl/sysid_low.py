@@ -106,7 +106,7 @@ def arcs(args):
         t = e._truth()
         x, y, th = e.d.qpos[0], e.d.qpos[1], t["yaw"]
         vc, wc = t["v"], t["w"]
-        P, U = [], []
+        P, U, TH = [], [], []
         if r.random() < 0.4:                               # low-speed manoeuvring near obstacles matters most
             v, w = r.uniform(-0.5, 0.8), r.uniform(-1.0, 1.0)
         for k in range(int(1.0 / 0.02)):
@@ -122,18 +122,60 @@ def arcs(args):
             y += vc * math.sin(th) * 0.02
             P.append(e.d.qpos[0:2].copy())
             U.append((x, y))
-        err = np.linalg.norm(np.array(P) - np.array(U), axis=1)
+            TH.append(th)
+        D = np.array(P) - np.array(U)
+        err = np.linalg.norm(D, axis=1)
+        # split into the predicted path's along-track and cross-track components (heading of the prediction)
+        ths = np.array(TH)
+        e_al = np.abs(D[:, 0] * np.cos(ths) + D[:, 1] * np.sin(ths))
+        e_lat = np.abs(-D[:, 0] * np.sin(ths) + D[:, 1] * np.cos(ths))
         out.append(dict(v=v, w=w, speed=float(max(abs(t["v"]), abs(v))), err=err[4::5].tolist(),
+                        err_al=e_al[4::5].tolist(), err_lat=e_lat[4::5].tolist(),
                         err_05=float(err[24]), err_10=float(err[-1])))
         if e.d.qpos[0] ** 2 + e.d.qpos[1] ** 2 > 400:
             oa, _ = e.reset()
     return out
 
 
+def error_tables(res, AF):
+    """Path-prediction error envelope under field conditions: p95 per horizon (0.1 ... 1.0 s) and speed bin, for the
+    total, along-track and cross-track error (along-track error is harmless in a doorway; cross-track is not)."""
+    th = (np.arange(10) + 1) * 0.1
+    sb = [0.0, 0.3, 0.7, 1.5, 2.5, 4.0]
+    spd = np.array([x["speed"] for x in AF])
+    out = dict(t=th.tolist(), speed_edges=sb, cond="field (rough, wind, payload; no pushes)")
+    for key, name in (("err", "p95"), ("err_al", "p95_along"), ("err_lat", "p95_lat")):
+        if key not in AF[0]:
+            continue
+        E = np.array([x[key] for x in AF])
+        tab = []
+        for lo, hi in zip(sb[:-1], sb[1:]):
+            sel = (spd >= lo) & (spd < hi)
+            tab.append(np.percentile(E[sel], 95, axis=0).tolist() if sel.sum() >= 10 else None)
+        for i in range(len(tab)):                                 # empty bins: nearest filled one; monotone in speed
+            if tab[i] is None:
+                tab[i] = next(tab[j] for j in sorted(range(len(tab)), key=lambda j: abs(j - i)) if tab[j] is not None)
+        tab = np.maximum.accumulate(np.maximum.accumulate(np.array(tab), axis=1), axis=0)
+        out[name] = tab.tolist()
+        print(f"field path-prediction error {name} (m), rows speed bins {sb}, columns horizon 0.1 ... 1.0 s:")
+        for lo, row in zip(sb, tab):
+            print(f"   >= {lo:3.1f} m/s " + " ".join(f"{x:5.2f}" for x in row))
+    res["err_table"] = out
+    res["arcs_field"] = AF
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=os.path.join(ROOT, "rl/runs/nav2/bench/sysid.json"))
+    ap.add_argument("--arcs-only", action="store_true", help="re-measure only the field error tables")
     a = ap.parse_args()
+    if a.arcs_only:
+        res = json.load(open(a.out))
+        with mp.get_context("fork").Pool(2) as pool:
+            AF = sum(pool.map(arcs, [(50 + s, 120, "field (rough, wind, payload; no pushes)") for s in range(8)]), [])
+        error_tables(res, AF)
+        json.dump(res, open(a.out, "w"), indent=1)
+        return
     jobs = [(c, v0, s) for c in CONDS for v0 in (0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5) for s in range(3)]
     with mp.get_context("fork").Pool(4) as pool:
         B = pool.map(braking, jobs)
@@ -162,25 +204,8 @@ def main():
     e10 = np.array([x["err_10"] for x in A])
     res["arc_error"] = dict(p50_05=float(np.median(e05)), p95_05=float(np.percentile(e05, 95)),
                             p50_10=float(np.median(e10)), p95_10=float(np.percentile(e10, 95)))
-    # path-prediction error envelope under field conditions: p95 per horizon (0.1 ... 1.0 s) and speed bin
-    th = (np.arange(10) + 1) * 0.1
-    sb = [0.0, 0.3, 0.7, 1.5, 2.5, 4.0]
-    E = np.array([x["err"] for x in AF])
-    spd = np.array([x["speed"] for x in AF])
-    tab = []
-    for lo, hi in zip(sb[:-1], sb[1:]):
-        sel = (spd >= lo) & (spd < hi)
-        tab.append(np.percentile(E[sel], 95, axis=0).tolist() if sel.sum() >= 10 else None)
-    for i in range(len(tab)):                                     # empty bins: nearest filled one; monotone in speed
-        if tab[i] is None:
-            tab[i] = next(tab[j] for j in sorted(range(len(tab)), key=lambda j: abs(j - i)) if tab[j] is not None)
-    tab = np.maximum.accumulate(np.maximum.accumulate(np.array(tab), axis=1), axis=0)
-    res["err_table"] = dict(t=th.tolist(), speed_edges=sb, p95=tab.tolist(), cond="field (rough, wind, payload; no pushes)")
-    res["arcs_field"] = AF
+    error_tables(res, AF)
     json.dump(res, open(a.out, "w"), indent=1)
-    print("field path-prediction error p95 (m), rows speed bins", sb, ", columns horizon 0.1 ... 1.0 s:")
-    for lo, row in zip(sb, tab):
-        print(f"   >= {lo:3.1f} m/s " + " ".join(f"{x:5.2f}" for x in row))
     print("braking distance (m) by condition, v0 = 0.5 ... 3.5 m/s:")
     for c in CONDS:
         row = [np.mean([b["dist"] for b in B if b["cond"] == c and b["v0"] == v0]) for v0 in (0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5)]
