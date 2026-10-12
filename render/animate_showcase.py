@@ -79,12 +79,12 @@ def terrain_mat():
     n2.inputs["Scale"].default_value = 9.0
     n2.inputs["Detail"].default_value = 12.0
     ramp = nt.nodes.new("ShaderNodeValToRGB")
-    ramp.color_ramp.elements[0].color = (0.085, 0.10, 0.045, 1)
-    ramp.color_ramp.elements[1].color = (0.24, 0.22, 0.12, 1)
+    ramp.color_ramp.elements[0].color = (0.045, 0.065, 0.025, 1)
+    ramp.color_ramp.elements[1].color = (0.19, 0.18, 0.09, 1)
     mix = nt.nodes.new("ShaderNodeMix")
     mix.data_type = "RGBA"
     mix.blend_type = "MULTIPLY"
-    mix.inputs["Factor"].default_value = 0.45
+    mix.inputs["Factor"].default_value = 0.6
     nt.links.new(tc.outputs["Object"], n1.inputs["Vector"])
     nt.links.new(tc.outputs["Object"], n2.inputs["Vector"])
     nt.links.new(n1.outputs["Fac"], ramp.inputs["Fac"])
@@ -121,7 +121,8 @@ def build_world(sc, mission):
     bpy.ops.mesh.primitive_plane_add(size=400, location=(0, 0, float(h.min()) - 0.03))
     bpy.context.object.data.materials.append(terrain_mat())
     # indoor floor slab under the building (the terrain is flat there)
-    bpy.ops.mesh.primitive_plane_add(size=1, location=(9.0, 16.0, 0.004))
+    zb = float(TR.height_at(h, np.array([9.0]), np.array([16.0]))[0])    # terrain is flat (offset) under the building
+    bpy.ops.mesh.primitive_plane_add(size=1, location=(9.0, 16.0, zb + 0.004))
     slab = bpy.context.object
     slab.scale = (22.0, 10.0, 1)
     slab.data.materials.append(AM.concrete_floor())
