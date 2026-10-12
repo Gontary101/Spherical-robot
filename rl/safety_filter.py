@@ -37,6 +37,10 @@ class SafetyFilter:
         vs = np.linspace(-1.0, 3.5, 19)
         ws = np.linspace(-2.5, 2.5, 21)
         self.cand = np.array([(v, w) for v in vs for w in ws])
+        self.reset()
+
+    def reset(self):
+        self.prev = np.zeros(2)                                     # last output: corrections must be consistent in time
 
     def stop_dist(self, v):
         """Worst-case stopping distance over friction / slope / payload (identified table, linear in between)."""
@@ -91,30 +95,51 @@ class SafetyFilter:
         speed = np.maximum(abs(v0), np.abs(cmds[:, 0]))[:, None]
         need = (self.r + self.margin + self.k_err * np.minimum(ts, self.t_react) * speed
                 + self.k_spin * np.abs(cmds[:, 1])[:, None])
-        slack = (clear - need).min(1)
+        margin = clear - need
+        self._last = margin                                         # per-point slack, for recovery
+        slack = margin.min(1)
         return slack >= 0, slack
 
     def __call__(self, lmap, pose, v0, w0, v_cmd, w_cmd):
         """Returns (v, w, intervened, slack of the returned command)."""
         ok, slack = self.admissible(lmap, pose, v0, w0, np.array([[v_cmd, w_cmd]]))
         if ok[0]:
-            return v_cmd, w_cmd, False, float(slack[0])
+            return self._out((v_cmd, w_cmd), False, slack[0])
         okc, sl = self.admissible(lmap, pose, v0, w0, self.cand)
         if okc.any():
             c = self.cand[okc]
             # closest admissible: speed is given up before heading, aggressive turning is discouraged
             cost = (1.0 * np.abs(c[:, 0] - v_cmd) + 0.6 * np.abs(c[:, 1] - w_cmd) + 2.0 * np.maximum(c[:, 0] - v_cmd, 0)
-                    + 0.2 * np.abs(c[:, 1]))
+                    + 0.2 * np.abs(c[:, 1]) + self._switch(c))
             i = int(np.argmin(cost))
-            return float(c[i, 0]), float(c[i, 1]), True, float(sl[okc][i])
-        # recovery (already inside the guard band, e.g. an obstacle appeared late): stop, steering gently toward more
-        # room. Reverse only once (nearly) stopped: commanding reverse while moving swings this robot's pendulum
-        # violently, which is exactly what must not happen next to an obstacle.
+            return self._out(c[i], True, sl[okc][i])
+        # recovery (already inside the guard band, e.g. an obstacle appeared late, or a push): every path's worst point
+        # is the present pose, so the minimum slack cannot rank candidates. Instead: never get closer than now (the
+        # slack along the path stays above its current value), and leave toward the most room, preferring what the
+        # navigator asked for. While moving, only stop (reverse while moving swings this robot's pendulum violently,
+        # which is exactly what must not happen next to an obstacle).
+        M = self._last
+        now = M[:, 0:1]
+        no_worse = (M >= np.minimum(now, 0.0) - 0.005).all(1)
         if abs(v0) > 0.15:
             slow = (self.cand[:, 0] == 0.0) & (np.abs(self.cand[:, 1]) <= 0.8)
         else:
-            slow = (np.abs(self.cand[:, 0]) <= 0.3) & (np.abs(self.cand[:, 1]) <= 0.8)
-        if not slow.any():
-            slow = np.abs(self.cand[:, 0]) <= 0.3
-        i = np.flatnonzero(slow)[int(np.argmax(sl[slow]))]
-        return float(self.cand[i, 0]), float(self.cand[i, 1]), True, float(sl[i])
+            slow = (np.abs(self.cand[:, 0]) <= 0.4) & (np.abs(self.cand[:, 1]) <= 1.0)
+        ok = slow & no_worse
+        if not ok.any():
+            ok = slow
+        end = M[:, -1]
+        score = end - 0.05 * (np.abs(self.cand[:, 0] - v_cmd) + 0.3 * np.abs(self.cand[:, 1] - w_cmd)) - 0.2 * self._switch(self.cand)
+        i = np.flatnonzero(ok)[int(np.argmax(score[ok]))]
+        return self._out(self.cand[i], True, sl[i])
+
+    def _switch(self, c):
+        """Cost of changing the previous output: flipping the turn direction every step (a correction that chatters)
+        swings this robot's pendulum and makes it translate while commanded to stop."""
+        pv, pw = self.prev
+        flip = (np.abs(pw) > 0.1) & (np.sign(c[:, 1]) == -np.sign(pw)) & (np.abs(c[:, 1]) > 0.1)
+        return 0.3 * np.abs(c[:, 1] - pw) + 0.2 * np.abs(c[:, 0] - pv) + 0.8 * flip
+
+    def _out(self, c, intervened, slack):
+        self.prev = np.array([float(c[0]), float(c[1])])
+        return float(c[0]), float(c[1]), intervened, float(slack)

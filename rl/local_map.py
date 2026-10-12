@@ -20,7 +20,7 @@ from scipy.ndimage import distance_transform_edt
 
 L_OCC, L_FREE, L_MIN, L_MAX = 0.9, -0.4, -2.0, 3.5     # log-odds increments and clamps
 OCC_TH = 0.6                                            # log-odds above which a cell counts as occupied
-DECAY = 0.985                                           # per update: unobserved evidence fades (~6 s half-life at 10 Hz)
+DECAY = 0.985                                           # per update: unobserved OCCUPIED evidence fades (~12 s to unknown)
 OBST_H = 0.10                                           # depth endpoints this far above the ground plane are obstacles
 KNOWN_FREE = -0.3                                       # log-odds below which a cell counts as observed free (safety)
 
@@ -36,6 +36,16 @@ class LocalMap:
     def reset(self, center):
         self.L[:] = 0
         self.origin = np.floor(np.asarray(center) / self.cell) * self.cell - self.n * self.cell / 2
+        self._dist = self._sdist = None
+
+    def mark_free_disc(self, center, radius):
+        """Prior knowledge that a disc is free (e.g. the spot the robot was placed on)."""
+        g = np.arange(-radius, radius + 1e-9, self.cell)
+        gx, gy = np.meshgrid(g, g)
+        inside = gx ** 2 + gy ** 2 <= radius ** 2
+        r_, c_ = self._idx(np.c_[center[0] + gx[inside], center[1] + gy[inside]])
+        ok = (r_ >= 0) & (r_ < self.n) & (c_ >= 0) & (c_ < self.n)
+        self.L[r_[ok], c_[ok]] = np.minimum(self.L[r_[ok], c_[ok]], L_MIN)
         self._dist = self._sdist = None
 
     # ----------------------------------------------------------------------------------------------- geometry
@@ -60,31 +70,38 @@ class LocalMap:
             return
         r, c = self._idx(pts)
         ok = (r >= 0) & (r < self.n) & (c >= 0) & (c < self.n)
-        np.add.at(self.L, (r[ok], c[ok]), val)
+        self.L += np.bincount(r[ok] * self.n + c[ok], minlength=self.n * self.n).reshape(self.n, self.n).astype(np.float32) * val
 
     # ----------------------------------------------------------------------------------------------- fusion
     def update(self, pose, beam_ang, scan, depth=None, visible=None, dead=None, free_every=1, free_max=None, robot_r=0.0):
         """pose = odometry (x, y, yaw). scan: masked LiDAR ranges (MAX_R = no return).
         depth: (dirs_robot (N, 3), ranges (N,), cam_height, cam_forward_offset) or None.
-        visible(px, py) -> bool array: which robot-frame points the sensor can physically see (its self-occlusion);
+        visible(px, py) -> bool array: which robot-frame points the sensor can physically see (its self-occlusion), or
+        an array of per-beam minimum visible ranges (the same test, tabulated);
         "no return" is only free-space evidence where the sensor could have seen. dead: bool per beam (failed sector)."""
         x, y, yaw = pose
         self._recenter((x, y))
-        self.L *= DECAY
+        # only occupied evidence fades (a pedestrian must not leave a permanent ghost; a faded cell becomes unknown,
+        # which the safety field still treats as blocked). Free evidence persists: static free space stays free, and a
+        # robot that stands still must not forget the ground around it (the pods cannot see it again: blind wedge)
+        np.multiply(self.L, DECAY, out=self.L, where=self.L > 0)
         a = beam_ang + yaw
         hit = scan < self.max_r - 1e-3
         rng = np.minimum(scan, self.max_r)
         step = self.cell * 0.7
         ks = np.arange(0.2, self.max_r, step)
         # free space along every beam up to its return (minus one cell), all beams at once
-        sel = np.arange(len(beam_ang)) % free_every == 0                 # free space from a subset of rays (cost)
+        sel = slice(None, None, free_every)                              # free space from a subset of rays (cost)
         K = ks[ks < (free_max or self.max_r)][:, None]
-        msk = (K < (rng - self.cell)[None, :]) & sel[None, :]
+        bs, rs = beam_ang[sel], rng[sel]
+        msk = K < (rs - self.cell)[None, :]
         if dead is not None:
-            msk &= ~np.asarray(dead)[None, :]
-        if visible is not None:
-            msk &= visible(K * np.cos(beam_ang)[None, :], K * np.sin(beam_ang)[None, :])
-        ca, sa = np.cos(a)[None, :], np.sin(a)[None, :]
+            msk &= ~np.asarray(dead)[sel][None, :]
+        if callable(visible):
+            msk &= visible(K * np.cos(bs)[None, :], K * np.sin(bs)[None, :])
+        elif visible is not None:
+            msk &= K >= np.asarray(visible)[sel][None, :]
+        ca, sa = np.cos(a[sel])[None, :], np.sin(a[sel])[None, :]
         self._mark(np.c_[(x + K * ca)[msk], (y + K * sa)[msk]], L_FREE)
         self._mark(np.c_[x + rng[hit] * np.cos(a[hit]), y + rng[hit] * np.sin(a[hit])], L_OCC + abs(L_FREE))
         if depth is not None:
@@ -99,14 +116,9 @@ class LocalMap:
                 wy = y + s * d[:, 0] + c * d[:, 1]
                 self._mark(np.c_[wx[above], wy[above]], L_OCC)
                 self._mark(np.c_[wx[~above], wy[~above]], L_FREE)
-        if robot_r > 0:                                                  # the robot's own disc is known free
-            g = np.arange(-robot_r, robot_r + 1e-9, self.cell)
-            gx, gy = np.meshgrid(g, g)
-            inside = gx ** 2 + gy ** 2 <= robot_r ** 2
-            r_, c_ = self._idx(np.c_[x + gx[inside], y + gy[inside]])
-            ok = (r_ >= 0) & (r_ < self.n) & (c_ >= 0) & (c_ < self.n)
-            self.L[r_[ok], c_[ok]] = np.minimum(self.L[r_[ok], c_[ok]], L_MIN)
         np.clip(self.L, L_MIN, L_MAX, out=self.L)
+        if robot_r > 0:                                                  # the robot's own disc is known free
+            self.mark_free_disc((x, y), robot_r)
         self._dist = None
         self._sdist = None
 

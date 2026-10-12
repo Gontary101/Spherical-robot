@@ -17,7 +17,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(__file__))
 from eval_nav2 import CALM, LOCO, SCEN  # noqa: E402
 from local_map import LocalMap  # noqa: E402
-from nav2_env import Nav2Env, visible_from_pods  # noqa: E402
+from nav2_env import Nav2Env  # noqa: E402
 from record_mission2 import oracle  # noqa: E402
 
 LOW = os.path.join(os.path.dirname(__file__), "..", "rl/runs/loco31/best.pt")
@@ -51,10 +51,10 @@ def evaluate(scen, n=6):
                 a0, w = env.lidar_sector
                 dead = np.abs((env.beam_ang - a0 + np.pi) % (2 * np.pi) - np.pi) < w / 2
             dep = (env.cam_dirs, env.depth_last, 0.32, 0.25)
-            maps["lidar"].update(env.odo.copy(), env.beam_ang, env.scans[-1], visible=visible_from_pods, dead=dead)
-            maps["lidar+depth"].update(env.odo.copy(), env.beam_ang, env.scans[-1], depth=dep, visible=visible_from_pods, dead=dead)
+            maps["lidar"].update(env.odo.copy(), env.beam_ang, env.scans[-1], visible=env.visible, dead=dead)
+            maps["lidar+depth"].update(env.odo.copy(), env.beam_ang, env.scans[-1], depth=dep, visible=env.visible, dead=dead)
             pos_t, yaw_t, _ = env._pose()
-            maps["lidar@true_pose"].update(np.r_[pos_t, yaw_t], env.beam_ang, env.scans[-1], visible=visible_from_pods, dead=dead)
+            maps["lidar@true_pose"].update(np.r_[pos_t, yaw_t], env.beam_ang, env.scans[-1], visible=env.visible, dead=dead)
             (oa, _), _, done, info = env.step(oracle(oa, env))
             if step % 10 == 5:
                 pos, yaw, _ = env._pose()

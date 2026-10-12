@@ -62,7 +62,40 @@ W_RANGE = 2.5
 COST_ALPHA, COST_RANGE = 4.0, 0.6   # costmap: up to 5x traversal cost within 0.6 m of the footprint touching anything
 PLAN_MARGIN = 0.08               # planner keeps this much air between the robot's footprint and any mapped obstacle
 MAP_RAYS = 1152                  # the pods' 3-D LiDARs return dense clouds: 0.31 deg rays for the local map
+SPAWN_FREE = 0.6                 # radius known clear at the start (the start keeps > 0.75 m from every obstacle)
 LIDAR_OVERSAMPLE = 4             # rays per beam bin; a beam reports the minimum (how a 2-D scan is cut from a 3-D cloud)
+
+
+def pod_visibility(hw):
+    """Pod-LiDAR self-occlusion for a hardware variant: is robot-frame point (px, py) visible from either pod?
+    Mk2 geometry (pods at |y| = 0.335 m, tyre pair |x| < 0.30, |y| < 0.285); the crown offset widens the tyre pair and
+    moves both pods out by the same amount."""
+    dc = hw["crown_d"] - 0.050
+    pod_y, tyre_x, tyre_y = 0.335 + dc, 0.30, 0.285 + dc
+
+    def visible(px, py):
+        vis = np.zeros_like(px, dtype=bool)
+        for sy in (pod_y, -pod_y):
+            dy = py - sy
+            with np.errstate(divide="ignore", invalid="ignore"):
+                t1 = (tyre_y * np.sign(sy) - sy) / dy
+            enters = (np.abs(py) < tyre_y) | (np.sign(py) != np.sign(sy))
+            blocked = enters & (t1 > 0) & (t1 < 1) & (np.abs(t1 * px) < tyre_x)
+            blocked |= enters & (np.abs(px) < tyre_x) & (np.abs(py) < tyre_y)
+            vis |= ~blocked
+        return vis
+    return visible
+
+
+def min_visible_range(visible, ang, r_max=MAX_R, dr=0.005):
+    """Per ray from the robot centre: the range beyond which every point is visible (the blind part of a ray is one
+    interval starting at the robot). Turns the per-point occlusion test into one comparison per ray."""
+    rs = np.arange(0.0, r_max + dr, dr)
+    V = visible(rs[:, None] * np.cos(ang)[None], rs[:, None] * np.sin(ang)[None])
+    blind = ~V
+    last = np.where(blind.any(0), len(rs) - 1 - np.argmax(blind[::-1], 0), -1)
+    rmin = np.where(last >= 0, rs[np.minimum(last + 1, len(rs) - 1)], 0.0)
+    return rmin
 
 
 def footprint_radius(hw):
@@ -152,6 +185,8 @@ class Nav2Env:
         self.robot_r = footprint_radius(self.loco.hw)
         self.beam_ang = np.linspace(-np.pi, np.pi, N_BEAM, endpoint=False)
         self.map_ang = np.linspace(-np.pi, np.pi, MAP_RAYS, endpoint=False)    # dense rays for the local map
+        self.visible = pod_visibility(self.loco.hw)
+        self.map_rmin = min_visible_range(self.visible, self.map_ang)
         k = np.arange(LIDAR_OVERSAMPLE) - (LIDAR_OVERSAMPLE - 1) / 2
         self.fine_ang = (self.beam_ang[:, None] + k[None, :] * (2 * np.pi / N_BEAM / LIDAR_OVERSAMPLE)).ravel()
         hf, vf = np.radians(45), np.radians(22.5)
@@ -467,7 +502,7 @@ class Nav2Env:
     def _lidar(self, true):
         r, P = self.rng, self.P
         px, py = true * np.cos(self.beam_ang), true * np.sin(self.beam_ang)
-        vis = visible_from_pods(px, py) | (true >= MAX_R - 1e-6)
+        vis = self.visible(px, py) | (true >= MAX_R - 1e-6)
         meas = np.where(vis, true, MAX_R) + r.normal(0, 0.02, N_BEAM)
         meas[r.random(N_BEAM) < 0.02] = MAX_R
         spur = r.random(N_BEAM) < P["lidar_spurious"]
@@ -556,7 +591,11 @@ class Nav2Env:
             if self.filter is None:
                 from safety_filter import SafetyFilter
                 self.filter = SafetyFilter(self.robot_r)
+            self.filter.reset()
             self.lmap.reset(self.odo[:2])
+            # the spot the robot was put down on is known clear (start clearance > 0.75 m by construction): without
+            # this prior, the area inside the pods' forward/rear blind wedge would stay unknown and block every motion
+            self.lmap.mark_free_disc(self.odo[:2], SPAWN_FREE)
             self._map_update()
         return obs
 
@@ -567,7 +606,7 @@ class Nav2Env:
         a = self.map_ang + yaw
         true = self._rays(np.array([pos[0], pos[1], self.d.qpos[2]]), np.stack([np.cos(a), np.sin(a), np.zeros_like(a)], -1), self.g_obs)
         r, P = self.rng, self.P
-        vis = visible_from_pods(true * np.cos(self.map_ang), true * np.sin(self.map_ang)) | (true >= MAX_R - 1e-6)
+        vis = (true >= self.map_rmin) | (true >= MAX_R - 1e-6)
         meas = np.where(vis, true, MAX_R) + r.normal(0, 0.02, len(true))
         meas[r.random(len(true)) < 0.02] = MAX_R
         spur = r.random(len(true)) < P["lidar_spurious"]
@@ -583,7 +622,7 @@ class Nav2Env:
         """Fuse the dense masked LiDAR and the depth image into the local map at the odometry pose (robot knowledge only)."""
         scan, dead = self._map_scan()
         self.lmap.update(self.odo.copy(), self.map_ang, scan, depth=(self.cam_dirs, self.depth_last, 0.32, 0.25),
-                         visible=visible_from_pods, dead=dead, free_every=4, free_max=6.0, robot_r=self.robot_r)
+                         visible=self.map_rmin, dead=dead, free_every=4, free_max=6.0, robot_r=self.robot_r)
 
     def _goal_feat(self, pos, yaw, goal=None):
         dv = (self.goal if goal is None else goal) - pos

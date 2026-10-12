@@ -24,7 +24,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(__file__))
 from eval_nav2 import CALM, LOCO, SCEN, make  # noqa: E402
-from nav2_env import MAX_R, N_BEAM, Nav2Env, visible_from_pods  # noqa: E402
+from nav2_env import MAX_R, N_BEAM, Nav2Env  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
@@ -45,12 +45,13 @@ def contact_info(env):
 
 
 def run(args):
-    scen, path, low, n = args
+    scen, path, low, n, shield = args
     os.environ["GYRA_LOW"] = low
     nav = make("nav2", path) if path not in ("vfh", "oracle") else make(path, None)
     out = []
     for ep in range(n):
-        env = Nav2Env(seed=70000 + ep, low_ckpt=low, level=0.8, adaptive=False, scenario={"nav": CALM | SCEN[scen], "loco": LOCO})
+        env = Nav2Env(seed=70000 + ep, low_ckpt=low, level=0.8, adaptive=False, scenario={"nav": CALM | SCEN[scen], "loco": LOCO},
+                      shield=shield)
         oa, oc = env.reset()
         hist = deque(maxlen=10)
         stopped, revs, last_w = 0, 0, 0.0
@@ -59,7 +60,8 @@ def run(args):
             (oa, oc), r, done, info = env.step(a)
             pos, yaw, t = env._pose()
             hist.append(dict(pos=pos.copy(), yaw=yaw, meas=env.scans[-1].copy(), true=env._true_scan(pos, yaw),
-                             depth_dead=bool(env.P["depth_blackout"])))
+                             depth_dead=bool(env.P["depth_blackout"]), interv=bool(info.get("intervened", False)),
+                             cmd=env.loco.cmd.copy(), v=float(t["v"])))
             stopped += abs(t["v"]) < 0.1
             if t["w"] * last_w < 0 and abs(t["w"]) > 0.3:
                 revs += 1
@@ -92,7 +94,7 @@ def run(args):
                     seen_lidar += 1
                 else:
                     px, py = dist * math.cos(ang), dist * math.sin(ang)
-                    if not visible_from_pods(np.array([px]), np.array([py]))[0]:
+                    if not env.visible(np.array([px]), np.array([py]))[0]:
                         why["blind_wedge"] += 1
                     elif env.lidar_sector is not None:
                         why["dead_sector"] += 1
@@ -103,10 +105,23 @@ def run(args):
                 if abs(ang) < math.radians(45) and 0.35 < dist < MAX_R and not h["depth_dead"]:
                     seen_depth += 1
             perceived = "lidar" if seen_lidar >= 3 else ("depth_only" if seen_depth >= 3 else "unseen")
+            if env.shield:
+                # shield forensics: did the map hold the obstacle, was the filter braking, what did it command?
+                dth = env.odo[2] - yaw
+                c_, s_ = math.cos(dth), math.sin(dth)
+                cpo = env.odo[:2] + np.array([c_ * rel[0] - s_ * rel[1], s_ * rel[0] + c_ * rel[1]])
+                rec_sh = dict(map_dist=float(env.lmap.clearance(cpo[None])[0]),
+                              interv_1s=int(sum(h["interv"] for h in hist)),
+                              cmd_last=[round(float(x), 2) for x in hist[-1]["cmd"]],
+                              v_hist=[round(h["v"], 2) for h in hist],
+                              cmd_v_hist=[round(float(h["cmd"][0]), 2) for h in hist],
+                              push=bool(env.loco.push_left > -50))           # a push in the last 1 s
+            else:
+                rec_sh = {}
             rec |= dict(failure="collision", kind=kind, obstacle=name, speed=float(np.linalg.norm(vel)), toward=toward,
                         at_fault=bool(toward > 0.1 or kind == "static"), bearing=bearing,
                         side="front" if abs(bearing) < 45 else ("rear" if abs(bearing) > 135 else "side"),
-                        perceived=perceived, unseen_reason=(why.most_common(1)[0][0] if why else "-"))
+                        perceived=perceived, unseen_reason=(why.most_common(1)[0][0] if why else "-")) | rec_sh
         elif info.get("fell"):
             rec |= dict(failure="fall")
         elif info.get("timeout"):
@@ -124,9 +139,11 @@ def main():
     ap.add_argument("--low", default=os.path.join(ROOT, "rl/runs/loco31/best.pt"))
     ap.add_argument("--episodes", type=int, default=32)
     ap.add_argument("--procs", type=int, default=4)
+    ap.add_argument("--shield", action="store_true")
+    ap.add_argument("--scenarios", nargs="*", default=None)
     ap.add_argument("--out", default=os.path.join(ROOT, "rl/runs/nav2/bench/failure_taxonomy.json"))
     a = ap.parse_args()
-    jobs = [(s, a.nav, os.path.abspath(a.low), a.episodes) for s in SCEN]
+    jobs = [(s, a.nav, os.path.abspath(a.low), a.episodes, a.shield) for s in (a.scenarios or SCEN)]
     with mp.get_context("fork").Pool(a.procs) as pool:
         recs = sum(pool.map(run, jobs, chunksize=1), [])
     json.dump(recs, open(a.out, "w"), indent=1)
@@ -142,6 +159,11 @@ def main():
         sp = np.array([r["speed"] for r in C])
         print(f"  speed at impact: median {np.median(sp):.2f} m/s, < 0.2 m/s: {np.mean(sp < 0.2):.0%}, > 1 m/s: {np.mean(sp > 1):.0%}")
         print("  by scenario:", dict(Counter(r["scenario"] for r in C)))
+        for r in C:
+            if "map_dist" in r:
+                print(f"   {r['scenario'][:14]:14s} ep {r['ep']:2d} {r['kind']:10s} {r['side']:5s} v {r['speed']:.2f} map_dist "
+                      f"{r['map_dist']:.2f} interv {r['interv_1s']} push {r['push']} cmd {r['cmd_last']} v {r['v_hist']} "
+                      f"cmd_v {r['cmd_v_hist']}")
     T = [r for r in F if r["failure"] == "timeout"]
     if T:
         print(f"timeouts {len(T)}: geodesic left median {np.median([r['geo_left'] for r in T]):.1f} m, "
