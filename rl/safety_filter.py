@@ -103,7 +103,7 @@ class SafetyFilter:
         speed = np.maximum(abs(v0), np.abs(cmds[:, 0]))[:, None]
         if self.err_tab is not None:
             row = np.clip(np.searchsorted(self.tab_s, speed[:, 0], side="right") - 1, 0, len(self.tab_s) - 1)
-            th = np.minimum(ts, self.tab_t[-1])
+            th = np.minimum(ts, self.t_react)          # error grows while reacting; braking is a worst-case envelope
             E = np.empty_like(th)
             for j in np.unique(row):                                   # few speed bins: one interpolation per bin
                 sel = row == j
