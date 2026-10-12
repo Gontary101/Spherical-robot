@@ -21,6 +21,7 @@ import os
 import numpy as np
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+PED_R, PED_T, PED_GROW = 0.25, 1.5, 0.2      # person radius, prediction horizon (s), deviation growth (m per s)
 
 
 class SafetyFilter:
@@ -55,6 +56,7 @@ class SafetyFilter:
     def reset(self):
         self.prev = np.zeros(2)                                     # last output: corrections must be consistent in time
         self.scan_dir = 0.0                                         # look-around direction while active, else 0
+        self.peds = []                                              # tracked people: (position, velocity), local frame
 
     def stop_dist(self, v):
         """Worst-case stopping distance over friction / slope / payload (identified table, linear in between)."""
@@ -108,9 +110,23 @@ class SafetyFilter:
         self.heads = np.stack(hs, 1)
         return np.stack(pts, 1), np.stack(ts, 1)
 
+    def ped_margin(self, P, ts):
+        """Clearance to the tracked people's predicted positions minus what is needed, per rollout point: a person at
+        p moving at v is expected at p + v min(t, PED_T) and may deviate by PED_GROW m per second of look-ahead."""
+        if not self.peds:
+            return None
+        out = np.full(P.shape[:2], 99.0)
+        th = np.minimum(ts, PED_T)
+        for p, v in self.peds:
+            q = p[None, None, :] + v[None, None, :] * th[..., None]
+            d = np.linalg.norm(P - q, axis=-1) - (self.r + PED_R + self.margin + PED_GROW * th)
+            out = np.minimum(out, d)
+        return out
+
     def admissible(self, lmap, pose, v0, w0, cmds, unknown_is_obstacle=True):
         cmds = np.atleast_2d(cmds)
         P, ts = self._rollout(pose, v0, w0, cmds)
+        pm = self.ped_margin(P, ts)
         speed = np.maximum(abs(v0), np.abs(cmds[:, 0]))[:, None]
         if self.err_tab is not None and self.lat_tab is not None:
             row = np.clip(np.searchsorted(self.tab_s, speed[:, 0], side="right") - 1, 0, len(self.tab_s) - 1)
@@ -125,6 +141,8 @@ class SafetyFilter:
             cl = lmap.clearance(Q.reshape(-1, 2), unknown_is_obstacle=unknown_is_obstacle).reshape(Q.shape[:3]).min(0)
             need = self.r + self.margin + El + self.k_spin * np.abs(cmds[:, 1])[:, None]
             margin = cl - need
+            if pm is not None:
+                margin = np.minimum(margin, pm)
             self._last = margin
             slack = margin.min(1)
             return slack >= 0, slack

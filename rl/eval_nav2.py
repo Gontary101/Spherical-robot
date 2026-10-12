@@ -76,6 +76,9 @@ def make(name, path):
         return VFH()
     if name == "oracle":
         return oracle
+    if name == "mpc":                                   # deployable sampling MPC on onboard information (rl/teacher.py)
+        from teacher import GeoMPC
+        return GeoMPC(deployable=True)
     import torch
     torch.set_num_threads(1)
     ts = torch.jit.load(path)

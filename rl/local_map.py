@@ -99,7 +99,7 @@ class LocalMap:
 
     # ----------------------------------------------------------------------------------------------- fusion
     def update(self, pose, beam_ang, scan, depth=None, visible=None, dead=None, free_every=1, free_max=None, robot_r=0.0,
-               nearfield=None):
+               nearfield=None, hit_mask=None):
         """pose = odometry (x, y, yaw). scan: masked LiDAR ranges (MAX_R = no return).
         depth: (dirs_robot (N, 3), ranges (N,), cam_height, cam_forward_offset) or None.
         visible(px, py) -> bool array: which robot-frame points the sensor can physically see (its self-occlusion), or
@@ -114,6 +114,8 @@ class LocalMap:
         a = beam_ang + yaw
         hit = scan < self.max_r - 1e-3
         rng = np.minimum(scan, self.max_r)
+        if hit_mask is not None:                    # returns from tracked people: free space up to them, no static hit
+            hit = hit & hit_mask
         step = self.cell * 0.7
         ks = np.arange(0.2, self.max_r, step)
         # free space along every beam up to its return (minus one cell), all beams at once

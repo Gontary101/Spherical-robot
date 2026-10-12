@@ -47,7 +47,7 @@ def contact_info(env):
 def run(args):
     scen, path, low, n, shield = args
     os.environ["GYRA_LOW"] = low
-    nav = make("nav2", path) if path not in ("vfh", "oracle") else make(path, None)
+    nav = make("nav2", path) if path not in ("vfh", "oracle", "mpc") else make(path, None)
     out = []
     for ep in range(n):
         env = Nav2Env(seed=70000 + ep, low_ckpt=low, level=0.8, adaptive=False, scenario={"nav": CALM | SCEN[scen], "loco": LOCO},

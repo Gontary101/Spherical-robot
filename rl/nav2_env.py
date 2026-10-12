@@ -625,6 +625,7 @@ class Nav2Env:
         self.lio_hdrift = self.rng.normal(0, np.radians(0.1))
         self.lio_err = np.zeros(3)
         self.loc_err = np.zeros(3)                     # prior-map localisation error (OU process), used when map=True
+        self.tracks = {}                               # people tracker: id -> dict(p, v, seen) in the local frame
         self.loc = self.odo.copy()                     # local pose: what the local map / filter / MPC are expressed in
         self.est = np.zeros(N_EST)
         self.last_a = np.zeros(2)
@@ -706,7 +707,14 @@ class Nav2Env:
         dust, dead sector) at 0.31 deg resolution, cut from the 3-D returns (horizontal ring + downward rings)."""
         pos, yaw, _ = self._pose()
         a = self.map_ang + yaw
-        true = self._rays(np.array([pos[0], pos[1], self.d.qpos[2]]), np.stack([np.cos(a), np.sin(a), np.zeros_like(a)], -1), self.g_obs)
+        n = len(a)
+        true, gid = np.zeros(n), np.zeros(n, np.int32)
+        mujoco.mj_multiRay(self.m, self.d, np.array([pos[0], pos[1], self.d.qpos[2]]),
+                           np.stack([np.cos(a), np.sin(a), np.zeros_like(a)], -1).reshape(-1), self.g_obs, 1,
+                           self.loco.bid["spine"], gid, true, None, n, MAX_R)
+        true[(gid < 0) | (true < 0)] = MAX_R
+        true = np.minimum(true, MAX_R)
+        self.map_gid = gid
         if MAP_3D:
             true = np.minimum(true, self._scan3d_low(pos, yaw))
         r, P = self.rng, self.P
@@ -720,7 +728,13 @@ class Nav2Env:
             a0, w = self.lidar_sector
             dead = np.abs((self.map_ang - a0 + np.pi) % (2 * np.pi) - np.pi) < w / 2
             meas[dead] = MAX_R
-        return np.clip(meas, 0, MAX_R), dead
+        meas = np.clip(meas, 0, MAX_R)
+        # isolated-return filter (what LiDAR drivers / outlier removal do): every real obstacle is >= 0.10 m wide, i.e.
+        # >= 2 adjacent 0.31 deg rays out to 8 m; a return with no neighbour within 0.15 m in range is dust/noise
+        hit = meas < MAX_R - 1e-3
+        nb = (np.abs(meas - np.roll(meas, 1)) < 0.15) | (np.abs(meas - np.roll(meas, -1)) < 0.15)
+        meas = np.where(hit & ~nb, MAX_R, meas)
+        return meas, dead
 
     def _nearfield(self):
         """The pods' ground cameras: for every visible floor point, a sight line from its pod (true pose, obstacles
@@ -749,15 +763,64 @@ class Nav2Env:
                 occ.append((hw_ - pos) @ R)                      # world -> robot frame
         return np.concatenate(free), (np.concatenate(occ) if occ else np.zeros((0, 2)))
 
+    def _track_people(self, scan):
+        """People tracker: a person is detected when one of the dense map rays that survived the sensor model
+        (self-occlusion, dead sector, dropouts) returns from it; measured centroid noise 5 cm. Velocity by smoothed
+        finite differences; a track coasts for 1 s without detection. Local frame."""
+        if not self.dyn:
+            return
+        pos, yaw, _ = self._pose()
+        R = lambda th: np.array([[math.cos(th), -math.sin(th)], [math.sin(th), math.cos(th)]])
+        to_loc = lambda pw: self.loc[:2] + R(self.loc[2] - yaw) @ (pw - pos)
+        seen = set()
+        valid = scan < MAX_R - 1e-3
+        for i, o in enumerate(self.dyn):
+            gid = self.m.geom(f"dyn{i}").id
+            if not np.any(valid & (self.map_gid == gid)):
+                continue
+            seen.add(i)
+            z = to_loc(o["p"]) + self.rng.normal(0, 0.05, 2)
+            tr = self.tracks.get(i)
+            if tr is None:
+                self.tracks[i] = dict(p=z, v=np.zeros(2), seen=0.0)
+            else:
+                v_new = (z - tr["p"]) / 0.1
+                tr["v"] = 0.7 * tr["v"] + 0.3 * v_new
+                tr["p"], tr["seen"] = z, 0.0
+        for i in list(self.tracks):
+            if i not in seen:
+                tr = self.tracks[i]
+                tr["p"] = tr["p"] + tr["v"] * 0.1
+                tr["seen"] += 0.1
+                if tr["seen"] > 1.0:
+                    del self.tracks[i]
+
+    def _near_people(self, pts_robot):
+        """Robot-frame points within 0.15 m of a tracked person's surface (dynamic-object removal for the static map)."""
+        if not self.tracks or len(pts_robot) == 0:
+            return np.zeros(len(pts_robot), bool)
+        c, s_ = math.cos(self.loc[2]), math.sin(self.loc[2])
+        w = self.loc[:2] + pts_robot @ np.array([[c, s_], [-s_, c]])
+        near = np.zeros(len(w), bool)
+        for tr in self.tracks.values():
+            near |= np.linalg.norm(w - tr["p"], axis=1) < 0.25 + 0.15
+        return near
+
     def _map_update(self):
         """Fuse the dense masked LiDAR, the depth image and the near-field ground cameras into the local map at the
         odometry pose (robot knowledge only)."""
         scan, dead = self._map_scan()
+        self._track_people(scan)
         fr, oc = self._nearfield() if NEARFIELD else (np.zeros((0, 2)), np.zeros((0, 2)))
         dfr, doc = self._depth_points()
+        oc = np.concatenate([oc, doc])
+        oc = oc[~self._near_people(oc)]
+        hp = np.c_[scan * np.cos(self.map_ang), scan * np.sin(self.map_ang)]
         self.lmap.update(self.loc.copy(), self.map_ang, scan, depth=None,
                          visible=self.map_rmin, dead=dead, free_every=4, free_max=6.0, robot_r=self.robot_r,
-                         nearfield=(np.concatenate([fr, dfr]), np.concatenate([oc, doc])))
+                         nearfield=(np.concatenate([fr, dfr]), oc), hit_mask=~self._near_people(hp))
+        if self.filter is not None:
+            self.filter.peds = [(tr["p"].copy(), tr["v"].copy()) for tr in self.tracks.values()]
 
     def _depth_points(self):
         """Depth image endpoints classified against the ground surface (ground segmentation, as for the LiDAR rings
