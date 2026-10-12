@@ -54,6 +54,9 @@ disturbances (rough ground, 10 N wind + gusts, 3 kg off-centre payload, 150 N pu
 | + spawn prior, free evidence persists, never-closer recovery, no chatter | 66 % | 9 % | 25 % | collisions all < 0.3 m/s, obstacle already mapped |
 | + field-measured error envelope, 3-D LiDAR map | 53 % | 12.5 % | 34 % | every obstacle in the map ≥ 3 s before contact: creep at "stop", late braking at speed |
 | + position hold at rest, straight + arc braking paths | 50 % | **4.7 %** | 45 % | 3 left, all < 0.45 m/s, reverse→forward overshoot |
+| + anisotropic error, sub-cell map (doors) — privileged oracle for reference | 72 % | 1.6 % | 27 % | oracle approaches doors off-axis; filter correctly refuses |
+| navigator fine-tuned with the filter, 1 M steps (envelope observed) | 61 % | **0 %** | 39 % | half the timeouts never leave the start: unknown wedge ahead |
+| + near-field ground cameras, look-around primitive | **77 %** | 1.6 % | 22 % | the one collision during a 150 N push |
 
 Root causes found and fixed (none of them was "tune a weight"):
 
@@ -76,5 +79,14 @@ Root causes found and fixed (none of them was "tune a weight"):
 6. **The backup stop was assumed to follow the commanded arc**; when the yaw rate dies during braking the robot stops
    on a straighter path. Both braking paths must now be clear.
 
-The remaining timeouts are the navigator fighting a filter it has never seen: phase 1d (shielded fine-tuning with a
-correction penalty, the executed command in the observation) is running.
+7. **Doors were closed by the error model and by the map's quantisation.** The field error is almost all
+   along-track (cross-track p95 2 cm at 0.3 s): the footprint is now inflated by the cross-track error and the path
+   shifted by the along-track one. And 5 cm cells + 2 cm range noise grew every surface by 2.5-5 cm (a 1.0 m door
+   was 0.90-0.95 m on the map): cells keep the mean of their hit points and distances are measured to it.
+8. **A penalty the policy cannot predict teaches it to stand still.** The first shielded fine-tune (correction
+   penalty 1.0, nothing about the filter observed) lost success 81 → 45 % while its reward rose. The navigator
+   now observes the filter's safe-speed envelope (fastest admissible forward speed for 7 yaw rates), penalty 0.3.
+9. **Nothing could see the floor just ahead of a robot at rest.** Pod LiDARs are blind 2.25 m ahead, the depth
+   camera sees the floor beyond 1.6 m. The pods' ground cameras of the Mk1 design are now modelled (91 % of the
+   0.3-1.5 m floor; the wedge ahead of the tyre stays blind, as the design doc says), and the filter has the
+   design's answer for the rest: when only unknown space blocks the request, it turns in place to look.
