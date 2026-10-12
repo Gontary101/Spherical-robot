@@ -79,7 +79,9 @@ def make(name, path):
     import torch
     torch.set_num_threads(1)
     ts = torch.jit.load(path)
-    return lambda oa, env: ts(torch.as_tensor(oa[None])).detach().numpy()[0]
+    n_in = int(ts.m.shape[0]) if hasattr(ts, "m") else None
+    # policies trained before an observation was appended read only the prefix they know
+    return lambda oa, env: ts(torch.as_tensor(oa[None, :n_in] if n_in else oa[None])).detach().numpy()[0]
 
 
 def job(args):

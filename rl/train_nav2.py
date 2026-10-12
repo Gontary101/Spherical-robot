@@ -37,6 +37,7 @@ def main():
     ap.add_argument("--envs", type=int, default=8)
     ap.add_argument("--horizon", type=int, default=64)
     ap.add_argument("--resume", default="")
+    ap.add_argument("--init", default="", help="warm start from a checkpoint with a smaller observation (overlap copied)")
     ap.add_argument("--level0", type=float, default=0.0)
     ap.add_argument("--shield", action="store_true", help="safety filter in the loop, corrections penalised (plan phase 1d)")
     a = ap.parse_args()
@@ -47,6 +48,9 @@ def main():
     oa, oc = env.reset()
     agent = make_agent(oc.shape[1])
     steps = int(agent.load(a.resume).get("steps", 0)) if a.resume else 0
+    if a.init:
+        from train_loco2 import load_partial
+        load_partial(agent, a.init)
     f = open(os.path.join(a.out, "progress.csv"), "a", newline="")
     wr = None
     t0 = time.time()

@@ -63,7 +63,8 @@ COST_ALPHA, COST_RANGE = 4.0, 0.6   # costmap: up to 5x traversal cost within 0.
 PLAN_MARGIN = 0.08               # planner keeps this much air between the robot's footprint and any mapped obstacle
 MAP_RAYS = 1152                  # the pods' 3-D LiDARs return dense clouds: 0.31 deg rays for the local map
 HOLD_K = 2.0                     # position-hold gain (1/s) at rest; 0.5 ... 4 tested, 2 best under field disturbances
-SHIELD_COST = 1.0                # reward per unit of safety-filter correction (action units, 0..2 per step)
+SHIELD_COST = 0.3                # reward per unit of safety-filter correction (action units, 0..2 per step); 1.0
+                                 # with no envelope in the observation taught the navigator to stand still
 MAP_3D = True                    # map scan cut from 3-D returns (low obstacles below the hub plane are seen)
 
 
@@ -119,7 +120,10 @@ def footprint_radius(hw):
 GRID = 0.1
 N_DYN = 6
 LOOKAHEAD = 2.5                  # planner subgoal distance along the path (m)
-ACT_OBS = N_BEAM * LIDAR_FRAMES + DEPTH_W * DEPTH_H + 3 + 4 + 2 + 2 + 1 + N_EST
+N_ENV = 7                        # safe-speed envelope: max admissible forward speed for 7 yaw rates (shielded)
+ENV_W = np.linspace(-W_RANGE, W_RANGE, N_ENV)
+ENV_V = np.linspace(0.0, V_RANGE[1], 15)
+ACT_OBS = N_BEAM * LIDAR_FRAMES + DEPTH_W * DEPTH_H + 3 + 4 + 2 + 2 + 1 + N_EST + N_ENV
 FAMILIES = ("clutter", "forest", "rooms", "maze", "mixed")
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
@@ -615,7 +619,30 @@ class Nav2Env:
             # this prior, the area inside the pods' forward/rear blind wedge would stay unknown and block every motion
             self.lmap.mark_free_disc(self.odo[:2], SPAWN_FREE)
             self._map_update()
+            self._put_envelope(obs)
         return obs
+
+    def _velocity_estimate(self):
+        """(v, w) as the safety filter sees them: LiDAR-inertial odometry, or encoders + gyro when LIO is lost."""
+        tr = self.loco._truth()
+        if self.P["odom"] == "lio":
+            return tr["v"] + self.rng.normal(0, 0.03), tr["w"] + self.rng.normal(0, 0.02)
+        lo = self.loco
+        return (lo.qd("tyreL") + lo.qd("tyreR")) * 0.5 * 0.3 * self.odo_scale, tr["w"] + self.odo_bias
+
+    def _put_envelope(self, obs):
+        """What the filter knows, in a form the navigator can act on: for each of N_ENV yaw rates, the fastest
+        admissible forward speed (fraction of v_max). Without it, the navigator is penalised for corrections it cannot
+        predict (map memory, blind wedge, braking envelope) and learns to stand still."""
+        v0, w0 = self._velocity_estimate()
+        C = np.array([(v, w) for w in ENV_W for v in ENV_V])
+        ok, _ = self.filter.admissible(self.lmap, self.odo.copy(), v0, w0, C)
+        ok = ok.reshape(N_ENV, len(ENV_V))
+        # fastest speed with every slower speed also admissible (the envelope a navigator can safely stay inside)
+        first_bad = np.where(ok.all(1), len(ENV_V), np.argmin(ok, 1))
+        env = np.where(first_bad > 0, ENV_V[np.maximum(first_bad - 1, 0)], -0.1) / V_RANGE[1]
+        obs[0][-N_ENV:] = env
+        obs[1][-N_ENV:] = env
 
     def _scan3d_low(self, pos, yaw):
         """The pods' Mid-360s sweep densely in elevation: per azimuth (1.25 deg), the nearest obstacle return over
@@ -682,7 +709,7 @@ class Nav2Env:
                                 self._goal_feat(self.odo[:2], self.odo[2]),
                                 self._goal_feat(self.odo[:2], self.odo[2], self.subgoal(self.odo[:2])), [float(self.P["map"])],
                                 [v_est * 0.3, (t["w"] + self.rng.normal(0, 0.02)) * 0.4], self.applied_a,
-                                [self.steps / EP_STEPS], self.est]).astype(np.float32)
+                                [self.steps / EP_STEPS], self.est, np.ones(N_ENV)]).astype(np.float32)
         geo, gdir = self._geo_at(pos)
         c, s = math.cos(yaw), math.sin(yaw)
         gd = np.array([c * gdir[0] + s * gdir[1], -s * gdir[0] + c * gdir[1]])
@@ -695,7 +722,8 @@ class Nav2Env:
                 ped[j] = [(c * dp[0] + s * dp[1]) / 5, (-s * dp[0] + c * dp[1]) / 5, c * dv[0] + s * dv[1], -s * dv[0] + c * dv[1]]
         critic = np.concatenate([1.0 - true / MAX_R, self._goal_feat(pos, yaw), [min(geo, 20) / 10], gd,
                                  [t["v"] * 0.3, t["w"] * 0.4, lo.mu, (true.min() - self.robot_r) / 2, self.P["k"]],
-                                 [np.linalg.norm(self.odo[:2] - pos), math.sin(self.odo[2] - yaw)], ped.ravel(), self.applied_a]).astype(np.float32)
+                                 [np.linalg.norm(self.odo[:2] - pos), math.sin(self.odo[2] - yaw)], ped.ravel(), self.applied_a,
+                                 np.ones(N_ENV)]).astype(np.float32)
         return actor, critic
 
     def _collided(self):
@@ -720,13 +748,7 @@ class Nav2Env:
         if self.shield:
             # velocity from the LiDAR-inertial odometry (encoders mislead while the pendulum swings the spine);
             # with LIO lost, fall back to encoders + gyro
-            tr = self.loco._truth()
-            if self.P["odom"] == "lio":
-                v_now = tr["v"] + self.rng.normal(0, 0.03)
-                w_now = tr["w"] + self.rng.normal(0, 0.02)
-            else:
-                v_now = (lo.qd("tyreL") + lo.qd("tyreR")) * 0.5 * 0.3 * self.odo_scale
-                w_now = tr["w"] + self.odo_bias
+            v_now, w_now = self._velocity_estimate()
             v_f, w_f, intervened, _ = self.filter(self.lmap, self.odo.copy(), v_now, w_now, v_cmd, w_cmd)
             corr = abs(v_f - v_cmd) / (V_RANGE[1] - V_RANGE[0]) + abs(w_f - w_cmd) / (2 * W_RANGE)
             self.interv_mag += corr
@@ -805,6 +827,7 @@ class Nav2Env:
         obs = self._obs(pos, yaw, t, true)
         if self.shield:
             self._map_update()
+            self._put_envelope(obs)
             info["intervened"] = intervened
             if done:
                 info["episode"]["interventions"] = self.n_interv / max(self.steps, 1)
@@ -832,6 +855,9 @@ class Nav2Env:
         # estimator: vb(3) slope(2) mu payload wind(2) strength
         perm += [base + i for i in range(N_EST)]
         sg += [1, -1, 1, 1, -1, 1, 1, 1, -1, 1]
+        base += N_EST
+        perm += [base + N_ENV - 1 - i for i in range(N_ENV)]                 # envelope: yaw rate w -> -w
+        sg += [1] * N_ENV
         return np.array(perm), np.array(sg, np.float32), np.array([1, -1], np.float32)
 
 
