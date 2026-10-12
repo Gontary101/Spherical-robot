@@ -64,7 +64,7 @@ def run(args):
                              depth_dead=bool(env.P["depth_blackout"]), interv=bool(info.get("intervened", False)),
                              cmd=env.loco.cmd.copy(), v=float(t["v"])))
             if env.shield:
-                maps.append((env.lmap.L.copy(), env.lmap.origin.copy(), env.odo.copy(), pos.copy(), yaw,
+                maps.append((env.lmap.L.copy(), env.lmap.origin.copy(), env.loc.copy(), pos.copy(), yaw,
                              float(env.loco.cmd[0]), float(t["v"])))
             stopped += abs(t["v"]) < 0.1
             if t["w"] * last_w < 0 and abs(t["w"]) > 0.3:
@@ -111,9 +111,9 @@ def run(args):
             perceived = "lidar" if seen_lidar >= 3 else ("depth_only" if seen_depth >= 3 else "unseen")
             if env.shield:
                 # shield forensics: did the map hold the obstacle, was the filter braking, what did it command?
-                dth = env.odo[2] - yaw
+                dth = env.loc[2] - yaw
                 c_, s_ = math.cos(dth), math.sin(dth)
-                cpo = env.odo[:2] + np.array([c_ * rel[0] - s_ * rel[1], s_ * rel[0] + c_ * rel[1]])
+                cpo = env.loc[:2] + np.array([c_ * rel[0] - s_ * rel[1], s_ * rel[0] + c_ * rel[1]])
                 # when did the contact point enter the map (occupied cell within 0.10 m), and when did braking start?
                 known = []
                 from local_map import OCC_TH

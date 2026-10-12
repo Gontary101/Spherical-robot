@@ -31,9 +31,9 @@ LOW = os.path.join(os.path.dirname(__file__), "runs/loco31/best.pt")
 
 def odo_to_world(env, q):
     pos, yaw, _ = env._pose()
-    dth = yaw - env.odo[2]
+    dth = yaw - env.loc[2]
     c, s = math.cos(dth), math.sin(dth)
-    rel = q - env.odo[:2]
+    rel = q - env.loc[:2]
     return pos + np.array([c * rel[0] - s * rel[1], s * rel[0] + c * rel[1]])
 
 
@@ -46,10 +46,10 @@ def analyse(env):
     want = np.array([0.25 * (np.sign(want[0]) or 1.0), want[1] * min(1.0, 0.25 / max(abs(want[0]), 0.25))])
     f, m = env.filter, env.lmap
     v0, w0 = env._velocity_estimate()
-    ok, sl = f.admissible(m, env.odo.copy(), v0, w0, np.array([want]))
+    ok, sl = f.admissible(m, env.loc.copy(), v0, w0, np.array([want]))
     if ok[0]:
         return dict(kind="slow_progress_admissible", deficit=0.0)
-    P, ts = f._rollout(env.odo.copy(), v0, w0, np.array([want]))
+    P, ts = f._rollout(env.loc.copy(), v0, w0, np.array([want]))
     M = f._last[0]
     i = int(np.argmin(M))
     p = P[0, min(i, P.shape[1] - 1)]

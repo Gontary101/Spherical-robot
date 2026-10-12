@@ -78,6 +78,7 @@ def MAP_ELEV(z0, d_near=0.4, d_far=6.0, band=0.10):
     return -np.arctan(z0 / d_hi)
 
 
+LIO_SCALE = float(os.environ.get("LIO_SCALE", 1.0))
 SPAWN_FREE = 0.6                 # radius known clear at the start (the start keeps > 0.75 m from every obstacle)
 LIDAR_OVERSAMPLE = 4             # rays per beam bin; a beam reports the minimum (how a 2-D scan is cut from a 3-D cloud)
 
@@ -623,6 +624,8 @@ class Nav2Env:
         self.lio_drift = self.rng.normal(0, 0.005, 2)
         self.lio_hdrift = self.rng.normal(0, np.radians(0.1))
         self.lio_err = np.zeros(3)
+        self.loc_err = np.zeros(3)                     # prior-map localisation error (OU process), used when map=True
+        self.loc = self.odo.copy()                     # local pose: what the local map / filter / MPC are expressed in
         self.est = np.zeros(N_EST)
         self.last_a = np.zeros(2)
         self.applied_a = np.zeros(2)
@@ -642,10 +645,10 @@ class Nav2Env:
                 from safety_filter import SafetyFilter
                 self.filter = SafetyFilter(self.robot_r)
             self.filter.reset()
-            self.lmap.reset(self.odo[:2])
+            self.lmap.reset(self.loc[:2])
             # the spot the robot was put down on is known clear (start clearance > 0.75 m by construction): without
             # this prior, the area inside the pods' forward/rear blind wedge would stay unknown and block every motion
-            self.lmap.mark_free_disc(self.odo[:2], SPAWN_FREE)
+            self.lmap.mark_free_disc(self.loc[:2], SPAWN_FREE)
             self._map_update()
             self._put_envelope(obs)
         return obs
@@ -664,7 +667,7 @@ class Nav2Env:
         predict (map memory, blind wedge, braking envelope) and learns to stand still."""
         v0, w0 = self._velocity_estimate()
         C = np.array([(v, w) for w in ENV_W for v in ENV_V])
-        ok, _ = self.filter.admissible(self.lmap, self.odo.copy(), v0, w0, C)
+        ok, _ = self.filter.admissible(self.lmap, self.loc.copy(), v0, w0, C)
         ok = ok.reshape(N_ENV, len(ENV_V))
         # fastest speed with every slower speed also admissible (the envelope a navigator can safely stay inside)
         first_bad = np.where(ok.all(1), len(ENV_V), np.argmin(ok, 1))
@@ -672,7 +675,7 @@ class Nav2Env:
         obs[0][-N_ENV - MAP_OBS:-MAP_OBS] = env
         obs[1][-N_ENV:] = env
         # the map the filter uses, robot-centred: memory of the blind wedge, of openings passed, of where it has been
-        obs[0][-MAP_OBS:] = self.lmap.egocentric2(self.odo, MAP_N, MAP_CELL).ravel()
+        obs[0][-MAP_OBS:] = self.lmap.egocentric2(self.loc, MAP_N, MAP_CELL).ravel()
 
     def _scan3d_low(self, pos, yaw):
         """The pods' Mid-360s sweep densely in elevation: per azimuth (1.25 deg), the nearest obstacle return over
@@ -752,7 +755,7 @@ class Nav2Env:
         scan, dead = self._map_scan()
         fr, oc = self._nearfield() if NEARFIELD else (np.zeros((0, 2)), np.zeros((0, 2)))
         dfr, doc = self._depth_points()
-        self.lmap.update(self.odo.copy(), self.map_ang, scan, depth=None,
+        self.lmap.update(self.loc.copy(), self.map_ang, scan, depth=None,
                          visible=self.map_rmin, dead=dead, free_every=4, free_max=6.0, robot_r=self.robot_r,
                          nearfield=(np.concatenate([fr, dfr]), np.concatenate([oc, doc])))
 
@@ -831,7 +834,7 @@ class Nav2Env:
             # velocity from the LiDAR-inertial odometry (encoders mislead while the pendulum swings the spine);
             # with LIO lost, fall back to encoders + gyro
             v_now, w_now = self._velocity_estimate()
-            v_f, w_f, intervened, _ = self.filter(self.lmap, self.odo.copy(), v_now, w_now, v_cmd, w_cmd)
+            v_f, w_f, intervened, _ = self.filter(self.lmap, self.loc.copy(), v_now, w_now, v_cmd, w_cmd)
             corr = abs(v_f - v_cmd) / (V_RANGE[1] - V_RANGE[0]) + abs(w_f - w_cmd) / (2 * W_RANGE)
             self.interv_mag += corr
             self.n_interv += intervened
@@ -842,10 +845,10 @@ class Nav2Env:
         # The anchor is taken only once the robot has slowed, so hold never pulls back through the braking distance.
         if abs(v_cmd) < 0.05:
             if self.hold_anchor is None and abs(self.loco._truth()["v"]) < 0.1:
-                self.hold_anchor = self.odo[:2].copy()
+                self.hold_anchor = self.loc[:2].copy()
             if self.hold_anchor is not None:
-                hd = np.array([math.cos(self.odo[2]), math.sin(self.odo[2])])
-                v_cmd = float(np.clip(-HOLD_K * (self.odo[:2] - self.hold_anchor) @ hd, -0.3, 0.3))
+                hd = np.array([math.cos(self.loc[2]), math.sin(self.loc[2])])
+                v_cmd = float(np.clip(-HOLD_K * (self.loc[:2] - self.hold_anchor) @ hd, -0.3, 0.3))
         else:
             self.hold_anchor = None
         lo.cmd = np.array([v_cmd, w_cmd])
@@ -859,13 +862,27 @@ class Nav2Env:
             t = lo._truth()
             if self.P["odom"] == "lio":
                 ds = float(np.linalg.norm(self.d.qvel[0:2])) * 0.02
-                self.lio_err[:2] += ds * (self.lio_drift + self.rng.normal(0, 0.005, 2))
-                self.lio_err[2] += ds * (self.lio_hdrift + self.rng.normal(0, np.radians(0.05)))
+                self.lio_err[:2] += LIO_SCALE * ds * (self.lio_drift + self.rng.normal(0, 0.005, 2))
+                self.lio_err[2] += LIO_SCALE * ds * (self.lio_hdrift + self.rng.normal(0, np.radians(0.05)))
                 pos_t, yaw_t = self.d.qpos[0:2], t["yaw"]
-                self.odo = np.array([pos_t[0] + self.lio_err[0], pos_t[1] + self.lio_err[1], yaw_t + self.lio_err[2]])
+                # two estimates, as a LiDAR-inertial stack keeps them:
+                #  local: each scan is registered against the local map, so pose and map stay mutually consistent
+                #         (registration noise ~1 cm); building the map with a drifting pose smeared every wall by the
+                #         drift accumulated over its memory (a 1.0 m door lost ~25 % success to that alone)
+                #  global: relative to the prior map - localised against it when there is one (bounded error),
+                #         otherwise the drifting LIO estimate
+                self.loc = np.array([pos_t[0], pos_t[1], yaw_t]) + self.rng.normal(0, [0.01, 0.01, np.radians(0.2)]) * 0.2
+                if self.P["map"]:
+                    a = 0.02 / 5.0                                   # OU, tau 5 s, std 3 cm / 0.3 deg
+                    self.loc_err += -a * self.loc_err + np.sqrt(2 * a) * self.rng.normal(0, [0.03, 0.03, np.radians(0.3)])
+                    err = self.loc_err
+                else:
+                    err = self.lio_err
+                self.odo = np.array([pos_t[0] + err[0], pos_t[1] + err[1], yaw_t + err[2]])
             else:
                 self.odo[2] += (t["w"] + self.odo_bias) * 0.02
                 self.odo[:2] += v_enc * 0.02 * np.array([math.cos(self.odo[2]), math.sin(self.odo[2])])
+                self.loc = self.odo.copy()                           # no LIO: the map is built on wheel odometry
             hs, hd = self._collided()
             hit_s |= hs
             hit_d |= hd

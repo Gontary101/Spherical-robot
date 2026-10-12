@@ -37,18 +37,26 @@ def grid_bilinear(env, G, p, far=99.0):
 
 
 class GeoMPC:
-    def __init__(self, horizon=1.5, dt=0.1):
-        self.h, self.dt = horizon, dt
+    """deployable=False: privileged teacher (true pose, true geodesic, true clearance).
+    deployable=True: the same MPC on what the robot knows - LiDAR-inertial odometry pose and velocity, the onboard
+    planner's geodesic field on the prior map, clearance from its own local map."""
+    def __init__(self, horizon=1.5, dt=0.1, deployable=False):
+        self.h, self.dt, self.deployable = horizon, dt, deployable
         self.prev = np.zeros(2)
 
     def reset(self):
         self.prev = np.zeros(2)
 
     def plan(self, env):
-        pos, yaw, t = env._pose()
+        if self.deployable:
+            pos, yaw = env.loc[:2], env.loc[2]                      # local frame (local map); the route field is in
+            v0, w0 = env._velocity_estimate()                       # the prior map's frame: points mapped via odo
+        else:
+            pos, yaw, t = env._pose()
+            v0, w0 = t["v"], t["w"]
         N = len(CAND)
         x, y, th = np.full(N, pos[0]), np.full(N, pos[1]), np.full(N, yaw)
-        v, w = np.full(N, t["v"]), np.full(N, t["w"])
+        v, w = np.full(N, v0), np.full(N, w0)
         aw = 1 - math.exp(-self.dt / TAU_W)
         clr_pen = np.zeros(N)
         hit = np.zeros(N, bool)
@@ -60,16 +68,25 @@ class GeoMPC:
                 w = w + aw * (CAND[:, 1] - w)
             th = th + w * self.dt
             x, y = x + v * np.cos(th) * self.dt, y + v * np.sin(th) * self.dt
-            c = grid_bilinear(env, env.clear, np.c_[x, y]) - env.robot_r
+            if self.deployable:
+                c = np.minimum(env.lmap.clearance(np.c_[x, y]), 3.0) - env.robot_r
+            else:
+                c = grid_bilinear(env, env.clear, np.c_[x, y]) - env.robot_r
             clr_pen += np.maximum(0.0, 0.15 - c) ** 2         # a 1.0 m door leaves 0.107 m: don't price doors out
             hit |= c < 0.0
             k += self.dt
-        geo = grid_bilinear(env, env.geo, np.c_[x, y])
+        if self.deployable:
+            d = env.odo[2] - env.loc[2]
+            c_, s_ = math.cos(d), math.sin(d)
+            rx, ry = x - env.loc[0], y - env.loc[1]
+            geo = grid_bilinear(env, env.plan_geo, np.c_[env.odo[0] + c_ * rx - s_ * ry, env.odo[1] + s_ * rx + c_ * ry])
+        else:
+            geo = grid_bilinear(env, env.geo, np.c_[x, y])
         cost = (geo + 2.0 * clr_pen + 50.0 * hit + 0.05 * np.abs(CAND[:, 1])
                 + 0.15 * np.abs(CAND[:, 1] - self.prev[1]) + 0.1 * np.abs(CAND[:, 0] - self.prev[0]))
         if env.shield and env.filter is not None:
             v0, w0 = env._velocity_estimate()
-            ok, _ = env.filter.admissible(env.lmap, env.odo.copy(), v0, w0, CAND)
+            ok, _ = env.filter.admissible(env.lmap, env.loc.copy(), v0, w0, CAND)
             if ok.any():
                 cost = np.where(ok, cost, cost + 1e3)
         i = int(np.argmin(cost))
@@ -98,7 +115,7 @@ if __name__ == "__main__":
         env = Nav2Env(seed=70000 + ep, low_ckpt=LOW, level=0.8, adaptive=False, scenario={"nav": CALM | SCEN[sc], "loco": LOCO},
                       shield=True)
         oa, _ = env.reset()
-        pol = GeoMPC()
+        pol = GeoMPC(deployable=os.environ.get("TEACHER_DEPLOYABLE") == "1")
         while True:
             (oa, _), _, done, info = env.step(pol(oa, env))
             if done:
