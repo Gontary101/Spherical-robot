@@ -32,9 +32,10 @@ class SafetyFilter:
         sysid = sysid or os.path.join(ROOT, "rl/runs/nav2/bench/sysid.json")
         S = json.load(open(sysid))
         self.bv, self.bd = np.array(S["brake_table"]["v"]), np.array(S["brake_table"]["d"])
-        if "brake_table2" in S:                                     # stops from random dynamic states (any pendulum
-            T2 = S["brake_table2"]                                  # angle): worst case over the angle bins
-            self.bd = np.maximum(self.bd, np.interp(self.bv, T2["v"], np.max(np.array(T2["d"]), axis=1)))
+        self.T2 = None
+        if "brake_table2" in S:                                     # stopping distance from dynamic states, by speed and
+            T2 = S["brake_table2"]                                  # pendulum angle (signed with the motion; < 0 = still
+            self.T2 = (np.array(T2["v"]), np.array(T2["d"]), np.array(T2["pend_edges"]))   # accelerating)
         R = S["response"]
         self.dead, self.a_fwd, self.a_rev, self.tau_w = R["dead"], R["a_fwd"], R["a_rev"], R["tau_w"]
         e = S["arc_error"]
@@ -62,6 +63,7 @@ class SafetyFilter:
         self.scan_dir = 0.0                                         # look-around direction while active, else 0
         self.peds = []                                              # tracked people: (position, velocity), local frame
         self.a0 = 0.0                                               # current longitudinal acceleration (IMU / LIO)
+        self.pend = 0.0                                             # pendulum angle (yoke encoder + IMU), rad
 
     def stop_dist(self, v):
         """Worst-case stopping distance over friction / slope / payload (identified table, linear in between)."""
@@ -103,6 +105,18 @@ class SafetyFilter:
             hs.append(TH)
         self.t_react = t                                            # prediction error grows only until braking starts:
         d_stop = self.stop_dist(v)                                  # the braking table is itself a worst-case envelope
+        if self.T2 is not None:
+            # state-dependent: a stop commanded while the pendulum is still swung into a push takes far longer (field:
+            # 1.47 m from 0.5 m/s vs 0.41 m from a neutral pendulum). Candidates that speed up get the worst column;
+            # holding / slowing ones the column of the current pendulum angle, one bin towards accelerating as margin.
+            tv, td, edges = self.T2
+            sv = np.sign(v0) if abs(v0) > 0.05 else 1.0
+            c_now = int(np.searchsorted(edges, sv * self.pend))
+            col = np.where(np.abs(cmds[:, 0]) > abs(v0) + 0.1, 0, max(c_now - 1, 0))
+            av = np.abs(v)
+            d2 = np.array([np.interp(av[i], tv, td[:, col[i]]) for i in range(len(av))]) if len(np.unique(col)) > 1 else \
+                np.interp(av, tv, td[:, col[0]])
+            d_stop = np.maximum(d_stop, d2)
         kappa = np.where(np.abs(v) > 0.05, w / np.maximum(np.abs(v), 0.05), 0.0)
         n_brake = 12
         sgn = np.sign(v)

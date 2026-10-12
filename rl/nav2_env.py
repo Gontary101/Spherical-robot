@@ -680,6 +680,7 @@ class Nav2Env:
         return (lo.qd("tyreL") + lo.qd("tyreR")) * 0.5 * 0.3 * self.odo_scale, tr["w"] + self.odo_bias
 
     def _put_envelope(self, obs):
+        self.filter.pend = float(self.loco._truth()["pend"])
         """What the filter knows, in a form the navigator can act on: for each of N_ENV yaw rates, the fastest
         admissible forward speed (fraction of v_max). Without it, the navigator is penalised for corrections it cannot
         predict (map memory, blind wedge, braking envelope) and learns to stand still."""
@@ -943,6 +944,7 @@ class Nav2Env:
             # longitudinal acceleration (IMU), smoothed: the filter extrapolates it through the dead time
             self.filter.a0 = 0.6 * self.filter.a0 + 0.4 * float(np.clip((v_now - getattr(self, "v_prev", v_now)) / 0.1, -4, 4))
             self.v_prev = v_now
+            self.filter.pend = float(self.loco._truth()["pend"])         # yoke encoder + IMU on the robot
             v_f, w_f, intervened, _ = self.filter(self.lmap, self.loc.copy(), v_now, w_now, v_cmd, w_cmd)
             corr = abs(v_f - v_cmd) / (V_RANGE[1] - V_RANGE[0]) + abs(w_f - w_cmd) / (2 * W_RANGE)
             self.interv_mag += corr

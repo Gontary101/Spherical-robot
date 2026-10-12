@@ -65,11 +65,12 @@ def braking(args):
 
 def dyn_braking(args):
     """Stops triggered at random moments of random speed profiles: stopping distance vs (speed, pendulum angle)."""
-    seed, n = args
+    seed, n = args[:2]
+    cond = args[2] if len(args) > 2 else "nominal"
     low = LowLevel(LOW)
     r = np.random.default_rng(seed)
     out = []
-    e = env_for("nominal", seed)
+    e = env_for(cond, seed)
     oa, _ = e.reset()
     for i in range(n):
         v_a = r.uniform(-0.5, 3.5)
@@ -168,7 +169,29 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=os.path.join(ROOT, "rl/runs/nav2/bench/sysid.json"))
     ap.add_argument("--arcs-only", action="store_true", help="re-measure only the field error tables")
+    ap.add_argument("--braking-only", action="store_true", help="re-measure the dynamic braking table under field conditions")
     a = ap.parse_args()
+    if a.braking_only:                               # re-identify the dynamic braking table under field conditions
+        res = json.load(open(a.out))
+        with mp.get_context("fork").Pool(4) as pool:
+            DB = sum(pool.map(dyn_braking, [(300 + s, 150, "field (rough, wind, payload; no pushes)") for s in range(8)]), [])
+        vb = np.array([0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5])
+        old_T = np.array(res["brake_table2"]["d"])
+        T = np.zeros_like(old_T)
+        pb = np.array(res["brake_table2"]["pend_edges"])
+        for x in DB:
+            sv = np.sign(x["v"]) if abs(x["v"]) > 0.05 else 1.0
+            i = int(np.clip(np.searchsorted(vb, abs(x["v"])), 0, len(vb) - 1))
+            j = int(np.searchsorted(pb, sv * x["pend"]))
+            T[i, j] = max(T[i, j], x["dist"] + 0.05)
+        T = np.maximum.accumulate(T, axis=0)
+        res["brake_table2"]["d"] = np.maximum(old_T, T).tolist()
+        res["brake_table2"]["cond"] = "max(nominal, field)"
+        res["dyn_braking_field"] = DB
+        json.dump(res, open(a.out, "w"), indent=1)
+        print("field dynamic braking, worst per speed (m):", dict(zip(vb.tolist(), np.round(T.max(1), 2).tolist())))
+        print("table used by the filter now:", dict(zip(vb.tolist(), np.round(np.maximum(old_T, T).max(1), 2).tolist())))
+        return
     if a.arcs_only:
         res = json.load(open(a.out))
         with mp.get_context("fork").Pool(2) as pool:
