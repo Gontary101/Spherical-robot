@@ -24,3 +24,5 @@ rl/runs/nav2s/*.pt
 rl/runs/nav2s/*.ts
 rl/runs/nav2s/progress.csv
 rl/runs/nav2s/train.log
+rl/runs/nav2s/*.log
+rl/runs/nav2s/*.csv
