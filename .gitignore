@@ -33,3 +33,4 @@ rl/runs/nav3/*.csv
 rl/runs/nav3d/*.pt
 rl/runs/nav3d/*.ts
 rl/runs/nav3d/*.log
+rl/runs/nav3d/*.jsonl
