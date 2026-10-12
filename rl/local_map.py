@@ -29,12 +29,19 @@ class LocalMap:
     def __init__(self, size=96, cell=0.1, max_r=8.0):
         self.n, self.cell, self.max_r = size, cell, max_r
         self.L = np.zeros((size, size), np.float32)
+        # sub-cell geometry: per cell, the running sum of the hit points that fell in it (and their count). Distances
+        # are measured to the mean hit point, not the cell centre: a 5 cm grid plus 2 cm range noise otherwise grows
+        # every surface by 2.5-5 cm, which closes a 1.0 m door for a 0.79 m robot.
+        self.HX = np.zeros((size, size), np.float32)
+        self.HY = np.zeros((size, size), np.float32)
+        self.HN = np.zeros((size, size), np.float32)
         self.origin = np.zeros(2)                       # odometry-frame coordinates of cell (0, 0)'s corner
         self._dist = self._sdist = None
         self.reset(np.zeros(2))
 
     def reset(self, center):
         self.L[:] = 0
+        self.HX[:] = self.HY[:] = self.HN[:] = 0
         self.origin = np.floor(np.asarray(center) / self.cell) * self.cell - self.n * self.cell / 2
         self._dist = self._sdist = None
 
@@ -54,23 +61,41 @@ class LocalMap:
         shift = np.round((want - self.origin) / self.cell).astype(int)
         if not shift.any():
             return
-        L = np.zeros_like(self.L)
         sx, sy = shift
-        src = self.L[max(0, sy):self.n + min(0, sy), max(0, sx):self.n + min(0, sx)]
-        L[max(0, -sy):self.n + min(0, -sy), max(0, -sx):self.n + min(0, -sx)] = src
-        self.L = L
+        for name in ("L", "HX", "HY", "HN"):
+            A = getattr(self, name)
+            B = np.zeros_like(A)
+            B[max(0, -sy):self.n + min(0, -sy), max(0, -sx):self.n + min(0, -sx)] = \
+                A[max(0, sy):self.n + min(0, sy), max(0, sx):self.n + min(0, sx)]
+            setattr(self, name, B)
+        d = shift * self.cell                                  # hit sums are relative to the origin, which moves
+        self.HX -= d[0] * self.HN
+        self.HY -= d[1] * self.HN
         self.origin = self.origin + shift * self.cell
 
     def _idx(self, p):
         ij = np.floor((np.asarray(p) - self.origin) / self.cell).astype(int)
         return ij[..., 1], ij[..., 0]                   # row = y, col = x
 
-    def _mark(self, pts, val):
+    def _mark(self, pts, val, hits=False):
         if len(pts) == 0:
             return
         r, c = self._idx(pts)
         ok = (r >= 0) & (r < self.n) & (c >= 0) & (c < self.n)
-        self.L += np.bincount(r[ok] * self.n + c[ok], minlength=self.n * self.n).reshape(self.n, self.n).astype(np.float32) * val
+        k = r[ok] * self.n + c[ok]
+        nn = self.n * self.n
+        self.L += np.bincount(k, minlength=nn).reshape(self.n, self.n).astype(np.float32) * val
+        if hits:
+            p = np.asarray(pts)[ok]
+            self.HX += np.bincount(k, p[:, 0] - self.origin[0], nn).reshape(self.n, self.n).astype(np.float32)
+            self.HY += np.bincount(k, p[:, 1] - self.origin[1], nn).reshape(self.n, self.n).astype(np.float32)
+            self.HN += np.bincount(k, minlength=nn).reshape(self.n, self.n).astype(np.float32)
+            big = self.HN > 30                                   # keep it a recent mean
+            if big.any():
+                f = 30.0 / self.HN[big]
+                self.HX[big] *= f
+                self.HY[big] *= f
+                self.HN[big] = 30.0
 
     # ----------------------------------------------------------------------------------------------- fusion
     def update(self, pose, beam_ang, scan, depth=None, visible=None, dead=None, free_every=1, free_max=None, robot_r=0.0):
@@ -103,7 +128,7 @@ class LocalMap:
             msk &= K >= np.asarray(visible)[sel][None, :]
         ca, sa = np.cos(a[sel])[None, :], np.sin(a[sel])[None, :]
         self._mark(np.c_[(x + K * ca)[msk], (y + K * sa)[msk]], L_FREE)
-        self._mark(np.c_[x + rng[hit] * np.cos(a[hit]), y + rng[hit] * np.sin(a[hit])], L_OCC + abs(L_FREE))
+        self._mark(np.c_[x + rng[hit] * np.cos(a[hit]), y + rng[hit] * np.sin(a[hit])], L_OCC + abs(L_FREE), hits=True)
         if depth is not None:
             dirs, z, h, xo = depth
             ok = z > 0.35
@@ -114,7 +139,7 @@ class LocalMap:
                 c, s = math.cos(yaw), math.sin(yaw)
                 wx = x + c * d[:, 0] - s * d[:, 1]
                 wy = y + s * d[:, 0] + c * d[:, 1]
-                self._mark(np.c_[wx[above], wy[above]], L_OCC)
+                self._mark(np.c_[wx[above], wy[above]], L_OCC, hits=True)
                 self._mark(np.c_[wx[~above], wy[~above]], L_FREE)
         np.clip(self.L, L_MIN, L_MAX, out=self.L)
         if robot_r > 0:                                                  # the robot's own disc is known free
@@ -126,27 +151,42 @@ class LocalMap:
     def occupied(self):
         return self.L > OCC_TH
 
+    def _nearest(self, blocked):
+        """Per cell: the reference point (odometry frame) of the nearest blocked cell - its mean hit point when it
+        holds hits, else its centre - or None if nothing is blocked."""
+        if not blocked.any():
+            return None
+        _, (ir, ic) = distance_transform_edt(~blocked, return_indices=True)
+        n = np.maximum(self.HN, 1e-6)
+        has = self.HN > 0.5
+        rx = np.where(has, self.HX / n, (np.arange(self.n)[None, :] + 0.5) * self.cell) + self.origin[0]
+        ry = np.where(has, self.HY / n, (np.arange(self.n)[:, None] + 0.5) * self.cell) + self.origin[1]
+        return rx[ir, ic], ry[ir, ic]
+
     def dist_field(self):
         if self._dist is None:
-            occ = self.occupied()
-            self._dist = distance_transform_edt(~occ) * self.cell if occ.any() else np.full(occ.shape, 99.0)
+            self._dist = self._nearest(self.occupied())
         return self._dist
 
     def safety_field(self):
-        """Distance to the nearest cell that is occupied OR not yet observed free (unknown counts as an obstacle)."""
+        """Nearest cell that is occupied OR not yet observed free (unknown counts as an obstacle)."""
         if self._sdist is None:
-            blocked = self.L > KNOWN_FREE
-            self._sdist = distance_transform_edt(~blocked) * self.cell if blocked.any() else np.full(blocked.shape, 99.0)
+            self._sdist = self._nearest(self.L > KNOWN_FREE)
         return self._sdist
 
     def clearance(self, pts, unknown_is_obstacle=False):
-        """Distance (m) from odometry-frame points to the nearest occupied cell (or, for safety, to anything not
-        known to be free); outside the map: 0 when unknown counts as an obstacle, else 99."""
-        D = self.safety_field() if unknown_is_obstacle else self.dist_field()
+        """Distance (m) from odometry-frame points to the nearest occupied cell's surface point (or, for safety, to
+        anything not known to be free); outside the map: 0 when unknown counts as an obstacle, else 99."""
+        F = self.safety_field() if unknown_is_obstacle else self.dist_field()
+        pts = np.asarray(pts)
         r, c = self._idx(pts)
         ok = (r >= 0) & (r < self.n) & (c >= 0) & (c < self.n)
         out = np.full(r.shape, 0.0 if unknown_is_obstacle else 99.0)
-        out[ok] = D[r[ok], c[ok]]
+        if F is None:
+            out[ok] = 99.0
+            return out
+        rx, ry = F
+        out[ok] = np.hypot(pts[ok, 0] - rx[r[ok], c[ok]], pts[ok, 1] - ry[r[ok], c[ok]])
         return out
 
     def egocentric(self, pose, size=48, cell=0.15):
