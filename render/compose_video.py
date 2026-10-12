@@ -25,13 +25,6 @@ CYAN = (40, 200, 255)
 GREEN = (60, 210, 120)
 
 
-def rot_box(cx, cy, sx, sy, quat):
-    w, x, y, z = quat
-    yaw = 2 * math.atan2(z, w)
-    c, s = math.cos(yaw), math.sin(yaw)
-    return [(cx + px * c - py * s, cy + px * s + py * c) for px, py in ((sx, sy), (-sx, sy), (-sx, -sy), (sx, -sy))]
-
-
 class HUD:
     def __init__(self, mission, W, H):
         self.F = mission["frames"]
@@ -39,7 +32,14 @@ class HUD:
         self.beam = mission["beam_ang"]
         self.wps = mission["wps"]
         self.reached = list(mission["reached"])
-        self.obs = json.loads(str(mission["obstacles"]))
+        self.static = json.loads(str(mission["static"]))
+        self.n_dyn = int(mission["n_dyn"]) if "n_dyn" in mission else 0
+        from scipy.spatial import ConvexHull
+        self.footprints = []                                    # minimap: exact xy hull of each compiled collision mesh
+        for o in self.static:
+            v = np.array(o["verts"])[:, :2]
+            h = ConvexHull(v)
+            self.footprints.append((v[h.vertices], o["wall"], o["kind"]))
         self.W, self.H = W, H
         s = W / 960
         self.s = s
@@ -51,7 +51,7 @@ class HUD:
         # minimap geometry
         self.mm = int(210 * s)
         self.mx0, self.my0 = W - self.mm - int(16 * s), int(16 * s)
-        self.scale = self.mm / 15.0
+        self.scale = self.mm / 17.0
 
     def w2m(self, x, y):
         return (self.mx0 + self.mm / 2 + x * self.scale, self.my0 + self.mm / 2 - y * self.scale)
@@ -66,8 +66,8 @@ class HUD:
         f = self.F[i]
         # ---- title panel
         d.rounded_rectangle([12 * s, 12 * s, 548 * s, 66 * s], radius=10 * s, fill=(12, 14, 18, 170))
-        d.text((24 * s, 22 * s), "GYRA Mk2 · autonomous mission", font=self.f_title, fill=(245, 245, 245, 255))
-        d.text((24 * s, 46 * s), "learned navigator (pod LiDAR + stereo depth + odometry) → learned locomotion · MuJoCo",
+        d.text((24 * s, 22 * s), "GYRA Mk2.1 · autonomous mission", font=self.f_title, fill=(245, 245, 245, 255))
+        d.text((24 * s, 46 * s), "learned local planner (LiDAR + depth + odometry + stale-map subgoal) → learned locomotion · MuJoCo",
                font=self.f_sub, fill=(200, 205, 212, 255))
         # ---- telemetry panel
         k = sum(1 for r in self.reached if t >= r)
@@ -84,15 +84,13 @@ class HUD:
         # ---- minimap
         x0, y0m, mm = self.mx0, self.my0, self.mm
         d.rounded_rectangle([x0 - 6 * s, y0m - 6 * s, x0 + mm + 6 * s, y0m + mm + 22 * s], radius=10 * s, fill=(12, 14, 18, 185))
-        for o in self.obs:
-            p, sz = o["pos"], o["size"]
-            if o["type"] == "cylinder":
-                cx, cy = self.w2m(p[0], p[1])
-                r = sz[0] * self.scale
-                d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(150, 150, 150, 255))
-            else:
-                pts = [self.w2m(*q) for q in rot_box(p[0], p[1], sz[0], sz[1], o["quat"])]
-                d.polygon(pts, fill=(120, 124, 130, 255) if o["wall"] else (150, 150, 150, 255))
+        for poly, wall, kind in self.footprints:
+            d.polygon([self.w2m(*q) for q in poly], fill=(120, 124, 130, 255) if wall else (150, 150, 150, 255))
+        for j in range(self.n_dyn):                             # pedestrians (blue)
+            px, py = f[17 + 2 * j], f[18 + 2 * j]
+            cx, cy = self.w2m(px, py)
+            r = 0.25 * self.scale
+            d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(60, 120, 230, 255))
         # path so far
         path = [self.w2m(*self.F[j, 1:3]) for j in range(0, i + 1, 5)]
         if len(path) > 1:
@@ -122,7 +120,7 @@ class HUD:
                (cx + 6 * s * math.cos(-yaw + 2.5), cy + 6 * s * math.sin(-yaw + 2.5)),
                (cx + 6 * s * math.cos(-yaw - 2.5), cy + 6 * s * math.sin(-yaw - 2.5))]
         d.polygon(tri, fill=ACCENT)
-        d.text((x0, y0m + mm + 4 * s), "map · LiDAR returns (red)", font=self.f_lab, fill=(190, 195, 202, 255))
+        d.text((x0, y0m + mm + 4 * s), "map · LiDAR returns (red) · pedestrians (blue)", font=self.f_lab, fill=(190, 195, 202, 255))
         if speedup > 1:
             txt = f"{speedup}× speed"
             tw = d.textlength(txt, font=self.f_badge)
@@ -135,7 +133,7 @@ class HUD:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--frames", required=True)
-    ap.add_argument("--mission", default="media/mission.npz")
+    ap.add_argument("--mission", default="media/mission2.npz")
     ap.add_argument("--out", default="media/gyra_mk2_mission.mp4")
     ap.add_argument("--hold", type=float, default=1.5, help="seconds to hold the last frame")
     a = ap.parse_args()

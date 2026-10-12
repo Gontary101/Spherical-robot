@@ -355,6 +355,8 @@ def main():
     os.makedirs(os.path.dirname(a.out), exist_ok=True)
     sc.render.filepath = a.out
     sc.render.image_settings.file_format = "PNG"
+    sc.render.use_overwrite = False          # resumable: frames already on disk are skipped after a restart
+    sc.render.use_placeholder = True
     print(f"RENDER frames {sc.frame_start}-{sc.frame_end} of {n_frames}", flush=True)
     bpy.ops.render.render(animation=True)
     print("DONE", flush=True)
