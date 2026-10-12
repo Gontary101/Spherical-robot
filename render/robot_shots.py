@@ -149,8 +149,11 @@ def look(cam, loc, target):
 def pose(shot, t, sc, objs, rg, cam, base_loc, hl):
     if shot == "title":
         a = math.radians(30 + 40 * ease(t / SHOTS["title"]))
-        r = 2.05 - 0.25 * ease(t / SHOTS["title"])
-        look(cam, (r * math.cos(a), r * math.sin(a), 0.35 + 0.08 * math.sin(t * 0.5)), (0, 0, -0.06))
+        r = 2.75 - 0.25 * ease(t / SHOTS["title"])
+        # robot whole and in the upper right third; the title sits lower left
+        c, s_ = math.cos(a), math.sin(a)
+        target = (0.42 * s_, -0.42 * c, -0.16)
+        look(cam, (r * c, r * s_, 0.42 + 0.06 * math.sin(t * 0.5)), target)
         rg["tyre"].rotation_euler = (0, math.radians(-20 * t), 0)
     elif shot == "assembly":
         for o in objs.values():
