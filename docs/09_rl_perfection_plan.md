@@ -120,3 +120,35 @@ the least progress command the teacher wants):
 Why imitation failed: the privileged teacher's advantage is information (true geodesic, true clearance) the
 student cannot reconstruct, and averaging its discrete choices (left or right of an obstacle) makes the student
 dither. The deployable MPC needs no imitation at all: it reaches the teacher's score with onboard information only.
+
+## Full benchmark — deployable MPC + safety layer (13 scenarios × 16 episodes, pod contacts counted)
+
+| scenario | success | collision | of which at fault | timeout |
+|---|---|---|---|---|
+| clutter | 88 % | 6 % | 6 % | 6 % |
+| forest (thin poles) | 75 % | 12 % | 12 % | 12 % |
+| rooms, 1.0 m doors | 81 % | 6 % | 6 % | 12 % |
+| maze | 81 % | 0 % | 0 % | 19 % |
+| mixed | 88 % | 6 % | 6 % | 6 % |
+| maze, no map | 81 % | 0 % | 0 % | 19 % |
+| mixed, 40 % stale map | 81 % | 6 % | 6 % | 12 % |
+| 6 pedestrians to 1.4 m/s | 62 % | 25 % | 6 % (static) | 12 % |
+| LiDAR 60° blind sector | 100 % | 0 % | 0 % | 0 % |
+| depth camera dead | 100 % | 0 % | 0 % | 0 % |
+| dust: spurious returns 3 % | 100 % | 0 % | 0 % | 0 % |
+| LiDAR odometry lost (wheel + gyro) | 31 % | 6 % | 6 % | 62 % |
+| everything at once | 94 % | 6 % | 0 % | 0 % |
+| **all** | **81.7 %** | **5.8 %** | **3.8 %** | 12.5 % |
+
+Before this plan (nav v2, no safety layer, tyre contacts only): 58.9 % success, 20.3 % collisions.
+
+14. **Dust**: one spurious return marked a cell occupied. Isolated-return filter (real obstacles span ≥ 2
+    adjacent dense rays): dust 62.5 → 100 %.
+15. **People** are tracked from the dense LiDAR (5 cm centroid noise, smoothed velocity, 1 s coasting), kept out
+    of the static map, and the filter checks every rollout point against each person's predicted position at that
+    time (1.5 s horizon, +0.2 m/s deviation). Every pedestrian contact left is a person walking into a robot that is
+    stopped or backing away (at-fault pedestrian collisions 0/208).
+
+What is left: the static contacts are side grazes at the end of a stop (median 0.19 m/s, map knew the obstacle
+1-4 cm away) — lateral drift that position hold does not correct, and hard braking while turning; LiDAR-odometry
+loss (the map is built on drifting wheel odometry: needs scan-to-map registration); maze timeouts.
