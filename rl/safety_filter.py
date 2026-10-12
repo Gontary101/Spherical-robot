@@ -203,7 +203,9 @@ class SafetyFilter:
         M = self._last
         now = M[:, 0:1]
         no_worse = (M >= np.minimum(now, 0.0) - 0.005).all(1)
-        if abs(v0) > 0.15:
+        if abs(v0) > 0.3:                           # braking from speed: straight (one of the two braking paths that
+            slow = (self.cand[:, 0] == 0.0) & (np.abs(self.cand[:, 1]) <= 1e-9)    # were checked); turning at a fixed
+        elif abs(v0) > 0.15:                        # rate while v -> 0 tightens the curve beyond both
             slow = (self.cand[:, 0] == 0.0) & (np.abs(self.cand[:, 1]) <= 0.8)
         else:
             slow = (np.abs(self.cand[:, 0]) <= 0.4) & (np.abs(self.cand[:, 1]) <= 1.0)
