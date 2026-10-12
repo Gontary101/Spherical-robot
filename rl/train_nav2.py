@@ -14,15 +14,15 @@ import numpy as np
 import torch
 
 sys.path.insert(0, os.path.dirname(__file__))
-from nav2_env import ACT_OBS, DEPTH_H, DEPTH_W, FAMILIES, LIDAR_FRAMES, N_BEAM, Nav2Env  # noqa: E402
+from nav2_env import ACT_OBS, DEPTH_H, DEPTH_W, FAMILIES, LIDAR_FRAMES, MAP_C, MAP_N, MAP_OBS, N_BEAM, Nav2Env  # noqa: E402
 from ppo2 import PPO2, NavActor, PermMirror, rollout2  # noqa: E402
 from vec_env import VecEnv  # noqa: E402
 
-N_LOW = ACT_OBS - N_BEAM * LIDAR_FRAMES - DEPTH_W * DEPTH_H
+N_LOW = ACT_OBS - N_BEAM * LIDAR_FRAMES - DEPTH_W * DEPTH_H - MAP_OBS
 
 
 def make_agent(n_critic):
-    actor = NavActor(N_BEAM, LIDAR_FRAMES, DEPTH_W, DEPTH_H, N_LOW)
+    actor = NavActor(N_BEAM, LIDAR_FRAMES, DEPTH_W, DEPTH_H, N_LOW, n_map=MAP_N, map_ch=MAP_C)
     perm, sg, asg = Nav2Env.mirror_spec()
     return PPO2(actor, ACT_OBS, n_critic, 0, mirror=PermMirror(perm, sg, asg), gamma=0.99, lam=0.95, ent=0.003,
                 sym_coef=0.3, lr=3e-4, lr_max=6e-4)

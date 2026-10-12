@@ -148,7 +148,9 @@ LOOKAHEAD = 2.5                  # planner subgoal distance along the path (m)
 N_ENV = 7                        # safe-speed envelope: max admissible forward speed for 7 yaw rates (shielded)
 ENV_W = np.linspace(-W_RANGE, W_RANGE, N_ENV)
 ENV_V = np.linspace(0.0, V_RANGE[1], 15)
-ACT_OBS = N_BEAM * LIDAR_FRAMES + DEPTH_W * DEPTH_H + 3 + 4 + 2 + 2 + 1 + N_EST + N_ENV
+MAP_N, MAP_C, MAP_CELL = 48, 2, 0.15   # egocentric local map for the navigator (7.2 m square), at the end of the obs
+MAP_OBS = MAP_C * MAP_N * MAP_N
+ACT_OBS = N_BEAM * LIDAR_FRAMES + DEPTH_W * DEPTH_H + 3 + 4 + 2 + 2 + 1 + N_EST + N_ENV + MAP_OBS
 FAMILIES = ("clutter", "forest", "rooms", "maze", "mixed")
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
@@ -667,8 +669,10 @@ class Nav2Env:
         # fastest speed with every slower speed also admissible (the envelope a navigator can safely stay inside)
         first_bad = np.where(ok.all(1), len(ENV_V), np.argmin(ok, 1))
         env = np.where(first_bad > 0, ENV_V[np.maximum(first_bad - 1, 0)], -0.1) / V_RANGE[1]
-        obs[0][-N_ENV:] = env
+        obs[0][-N_ENV - MAP_OBS:-MAP_OBS] = env
         obs[1][-N_ENV:] = env
+        # the map the filter uses, robot-centred: memory of the blind wedge, of openings passed, of where it has been
+        obs[0][-MAP_OBS:] = self.lmap.egocentric2(self.odo, MAP_N, MAP_CELL).ravel()
 
     def _scan3d_low(self, pos, yaw):
         """The pods' Mid-360s sweep densely in elevation: per azimuth (1.25 deg), the nearest obstacle return over
@@ -763,7 +767,7 @@ class Nav2Env:
                                 self._goal_feat(self.odo[:2], self.odo[2]),
                                 self._goal_feat(self.odo[:2], self.odo[2], self.subgoal(self.odo[:2])), [float(self.P["map"])],
                                 [v_est * 0.3, (t["w"] + self.rng.normal(0, 0.02)) * 0.4], self.applied_a,
-                                [self.steps / EP_STEPS], self.est, np.ones(N_ENV)]).astype(np.float32)
+                                [self.steps / EP_STEPS], self.est, np.ones(N_ENV), np.zeros(MAP_OBS)]).astype(np.float32)
         geo, gdir = self._geo_at(pos)
         c, s = math.cos(yaw), math.sin(yaw)
         gd = np.array([c * gdir[0] + s * gdir[1], -s * gdir[0] + c * gdir[1]])
@@ -912,6 +916,11 @@ class Nav2Env:
         base += N_EST
         perm += [base + N_ENV - 1 - i for i in range(N_ENV)]                 # envelope: yaw rate w -> -w
         sg += [1] * N_ENV
+        base += N_ENV
+        for c in range(MAP_C):                                               # map: rows are robot-frame y -> -y
+            for i in range(MAP_N):
+                perm += [base + c * MAP_N * MAP_N + (MAP_N - 1 - i) * MAP_N + j for j in range(MAP_N)]
+        sg += [1] * MAP_OBS
         return np.array(perm), np.array(sg, np.float32), np.array([1, -1], np.float32)
 
 

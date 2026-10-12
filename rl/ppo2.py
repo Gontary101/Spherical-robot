@@ -70,9 +70,18 @@ class Actor2(nn.Module):
 
 class NavActor(nn.Module):
     """LiDAR (3 stacked scans, circular 1-D conv) + depth image (2-D conv) + low-dim state -> (v, w) command."""
-    def __init__(self, n_beam, n_frames, dw, dh, n_low, n_act=2, init_std=0.4, min_std=0.05, max_std=0.6):
+    def __init__(self, n_beam, n_frames, dw, dh, n_low, n_act=2, init_std=0.4, min_std=0.05, max_std=0.6, n_map=0, map_ch=2):
         super().__init__()
         self.nb, self.nf, self.dw, self.dh = n_beam, n_frames, dw, dh
+        self.nm, self.mc = n_map, map_ch                       # egocentric local map (n_map x n_map x map_ch), at the end
+        if n_map:
+            self.map = nn.Sequential(
+                nn.Conv2d(map_ch, 16, 5, stride=2, padding=2), nn.ELU(),
+                nn.Conv2d(16, 32, 3, stride=2, padding=1), nn.ELU(),
+                nn.Conv2d(32, 32, 3, stride=2, padding=1), nn.ELU(), nn.Flatten())
+            with torch.no_grad():
+                nmf = self.map(torch.zeros(1, map_ch, n_map, n_map)).shape[1]
+            self.map_fc = nn.Sequential(nn.Linear(nmf, 128), nn.ELU())
         self.lidar = nn.Sequential(
             nn.Conv1d(n_frames, 16, 5, padding=2, padding_mode="circular"), nn.ELU(),
             nn.Conv1d(16, 32, 5, stride=2, padding=2, padding_mode="circular"), nn.ELU(),
@@ -85,7 +94,7 @@ class NavActor(nn.Module):
         with torch.no_grad():
             nd = self.depth(torch.zeros(1, 1, dh, dw)).shape[1]
         self.depth_fc = nn.Sequential(nn.Linear(nd, 128), nn.ELU())
-        self.pi = mlp(128 + 128 + n_low, n_act, (256, 128))
+        self.pi = mlp(128 + 128 + n_low + (128 if n_map else 0), n_act, (256, 128))
         self.log_std = nn.Parameter(torch.full((n_act,), float(np.log(init_std))))
         self.lo, self.hi = float(np.log(min_std)), float(np.log(max_std))
         with torch.no_grad():
@@ -98,7 +107,12 @@ class NavActor(nn.Module):
         nd = self.dw * self.dh
         li = self.lidar(obs[:, :nl].reshape(B, self.nf, self.nb))
         de = self.depth_fc(self.depth(obs[:, nl:nl + nd].reshape(B, 1, self.dh, self.dw)))
-        return self.pi(torch.cat([li, de, obs[:, nl + nd:]], 1)), obs[:, :0]
+        if not self.nm:
+            return self.pi(torch.cat([li, de, obs[:, nl + nd:]], 1)), obs[:, :0]
+        nmo = self.mc * self.nm * self.nm
+        n = obs.shape[1]
+        mp = self.map_fc(self.map(obs[:, n - nmo:].reshape(B, self.mc, self.nm, self.nm)))
+        return self.pi(torch.cat([li, de, obs[:, nl + nd:n - nmo], mp], 1)), obs[:, :0]
 
     def dist(self, obs):
         mu, e = self.mean(obs)

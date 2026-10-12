@@ -198,6 +198,20 @@ class LocalMap:
         out[ok] = np.hypot(pts[ok, 0] - rx[r[ok], c[ok]], pts[ok, 1] - ry[r[ok], c[ok]])
         return out
 
+    def egocentric2(self, pose, size=48, cell=0.15):
+        """Robot-centred, heading-aligned crop for the navigator: channel 0 occupied evidence (0..1), channel 1 known
+        free (1 / 0); unknown is (0, 0). Rows = robot-frame y (left), columns = x (forward). Shape (2, size, size)."""
+        x, y, yaw = pose
+        g = (np.arange(size) - size / 2 + 0.5) * cell
+        gx, gy = np.meshgrid(g, g)
+        c, s = math.cos(yaw), math.sin(yaw)
+        wx, wy = x + c * gx - s * gy, y + s * gx + c * gy
+        r, cc = self._idx(np.stack([wx, wy], -1))
+        ok = (r >= 0) & (r < self.n) & (cc >= 0) & (cc < self.n)
+        L = np.zeros((size, size), np.float32)
+        L[ok] = self.L[r[ok], cc[ok]]
+        return np.stack([np.clip(L / L_MAX, 0, 1), (ok & (L < KNOWN_FREE)).astype(np.float32)])
+
     def egocentric(self, pose, size=48, cell=0.15):
         """Robot-centred, heading-aligned crop (size x size, cell m) of occupancy probability, for a policy CNN."""
         x, y, yaw = pose
