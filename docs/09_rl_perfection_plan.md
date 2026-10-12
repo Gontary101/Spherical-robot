@@ -90,3 +90,33 @@ Root causes found and fixed (none of them was "tune a weight"):
    camera sees the floor beyond 1.6 m. The pods' ground cameras of the Mk1 design are now modelled (91 % of the
    0.3-1.5 m floor; the wedge ahead of the tyre stays blind, as the design doc says), and the filter has the
    design's answer for the rest: when only unknown space blocks the request, it turns in place to look.
+
+## Progress log — phase 2 (navigator)
+
+| navigator (all under the safety filter; 4 scenarios × 16) | success | collision | timeout |
+|---|---|---|---|
+| shield-trained RL navigator (scans + depth + filter envelope) | 76.6 % | 3.1 % | 20 % |
+| + egocentric map branch, PPO fine-tune 0.9 M | flat in training | | |
+| privileged teacher: sampling MPC on the true geodesic (before fixes) | 61 % | 1.6 % | 38 % |
+| privileged teacher after the fixes below | 90.6 % | 1.6 % | 7.8 % |
+| DAgger student of that teacher (map-aware NavActor, 16 rounds, 320 k labels) | 57.8 % | 6.2 % | 36 % |
+| **deployable MPC** (onboard route field + local map + LIO), after the pose split | **90.6 %** | **0 %** | 9.4 % |
+
+What the teacher exposed (each found with `rl/diagnose_stuck.py`, which classifies every stall by what blocks
+the least progress command the teacher wants):
+
+10. **Backing out was impossible.** 86 % of the teacher's stalls were reverses blocked by unknown space (the wedge
+    exists behind the tyre too). The look-around primitive now serves reverse requests as well.
+11. **Single never-observed cells in the wedge blocked everything.** The 0.1 m ground-camera grid left holes in the
+    5 cm map; an unknown cell whose 8 neighbours are observed free is now not an obstacle (real obstacles leave
+    occupied evidence and span ≥ 2 cells), and the samples are jittered.
+12. **The teacher priced doors out** (clearance penalty from 0.35 m; a 1.0 m door leaves 0.107 m).
+13. **The local map was built with a pose that drifts against the world**, smearing walls by the drift accumulated
+    over the map's memory (1.0 m door rooms: 50 % → 75 % with drift removed). A LiDAR-inertial stack registers each
+    scan to its local map, so the env now keeps a *local* pose (registered; map, filter, MPC clearance) and a
+    *global* one (localised against the prior map, 3 cm / 0.3°; drifting LIO without a prior map; wheel odometry
+    for both when LIO is lost).
+
+Why imitation failed: the privileged teacher's advantage is information (true geodesic, true clearance) the
+student cannot reconstruct, and averaging its discrete choices (left or right of an obstacle) makes the student
+dither. The deployable MPC needs no imitation at all: it reaches the teacher's score with onboard information only.
