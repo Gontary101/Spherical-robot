@@ -188,3 +188,41 @@ are people walking into a robot that is stopped or backing away.
 Remaining: timeouts in mazes (dead ends discovered late, the 1.5 s MPC horizon) and pedestrian-dense scenes; the
 learned navigator (76.6 % on the 4-scenario set) is below the deployable MPC (87.5-90.6 % on the same set), so the
 deployed stack uses the MPC as the navigator, the learned policy for locomotion.
+
+## Final benchmark (stall recoveries, route tracking, field-identified state-dependent braking)
+
+Deployable MPC + safety layer + locomotion v3.1 on Mk2.1, 13 scenarios × 16 episodes, pod contacts and 150 N
+shoves counted:
+
+| scenario | success | collision | at fault | timeout |
+|---|---|---|---|---|
+| clutter | 100 % | 0 % | 0 % | 0 % |
+| forest (thin poles) | 100 % | 0 % | 0 % | 0 % |
+| rooms, 1.0 m doors | 62 % | 0 % | 0 % | 38 % |
+| maze | 88 % | 0 % | 0 % | 12 % |
+| mixed | 94 % | 0 % | 0 % | 6 % |
+| maze, no map | 88 % | 0 % | 0 % | 12 % |
+| mixed, 40 % stale map | 81 % | 0 % | 0 % | 19 % |
+| 6 pedestrians to 1.4 m/s | 88 % | 12 % | 0 % | 0 % |
+| LiDAR 60° blind sector | 94 % | 0 % | 0 % | 6 % |
+| depth camera dead | 100 % | 0 % | 0 % | 0 % |
+| dust: spurious returns 3 % | 94 % | 0 % | 0 % | 6 % |
+| LiDAR odometry lost | 88 % | 0 % | 0 % | 12 % |
+| everything at once | 81 % | 6 % | 6 % | 12 % |
+| **all (208)** | **88.9 %** | **1.4 %** | **0.5 %** | 9.6 % |
+
+Start of this plan: 58.9 % success, 20.3 % collisions. The three contacts left: two pedestrians walking into the
+robot (not at fault) and one 0.11 m/s side graze. The weak spot is 1.0 m doors for a 0.79 m robot (timeouts, never
+contacts).
+
+18. **The navigator reversed for minutes** (1.5 s horizon: reversing gains 0.75 m, turning round nothing): heading
+    alignment term + small reverse cost.
+19. **It reached doors off-centre**: it tracked the remaining route length, not the route line. It now penalises
+    the cross-track distance from the planner's costmap-centred path.
+20. **Stalls**: recoveries as production stacks have them — settle (reverse is non-minimum phase while the pendulum
+    swings), back off along the seen-free trail, face the path, retry with stronger path tracking.
+21. **Braking from a dynamic state was identified in calm conditions only.** In field conditions a stop from
+    0.5 m/s takes up to 1.47 m with the pendulum still swung into a push (0.41 m from a neutral one). The filter
+    now takes the braking distance by speed *and* pendulum angle, and extrapolates the measured acceleration
+    through the dead time.
+22. **The known-free disc had holes**: sampled at exactly the cell pitch, floating-point flooring skipped rows.
