@@ -34,6 +34,14 @@ class SafetyFilter:
         self.dead, self.a_fwd, self.a_rev, self.tau_w = R["dead"], R["a_fwd"], R["a_rev"], R["tau_w"]
         e = S["arc_error"]
         self.et, self.ee = np.array([0.0, 0.5, 1.0]), np.array([0.0, e["p95_05"], e["p95_10"]])   # p95 path error vs horizon
+        # measured closed-loop path-prediction error under field conditions (rough ground, wind, payload): p95 per
+        # horizon and speed. Replaces the hand-set speed-proportional margin when available.
+        self.err_tab = None
+        if "err_table" in S:
+            T = S["err_table"]
+            self.tab_t = np.r_[0.0, T["t"]]
+            self.tab_s = np.array(T["speed_edges"][:-1])
+            self.err_tab = np.c_[np.zeros(len(T["p95"])), np.array(T["p95"])]
         vs = np.linspace(-1.0, 3.5, 19)
         ws = np.linspace(-2.5, 2.5, 21)
         self.cand = np.array([(v, w) for v in vs for w in ws])
@@ -93,8 +101,17 @@ class SafetyFilter:
         # prediction-error margin: grows with the reaction horizon and the speed involved (sysid: p95 ~0.25 m per
         # s per m/s), plus the translation a fast spin causes on this pendulum robot
         speed = np.maximum(abs(v0), np.abs(cmds[:, 0]))[:, None]
-        need = (self.r + self.margin + self.k_err * np.minimum(ts, self.t_react) * speed
-                + self.k_spin * np.abs(cmds[:, 1])[:, None])
+        if self.err_tab is not None:
+            row = np.clip(np.searchsorted(self.tab_s, speed[:, 0], side="right") - 1, 0, len(self.tab_s) - 1)
+            th = np.minimum(ts, self.tab_t[-1])
+            E = np.empty_like(th)
+            for j in np.unique(row):                                   # few speed bins: one interpolation per bin
+                sel = row == j
+                E[sel] = np.interp(th[sel], self.tab_t, self.err_tab[j])
+            need = self.r + self.margin + E + self.k_spin * np.abs(cmds[:, 1])[:, None]
+        else:
+            need = (self.r + self.margin + self.k_err * np.minimum(ts, self.t_react) * speed
+                    + self.k_spin * np.abs(cmds[:, 1])[:, None])
         margin = clear - need
         self._last = margin                                         # per-point slack, for recovery
         slack = margin.min(1)

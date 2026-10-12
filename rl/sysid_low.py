@@ -28,12 +28,13 @@ L.GEOFENCE = 1e9
 DEAD, A_FWD, A_REV, TAU_W = 0.22, 1.7, 1.1, 0.15      # identified from step responses (see docs/09)
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 LOW = os.path.join(ROOT, "rl/runs/loco31/best.pt")
-CONDS = {"nominal": {}, "ice mu 0.3": dict(mu=0.3), "wet mu 0.6": dict(mu=0.6), "downhill 8 deg": dict(slope=np.radians(8)),
+from eval_nav2 import LOCO  # noqa: E402
+CONDS = {"nominal": {}, "field (rough, wind, payload; no pushes)": dict(LOCO, push_rate=0.0), "ice mu 0.3": dict(mu=0.3), "wet mu 0.6": dict(mu=0.6), "downhill 8 deg": dict(slope=np.radians(8)),
          "uphill 8 deg": dict(slope=np.radians(8)), "payload 10 kg": dict(payload=10.0, payload_pos=np.array([0.0, 0.0, 0.05]))}
 
 
 def env_for(cond, seed):
-    sc = dict(NOMINAL) | CONDS[cond]
+    sc = (dict(NOMINAL) | CONDS[cond]) if not cond.startswith("field") else dict(CONDS[cond])
     e = L.Loco2Env(seed, scenario=sc, external_cmd=True)
     # slope: gravity tilt direction chosen so that driving along +x is downhill (or uphill)
     if "slope" in CONDS[cond]:
@@ -90,11 +91,11 @@ def dyn_braking(args):
 
 
 def arcs(args):
-    seed, n = args
+    seed, n, cond = args
     low = LowLevel(LOW)
     r = np.random.default_rng(seed)
     out = []
-    e = env_for("nominal", seed)
+    e = env_for(cond, seed)
     oa, _ = e.reset()
     for i in range(n):
         v1, w1 = r.uniform(-0.5, 3.0), r.uniform(-1.5, 1.5)
@@ -106,6 +107,8 @@ def arcs(args):
         x, y, th = e.d.qpos[0], e.d.qpos[1], t["yaw"]
         vc, wc = t["v"], t["w"]
         P, U = [], []
+        if r.random() < 0.4:                               # low-speed manoeuvring near obstacles matters most
+            v, w = r.uniform(-0.5, 0.8), r.uniform(-1.0, 1.0)
         for k in range(int(1.0 / 0.02)):
             e.cmd = np.array([v, w])
             (oa, _), *_ = e.step(low(oa)[0])
@@ -120,7 +123,8 @@ def arcs(args):
             P.append(e.d.qpos[0:2].copy())
             U.append((x, y))
         err = np.linalg.norm(np.array(P) - np.array(U), axis=1)
-        out.append(dict(v=v, w=w, err_05=float(err[24]), err_10=float(err[-1])))
+        out.append(dict(v=v, w=w, speed=float(max(abs(t["v"]), abs(v))), err=err[4::5].tolist(),
+                        err_05=float(err[24]), err_10=float(err[-1])))
         if e.d.qpos[0] ** 2 + e.d.qpos[1] ** 2 > 400:
             oa, _ = e.reset()
     return out
@@ -133,7 +137,8 @@ def main():
     jobs = [(c, v0, s) for c in CONDS for v0 in (0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5) for s in range(3)]
     with mp.get_context("fork").Pool(4) as pool:
         B = pool.map(braking, jobs)
-        A = sum(pool.map(arcs, [(s, 60) for s in range(8)]), [])
+        A = sum(pool.map(arcs, [(s, 60, "nominal") for s in range(8)]), [])
+        AF = sum(pool.map(arcs, [(50 + s, 120, "field (rough, wind, payload; no pushes)") for s in range(8)]), [])
         DB = sum(pool.map(dyn_braking, [(100 + s, 120) for s in range(8)]), [])
     res = dict(braking=B, arcs=A, dyn_braking=DB)
     # state-dependent worst case: the pendulum angle "against" the motion (accelerating) delays braking
@@ -157,7 +162,25 @@ def main():
     e10 = np.array([x["err_10"] for x in A])
     res["arc_error"] = dict(p50_05=float(np.median(e05)), p95_05=float(np.percentile(e05, 95)),
                             p50_10=float(np.median(e10)), p95_10=float(np.percentile(e10, 95)))
+    # path-prediction error envelope under field conditions: p95 per horizon (0.1 ... 1.0 s) and speed bin
+    th = (np.arange(10) + 1) * 0.1
+    sb = [0.0, 0.3, 0.7, 1.5, 2.5, 4.0]
+    E = np.array([x["err"] for x in AF])
+    spd = np.array([x["speed"] for x in AF])
+    tab = []
+    for lo, hi in zip(sb[:-1], sb[1:]):
+        sel = (spd >= lo) & (spd < hi)
+        tab.append(np.percentile(E[sel], 95, axis=0).tolist() if sel.sum() >= 10 else None)
+    for i in range(len(tab)):                                     # empty bins: nearest filled one; monotone in speed
+        if tab[i] is None:
+            tab[i] = next(tab[j] for j in sorted(range(len(tab)), key=lambda j: abs(j - i)) if tab[j] is not None)
+    tab = np.maximum.accumulate(np.maximum.accumulate(np.array(tab), axis=1), axis=0)
+    res["err_table"] = dict(t=th.tolist(), speed_edges=sb, p95=tab.tolist(), cond="field (rough, wind, payload; no pushes)")
+    res["arcs_field"] = AF
     json.dump(res, open(a.out, "w"), indent=1)
+    print("field path-prediction error p95 (m), rows speed bins", sb, ", columns horizon 0.1 ... 1.0 s:")
+    for lo, row in zip(sb, tab):
+        print(f"   >= {lo:3.1f} m/s " + " ".join(f"{x:5.2f}" for x in row))
     print("braking distance (m) by condition, v0 = 0.5 ... 3.5 m/s:")
     for c in CONDS:
         row = [np.mean([b["dist"] for b in B if b["cond"] == c and b["v0"] == v0]) for v0 in (0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5)]

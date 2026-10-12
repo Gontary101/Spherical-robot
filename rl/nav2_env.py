@@ -62,6 +62,7 @@ W_RANGE = 2.5
 COST_ALPHA, COST_RANGE = 4.0, 0.6   # costmap: up to 5x traversal cost within 0.6 m of the footprint touching anything
 PLAN_MARGIN = 0.08               # planner keeps this much air between the robot's footprint and any mapped obstacle
 MAP_RAYS = 1152                  # the pods' 3-D LiDARs return dense clouds: 0.31 deg rays for the local map
+SHIELD_COST = 1.0                # reward per unit of safety-filter correction (action units, 0..2 per step)
 SPAWN_FREE = 0.6                 # radius known clear at the start (the start keeps > 0.75 m from every obstacle)
 LIDAR_OVERSAMPLE = 4             # rays per beam bin; a beam reports the minimum (how a 2-D scan is cut from a 3-D cloud)
 
@@ -577,6 +578,7 @@ class Nav2Env:
         self.lio_err = np.zeros(3)
         self.est = np.zeros(N_EST)
         self.last_a = np.zeros(2)
+        self.applied_a = np.zeros(2)                # the command actually executed (after the safety filter), action units
         self.steps = 0
         self.geo_prev, _ = self._geo_at(pos)
         gl = self.geo_len[self._cell(pos)]
@@ -637,7 +639,7 @@ class Nav2Env:
         actor = np.concatenate([1.0 - np.concatenate(self.scans[::-1]) / MAX_R, 1.0 - depth / MAX_R,
                                 self._goal_feat(self.odo[:2], self.odo[2]),
                                 self._goal_feat(self.odo[:2], self.odo[2], self.subgoal(self.odo[:2])), [float(self.P["map"])],
-                                [v_est * 0.3, (t["w"] + self.rng.normal(0, 0.02)) * 0.4], self.last_a,
+                                [v_est * 0.3, (t["w"] + self.rng.normal(0, 0.02)) * 0.4], self.applied_a,
                                 [self.steps / EP_STEPS], self.est]).astype(np.float32)
         geo, gdir = self._geo_at(pos)
         c, s = math.cos(yaw), math.sin(yaw)
@@ -651,7 +653,7 @@ class Nav2Env:
                 ped[j] = [(c * dp[0] + s * dp[1]) / 5, (-s * dp[0] + c * dp[1]) / 5, c * dv[0] + s * dv[1], -s * dv[0] + c * dv[1]]
         critic = np.concatenate([1.0 - true / MAX_R, self._goal_feat(pos, yaw), [min(geo, 20) / 10], gd,
                                  [t["v"] * 0.3, t["w"] * 0.4, lo.mu, (true.min() - self.robot_r) / 2, self.P["k"]],
-                                 [np.linalg.norm(self.odo[:2] - pos), math.sin(self.odo[2] - yaw)], ped.ravel(), self.last_a]).astype(np.float32)
+                                 [np.linalg.norm(self.odo[:2] - pos), math.sin(self.odo[2] - yaw)], ped.ravel(), self.applied_a]).astype(np.float32)
         return actor, critic
 
     def _collided(self):
@@ -672,7 +674,7 @@ class Nav2Env:
         lo = self.loco
         v_cmd = V_RANGE[0] + (a[0] + 1) / 2 * (V_RANGE[1] - V_RANGE[0])
         w_cmd = a[1] * W_RANGE
-        intervened = False
+        intervened, corr = False, 0.0
         if self.shield:
             # velocity from the LiDAR-inertial odometry (encoders mislead while the pendulum swings the spine);
             # with LIO lost, fall back to encoders + gyro
@@ -684,7 +686,8 @@ class Nav2Env:
                 v_now = (lo.qd("tyreL") + lo.qd("tyreR")) * 0.5 * 0.3 * self.odo_scale
                 w_now = tr["w"] + self.odo_bias
             v_f, w_f, intervened, _ = self.filter(self.lmap, self.odo.copy(), v_now, w_now, v_cmd, w_cmd)
-            self.interv_mag += abs(v_f - v_cmd) / 4.5 + abs(w_f - w_cmd) / 5.0
+            corr = abs(v_f - v_cmd) / (V_RANGE[1] - V_RANGE[0]) + abs(w_f - w_cmd) / (2 * W_RANGE)
+            self.interv_mag += corr
             self.n_interv += intervened
             v_cmd, w_cmd = v_f, w_f
         lo.cmd = np.array([v_cmd, w_cmd])
@@ -724,11 +727,14 @@ class Nav2Env:
         collided = hit_s or hit_d
         rew = (2.0 * progress - 0.01 - 0.5 * max(0.0, 0.5 - clearance) ** 2 - 0.05 * float(np.sum((a - self.last_a) ** 2))
                - 0.05 * max(0.0, -t["v"]))
+        # shielded: corrections cost (the navigator should propose what the filter would accept, not lean on it)
+        rew -= SHIELD_COST * corr
         if success:
             rew += 10.0
         if collided or fell:
             rew -= 10.0
         self.last_a = a
+        self.applied_a = np.array([2 * (v_cmd - V_RANGE[0]) / (V_RANGE[1] - V_RANGE[0]) - 1, w_cmd / W_RANGE])
         timeout = self.steps >= EP_STEPS and not (success or collided or fell)
         done = success or collided or fell or timeout
         info = dict(success=success, collision=collided, hit_static=hit_s, hit_dynamic=hit_d, fell=fell, timeout=timeout,

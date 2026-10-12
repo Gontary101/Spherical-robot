@@ -38,10 +38,11 @@ def main():
     ap.add_argument("--horizon", type=int, default=64)
     ap.add_argument("--resume", default="")
     ap.add_argument("--level0", type=float, default=0.0)
+    ap.add_argument("--shield", action="store_true", help="safety filter in the loop, corrections penalised (plan phase 1d)")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     os.environ["GYRA_LOW"] = os.path.abspath(a.low)
-    env = VecEnv(Nav2Env, n_workers=a.workers, envs_per_worker=a.envs, seed=11)
+    env = VecEnv(Nav2Env, n_workers=a.workers, envs_per_worker=a.envs, seed=11, shield=a.shield)
     env.set_attr(level=a.level0)
     oa, oc = env.reset()
     agent = make_agent(oc.shape[1])
@@ -67,13 +68,13 @@ def main():
                    std=float(agent.actor.log_std.detach().exp().mean())) | {k: round(v, 5) for k, v in st.items()}
         if eps:
             E = list(eps)
-            for k in ("success", "collision", "hit_dynamic", "fell", "timeout", "spl"):
-                row[k] = float(np.mean([e[k] for e in E]))
+            for k in ("success", "collision", "hit_dynamic", "fell", "timeout", "spl", "interventions"):
+                row[k] = float(np.mean([e.get(k, 0.0) for e in E]))
             for fam in FAMILIES:
                 sel = [e["success"] for e in E if e["family"] == fam]
                 row[f"succ_{fam}"] = float(np.mean(sel)) if sel else np.nan
         if wr is None:
-            wr = csv.DictWriter(f, fieldnames=list(row.keys()) + [k for k in ("success", "collision", "hit_dynamic", "fell", "timeout", "spl")
+            wr = csv.DictWriter(f, fieldnames=list(row.keys()) + [k for k in ("success", "collision", "hit_dynamic", "fell", "timeout", "spl", "interventions")
                                                                     + tuple(f"succ_{x}" for x in FAMILIES) if k not in row], extrasaction="ignore")
             if f.tell() == 0:
                 wr.writeheader()
@@ -82,7 +83,8 @@ def main():
         if it % 5 == 0:
             print(f"it {it:4d} {steps/1e6:5.2f}M sps {row['sps']:4d} rew {row['rew']:.3f} lvl {row['level_mean']:.2f}/{row['level_p90']:.2f} "
                   f"succ {row.get('success', 0):.2f} coll {row.get('collision', 0):.2f} (dyn {row.get('hit_dynamic', 0):.2f}) "
-                  f"fell {row.get('fell', 0):.2f} to {row.get('timeout', 0):.2f} spl {row.get('spl', 0):.2f} kl {st['kl']:.4f} "
+                  f"fell {row.get('fell', 0):.2f} to {row.get('timeout', 0):.2f} spl {row.get('spl', 0):.2f} int {row.get('interventions', 0):.2f} "
+                  f"kl {st['kl']:.4f} "
                   f"lr {st['lr']:.1e} std {row['std']:.2f}", flush=True)
             agent.save(os.path.join(a.out, "last.pt"), {"steps": steps})
             score = row["level_mean"] + row.get("success", 0) - row.get("collision", 1)
