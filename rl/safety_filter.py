@@ -24,68 +24,73 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 
 class SafetyFilter:
-    def __init__(self, robot_r, margin=0.08, tau=0.3, period=0.1, sysid=None, dt=0.05):
-        self.r, self.margin, self.tau, self.period, self.dt = robot_r, margin, tau, period, dt
+    def __init__(self, robot_r, margin=0.04, period=0.1, sysid=None, dt=0.05, k_err=0.25, k_spin=0.04):
+        self.r, self.margin, self.period, self.dt = robot_r, margin, period, dt
+        self.k_err, self.k_spin = k_err, k_spin
         sysid = sysid or os.path.join(ROOT, "rl/runs/nav2/bench/sysid.json")
-        if os.path.exists(sysid):
-            S = json.load(open(sysid))
-            b = S["brake_model"]
-            self.brake = (b["c0"], b["c1"], b["c2"])
-            e = S["arc_error"]
-            self.err_rate = max(e["p95_05"] / 0.5, e["p95_10"] / 1.0)      # m of prediction error per s of horizon
-        else:                                                               # conservative defaults until identified
-            self.brake = (0.10, 0.25, 0.12)
-            self.err_rate = 0.25
+        S = json.load(open(sysid))
+        self.bv, self.bd = np.array(S["brake_table"]["v"]), np.array(S["brake_table"]["d"])
+        R = S["response"]
+        self.dead, self.a_fwd, self.a_rev, self.tau_w = R["dead"], R["a_fwd"], R["a_rev"], R["tau_w"]
+        e = S["arc_error"]
+        self.et, self.ee = np.array([0.0, 0.5, 1.0]), np.array([0.0, e["p95_05"], e["p95_10"]])   # p95 path error vs horizon
         vs = np.linspace(-1.0, 3.5, 19)
         ws = np.linspace(-2.5, 2.5, 21)
         self.cand = np.array([(v, w) for v in vs for w in ws])
 
     def stop_dist(self, v):
-        c0, c1, c2 = self.brake
-        return c0 + c1 * np.abs(v) + c2 * v * v
+        """Worst-case stopping distance over friction / slope / payload (identified table, linear in between)."""
+        av = np.abs(v)
+        return np.where(av <= self.bv[-1], np.interp(av, self.bv, self.bd), self.bd[-1] * (av / self.bv[-1]) ** 2)
+
+    def err(self, t):
+        slope = (self.ee[-1] - self.ee[-2]) / (self.et[-1] - self.et[-2])
+        return np.where(t <= self.et[-1], np.interp(t, self.et, self.ee), self.ee[-1] + slope * (t - self.et[-1]))
 
     def _rollout(self, pose, v0, w0, cmds):
-        """Predicted paths for N commands: react for one period, then brake to rest along the arc.
-        Returns points (N, K, 2) and their horizon times (N, K)."""
+        """Predicted paths for N commands with the identified response (dead time, acceleration-limited speed, lagged
+        yaw rate) for one control period, then a worst-case stop along the arc. Points (N, K, 2), times (N, K)."""
         x, y, th = pose
         N = len(cmds)
         v = np.full(N, float(v0))
         w = np.full(N, float(w0))
         X, Y, TH = np.full(N, x), np.full(N, y), np.full(N, th)
-        a = 1 - math.exp(-self.dt / self.tau)
+        aw = 1 - math.exp(-self.dt / self.tau_w)
         pts, ts = [], []
         t = 0.0
-        n_react = int(round(self.period / self.dt)) + 1
-        for _ in range(n_react):                                     # reaction: lag toward the command
-            v += a * (cmds[:, 0] - v)
-            w += a * (cmds[:, 1] - w)
+        while t < self.period + self.dead - 1e-9:                  # react: dead time, then move toward the command
+            if t >= self.dead:
+                acc = np.where((cmds[:, 0] < v) & (v <= 0.0), self.a_rev, self.a_fwd)
+                v = v + np.clip(cmds[:, 0] - v, -acc * self.dt, acc * self.dt)
+                w = w + aw * (cmds[:, 1] - w)
             TH = TH + w * self.dt
             X, Y = X + v * np.cos(TH) * self.dt, Y + v * np.sin(TH) * self.dt
             t += self.dt
             pts.append(np.stack([X, Y], -1))
-            ts.append(t)
-        # braking: travel the identified stopping distance along the current arc (curvature kept)
-        d_stop = self.stop_dist(v)
+            ts.append(np.full(N, t))
+        self.t_react = t                                            # prediction error grows only until braking starts:
+        d_stop = self.stop_dist(v)                                  # the braking table is itself a worst-case envelope
         kappa = np.where(np.abs(v) > 0.05, w / np.maximum(np.abs(v), 0.05), 0.0)
         n_brake = 12
         sgn = np.sign(v)
         ds = d_stop / n_brake
         t_stop = 2.0 * d_stop / np.maximum(np.abs(v), 0.2)          # uniform deceleration: t = 2 d / v
-        T = np.full(N, t)
-        ts = np.tile(np.array(ts), (N, 1))
-        tcols = [ts]
         for k in range(1, n_brake + 1):
             TH = TH + kappa * ds * sgn
             X, Y = X + sgn * ds * np.cos(TH), Y + sgn * ds * np.sin(TH)
             pts.append(np.stack([X, Y], -1))
-            tcols.append((T + t_stop * k / n_brake)[:, None])
-        return np.stack(pts, 1), np.concatenate(tcols, 1)
+            ts.append(t + t_stop * k / n_brake)
+        return np.stack(pts, 1), np.stack(ts, 1)
 
     def admissible(self, lmap, pose, v0, w0, cmds):
         cmds = np.atleast_2d(cmds)
         P, ts = self._rollout(pose, v0, w0, cmds)
-        clear = lmap.clearance(P.reshape(-1, 2)).reshape(P.shape[:2])
-        need = self.r + self.margin + self.err_rate * ts
+        clear = lmap.clearance(P.reshape(-1, 2), unknown_is_obstacle=True).reshape(P.shape[:2])
+        # prediction-error margin: grows with the reaction horizon and the speed involved (sysid: p95 ~0.25 m per
+        # s per m/s), plus the translation a fast spin causes on this pendulum robot
+        speed = np.maximum(abs(v0), np.abs(cmds[:, 0]))[:, None]
+        need = (self.r + self.margin + self.k_err * np.minimum(ts, self.t_react) * speed
+                + self.k_spin * np.abs(cmds[:, 1])[:, None])
         slack = (clear - need).min(1)
         return slack >= 0, slack
 
@@ -97,11 +102,19 @@ class SafetyFilter:
         okc, sl = self.admissible(lmap, pose, v0, w0, self.cand)
         if okc.any():
             c = self.cand[okc]
-            # closest admissible: penalise speed loss less than heading change, never prefer going faster
-            cost = 1.0 * np.abs(c[:, 0] - v_cmd) + 0.6 * np.abs(c[:, 1] - w_cmd) + 2.0 * np.maximum(c[:, 0] - v_cmd, 0)
+            # closest admissible: speed is given up before heading, aggressive turning is discouraged
+            cost = (1.0 * np.abs(c[:, 0] - v_cmd) + 0.6 * np.abs(c[:, 1] - w_cmd) + 2.0 * np.maximum(c[:, 0] - v_cmd, 0)
+                    + 0.2 * np.abs(c[:, 1]))
             i = int(np.argmin(cost))
             return float(c[i, 0]), float(c[i, 1]), True, float(sl[okc][i])
-        # nothing admissible (an obstacle appeared inside the braking envelope): brake as hard as possible,
-        # turning in place toward the side with more room
-        i = int(np.argmax(sl))
-        return 0.0, float(self.cand[i, 1]), True, float(sl[i])
+        # recovery (already inside the guard band, e.g. an obstacle appeared late): stop, steering gently toward more
+        # room. Reverse only once (nearly) stopped: commanding reverse while moving swings this robot's pendulum
+        # violently, which is exactly what must not happen next to an obstacle.
+        if abs(v0) > 0.15:
+            slow = (self.cand[:, 0] == 0.0) & (np.abs(self.cand[:, 1]) <= 0.8)
+        else:
+            slow = (np.abs(self.cand[:, 0]) <= 0.3) & (np.abs(self.cand[:, 1]) <= 0.8)
+        if not slow.any():
+            slow = np.abs(self.cand[:, 0]) <= 0.3
+        i = np.flatnonzero(slow)[int(np.argmax(sl[slow]))]
+        return float(self.cand[i, 0]), float(self.cand[i, 1]), True, float(sl[i])

@@ -23,7 +23,8 @@ from nav2_env import N_BEAM, V_RANGE, W_RANGE, Nav2Env  # noqa: E402
 from record_mission2 import oracle  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-CALM = dict(lidar_sector=False, lidar_spurious=0.0, depth_blackout=False, depth_drop=0.0, n_dyn=0, map=True, map_stale=0.0)
+CALM = dict(lidar_sector=False, lidar_spurious=0.0, depth_blackout=False, depth_drop=0.0, n_dyn=0, map=True, map_stale=0.0,
+            odom="lio")
 SCEN = {
     "clutter": dict(family="clutter"),
     "forest (thin poles)": dict(family="forest"),
@@ -36,6 +37,7 @@ SCEN = {
     "LiDAR 60 deg blind sector": dict(family="mixed", lidar_sector=True),
     "depth camera dead": dict(family="mixed", depth_blackout=True),
     "dust: spurious returns 3 %": dict(family="mixed", lidar_spurious=0.03),
+    "LiDAR odometry lost (wheel+gyro)": dict(family="mixed", odom="wheel"),
     "everything at once": dict(family="mixed", n_dyn=4, map_stale=0.3, lidar_sector=True, lidar_spurious=0.01, depth_drop=0.2),
 }
 # ground / robot conditions for every scenario: rough terrain, mid friction, light disturbances
@@ -81,13 +83,13 @@ def make(name, path):
 
 
 def job(args):
-    scen, pol, path, n, low = args
+    scen, pol, path, n, low, shield = args
     os.environ["GYRA_LOW"] = low
     nav = make(pol, path)
     out = []
     for ep in range(n):
         env = Nav2Env(seed=70000 + ep, low_ckpt=low, level=0.8, adaptive=False,
-                      scenario={"nav": CALM | SCEN[scen], "loco": LOCO})
+                      scenario={"nav": CALM | SCEN[scen], "loco": LOCO}, shield=shield)
         oa, oc = env.reset()
         while True:
             (oa, oc), r, done, info = env.step(nav(oa, env))
@@ -106,9 +108,10 @@ def main():
     ap.add_argument("--procs", type=int, default=4)
     ap.add_argument("--scenarios", nargs="*", default=None)
     ap.add_argument("--out", default=os.path.join(ROOT, "docs", "nav_robustness"))
+    ap.add_argument("--shield", action="store_true", help="safety filter on the local occupancy map (plan phase 1)")
     a = ap.parse_args()
     names = a.scenarios or list(SCEN)
-    jobs = [(s, p, a.nav, a.episodes, os.path.abspath(a.low)) for s in names for p in a.policies]
+    jobs = [(s, p, a.nav, a.episodes, os.path.abspath(a.low), a.shield) for s in names for p in a.policies]
     with mp.get_context("fork").Pool(a.procs) as pool:
         res = pool.map(job, jobs, chunksize=1)
     table = {}

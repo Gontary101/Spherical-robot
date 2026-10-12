@@ -25,6 +25,7 @@ from eval_robust import NOMINAL  # noqa: E402
 from nav2_env import LowLevel  # noqa: E402
 
 L.GEOFENCE = 1e9
+DEAD, A_FWD, A_REV, TAU_W = 0.22, 1.7, 1.1, 0.15      # identified from step responses (see docs/09)
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 LOW = os.path.join(ROOT, "rl/runs/loco31/best.pt")
 CONDS = {"nominal": {}, "ice mu 0.3": dict(mu=0.3), "wet mu 0.6": dict(mu=0.6), "downhill 8 deg": dict(slope=np.radians(8)),
@@ -61,6 +62,33 @@ def braking(args):
     return dict(cond=cond, v0=v0, v_start=float(vstart), dist=d, time=(k + 1) * 0.02)
 
 
+def dyn_braking(args):
+    """Stops triggered at random moments of random speed profiles: stopping distance vs (speed, pendulum angle)."""
+    seed, n = args
+    low = LowLevel(LOW)
+    r = np.random.default_rng(seed)
+    out = []
+    e = env_for("nominal", seed)
+    oa, _ = e.reset()
+    for i in range(n):
+        v_a = r.uniform(-0.5, 3.5)
+        for k in range(int(r.uniform(0.3, 2.5) / 0.02)):       # random phase of a speed change
+            e.cmd = np.array([v_a, r.uniform(-0.3, 0.3)])
+            (oa, _), *_ = e.step(low(oa)[0])
+        t = e._truth()
+        v0, th0 = t["v"], t["pend"]
+        p0 = e.d.qpos[0:2].copy()
+        for k in range(int(6.0 / 0.02)):
+            e.cmd = np.zeros(2)
+            (oa, _), *_ = e.step(low(oa)[0])
+            if abs(e._truth()["v"]) < 0.05 and k > 10:
+                break
+        out.append(dict(v=float(v0), pend=float(th0), dist=float(np.linalg.norm(e.d.qpos[0:2] - p0))))
+        if e.d.qpos[0] ** 2 + e.d.qpos[1] ** 2 > 400:
+            oa, _ = e.reset()
+    return out
+
+
 def arcs(args):
     seed, n = args
     low = LowLevel(LOW)
@@ -81,10 +109,11 @@ def arcs(args):
         for k in range(int(1.0 / 0.02)):
             e.cmd = np.array([v, w])
             (oa, _), *_ = e.step(low(oa)[0])
-            # first-order-lag unicycle prediction (tau 0.3 s), the model the filter will use
-            a = 1 - math.exp(-0.02 / 0.3)
-            vc += a * (v - vc)
-            wc += a * (w - wc)
+            # identified response (the filter's model): dead time, then acceleration-limited speed, lagged yaw rate
+            if k * 0.02 >= DEAD:
+                acc = A_REV if (v < vc and vc <= 0.0) else A_FWD          # speeding up in reverse is slower
+                vc += float(np.clip(v - vc, -acc * 0.02, acc * 0.02))
+                wc += (1 - math.exp(-0.02 / TAU_W)) * (w - wc)
             th += wc * 0.02
             x += vc * math.cos(th) * 0.02
             y += vc * math.sin(th) * 0.02
@@ -105,15 +134,25 @@ def main():
     with mp.get_context("fork").Pool(4) as pool:
         B = pool.map(braking, jobs)
         A = sum(pool.map(arcs, [(s, 60) for s in range(8)]), [])
-    res = dict(braking=B, arcs=A)
-    # conservative braking model d(v) = c0 + c1 v + c2 v^2 fitted to the per-speed maximum over all conditions
-    v = np.array([b["v_start"] for b in B])
-    d = np.array([b["dist"] for b in B])
-    X = np.c_[np.ones_like(v), np.abs(v), v ** 2]
-    coef = np.linalg.lstsq(X, d, rcond=None)[0]
-    resid = d - X @ coef
-    coef[0] += float(resid.max())                  # shift up: the model upper-bounds every measured stop
-    res["brake_model"] = dict(c0=float(coef[0]), c1=float(coef[1]), c2=float(coef[2]))
+        DB = sum(pool.map(dyn_braking, [(100 + s, 120) for s in range(8)]), [])
+    res = dict(braking=B, arcs=A, dyn_braking=DB)
+    # state-dependent worst case: the pendulum angle "against" the motion (accelerating) delays braking
+    vb = np.array([0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5])
+    pb = np.radians([-60, -30, -10, 10, 30, 60])                  # signed with the direction of motion: <0 = accelerating
+    T = np.zeros((len(vb), len(pb) + 1))
+    for x in DB:
+        sv = np.sign(x["v"]) if abs(x["v"]) > 0.05 else 1.0
+        i = int(np.clip(np.searchsorted(vb, abs(x["v"])), 0, len(vb) - 1))
+        j = int(np.searchsorted(pb, sv * x["pend"]))
+        T[i, j] = max(T[i, j], x["dist"])
+    T = np.maximum.accumulate(T, axis=0)                          # monotone in speed
+    flat = np.interp(vb, [0.0] + sorted({b["v0"] for b in B}), [0.05] + [max(b["dist"] for b in B if b["v0"] == v) for v in sorted({b["v0"] for b in B})])
+    T = np.maximum(T, flat[:, None]) + 0.05                        # never below the steady-state worst case (slopes etc.)
+    res["brake_table2"] = dict(v=vb.tolist(), pend_edges=pb.tolist(), d=T.tolist())
+    # conservative braking model: per commanded speed, the WORST stopping distance over all conditions (+5 cm)
+    v0s = sorted({b["v0"] for b in B})
+    res["brake_table"] = dict(v=[0.0] + v0s, d=[0.05] + [max(b["dist"] for b in B if b["v0"] == v) + 0.05 for v in v0s])
+    res["response"] = dict(dead=DEAD, a_fwd=A_FWD, a_rev=A_REV, tau_w=TAU_W)
     e05 = np.array([x["err_05"] for x in A])
     e10 = np.array([x["err_10"] for x in A])
     res["arc_error"] = dict(p50_05=float(np.median(e05)), p95_05=float(np.percentile(e05, 95)),
@@ -123,8 +162,11 @@ def main():
     for c in CONDS:
         row = [np.mean([b["dist"] for b in B if b["cond"] == c and b["v0"] == v0]) for v0 in (0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5)]
         print(f"  {c:16s} " + " ".join(f"{x:5.2f}" for x in row))
-    print("conservative model d(v) = %.3f + %.3f |v| + %.3f v^2" % tuple(res["brake_model"].values()))
-    print("unicycle (tau 0.3 s) prediction error: 0.5 s p50 %.2f / p95 %.2f m, 1.0 s p50 %.2f / p95 %.2f m" % tuple(res["arc_error"].values()))
+    print("state-dependent braking table (rows |v|, columns pendulum angle with the motion, deg edges", np.degrees(pb).round().tolist(), "):")
+    for i, v in enumerate(vb):
+        print(f"   {v:3.1f} m/s " + " ".join(f"{x:5.2f}" for x in T[i]))
+    print("worst-case braking table:", dict(zip(res["brake_table"]["v"], [round(x, 2) for x in res["brake_table"]["d"]])))
+    print("identified-model prediction error: 0.5 s p50 %.2f / p95 %.2f m, 1.0 s p50 %.2f / p95 %.2f m" % tuple(res["arc_error"].values()))
 
 
 if __name__ == "__main__":

@@ -22,6 +22,7 @@ L_OCC, L_FREE, L_MIN, L_MAX = 0.9, -0.4, -2.0, 3.5     # log-odds increments and
 OCC_TH = 0.6                                            # log-odds above which a cell counts as occupied
 DECAY = 0.985                                           # per update: unobserved evidence fades (~6 s half-life at 10 Hz)
 OBST_H = 0.10                                           # depth endpoints this far above the ground plane are obstacles
+KNOWN_FREE = -0.3                                       # log-odds below which a cell counts as observed free (safety)
 
 
 class LocalMap:
@@ -29,13 +30,13 @@ class LocalMap:
         self.n, self.cell, self.max_r = size, cell, max_r
         self.L = np.zeros((size, size), np.float32)
         self.origin = np.zeros(2)                       # odometry-frame coordinates of cell (0, 0)'s corner
-        self._dist = None
+        self._dist = self._sdist = None
         self.reset(np.zeros(2))
 
     def reset(self, center):
         self.L[:] = 0
         self.origin = np.floor(np.asarray(center) / self.cell) * self.cell - self.n * self.cell / 2
-        self._dist = None
+        self._dist = self._sdist = None
 
     # ----------------------------------------------------------------------------------------------- geometry
     def _recenter(self, center):
@@ -62,9 +63,9 @@ class LocalMap:
         np.add.at(self.L, (r[ok], c[ok]), val)
 
     # ----------------------------------------------------------------------------------------------- fusion
-    def update(self, pose, beam_ang, scan, depth=None, visible=None, dead=None):
+    def update(self, pose, beam_ang, scan, depth=None, visible=None, dead=None, free_every=1, free_max=None, robot_r=0.0):
         """pose = odometry (x, y, yaw). scan: masked LiDAR ranges (MAX_R = no return).
-        depth: (dirs_robot (N, 3), ranges (N,), cam_height) or None.
+        depth: (dirs_robot (N, 3), ranges (N,), cam_height, cam_forward_offset) or None.
         visible(px, py) -> bool array: which robot-frame points the sensor can physically see (its self-occlusion);
         "no return" is only free-space evidence where the sensor could have seen. dead: bool per beam (failed sector)."""
         x, y, yaw = pose
@@ -76,8 +77,9 @@ class LocalMap:
         step = self.cell * 0.7
         ks = np.arange(0.2, self.max_r, step)
         # free space along every beam up to its return (minus one cell), all beams at once
-        K = ks[:, None]
-        msk = K < (rng - self.cell)[None, :]
+        sel = np.arange(len(beam_ang)) % free_every == 0                 # free space from a subset of rays (cost)
+        K = ks[ks < (free_max or self.max_r)][:, None]
+        msk = (K < (rng - self.cell)[None, :]) & sel[None, :]
         if dead is not None:
             msk &= ~np.asarray(dead)[None, :]
         if visible is not None:
@@ -86,18 +88,27 @@ class LocalMap:
         self._mark(np.c_[(x + K * ca)[msk], (y + K * sa)[msk]], L_FREE)
         self._mark(np.c_[x + rng[hit] * np.cos(a[hit]), y + rng[hit] * np.sin(a[hit])], L_OCC + abs(L_FREE))
         if depth is not None:
-            dirs, z, h = depth
+            dirs, z, h, xo = depth
             ok = z > 0.35
             if ok.any():
                 d = dirs[ok] * z[ok, None]
+                d[:, 0] += xo
                 above = d[:, 2] + h > OBST_H                       # endpoint height above the local ground plane
                 c, s = math.cos(yaw), math.sin(yaw)
                 wx = x + c * d[:, 0] - s * d[:, 1]
                 wy = y + s * d[:, 0] + c * d[:, 1]
                 self._mark(np.c_[wx[above], wy[above]], L_OCC)
                 self._mark(np.c_[wx[~above], wy[~above]], L_FREE)
+        if robot_r > 0:                                                  # the robot's own disc is known free
+            g = np.arange(-robot_r, robot_r + 1e-9, self.cell)
+            gx, gy = np.meshgrid(g, g)
+            inside = gx ** 2 + gy ** 2 <= robot_r ** 2
+            r_, c_ = self._idx(np.c_[x + gx[inside], y + gy[inside]])
+            ok = (r_ >= 0) & (r_ < self.n) & (c_ >= 0) & (c_ < self.n)
+            self.L[r_[ok], c_[ok]] = np.minimum(self.L[r_[ok], c_[ok]], L_MIN)
         np.clip(self.L, L_MIN, L_MAX, out=self.L)
         self._dist = None
+        self._sdist = None
 
     # ----------------------------------------------------------------------------------------------- queries
     def occupied(self):
@@ -109,12 +120,20 @@ class LocalMap:
             self._dist = distance_transform_edt(~occ) * self.cell if occ.any() else np.full(occ.shape, 99.0)
         return self._dist
 
-    def clearance(self, pts):
-        """Distance (m) from odometry-frame points to the nearest occupied cell; outside the map: 99."""
-        D = self.dist_field()
+    def safety_field(self):
+        """Distance to the nearest cell that is occupied OR not yet observed free (unknown counts as an obstacle)."""
+        if self._sdist is None:
+            blocked = self.L > KNOWN_FREE
+            self._sdist = distance_transform_edt(~blocked) * self.cell if blocked.any() else np.full(blocked.shape, 99.0)
+        return self._sdist
+
+    def clearance(self, pts, unknown_is_obstacle=False):
+        """Distance (m) from odometry-frame points to the nearest occupied cell (or, for safety, to anything not
+        known to be free); outside the map: 0 when unknown counts as an obstacle, else 99."""
+        D = self.safety_field() if unknown_is_obstacle else self.dist_field()
         r, c = self._idx(pts)
         ok = (r >= 0) & (r < self.n) & (c >= 0) & (c < self.n)
-        out = np.full(r.shape, 99.0)
+        out = np.full(r.shape, 0.0 if unknown_is_obstacle else 99.0)
         out[ok] = D[r[ok], c[ok]]
         return out
 

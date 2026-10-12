@@ -47,6 +47,7 @@ import terrain as TR  # noqa: E402
 from gyra2_model import obstacle_vertices  # noqa: E402
 from loco2_env import FRAME, HIST, N_ACT, N_CMD, N_EST, Loco2Env  # noqa: E402
 from nav_env import visible_from_pods  # noqa: E402
+from local_map import LocalMap  # noqa: E402
 from ppo2 import Actor2  # noqa: E402
 
 N_BEAM = 72
@@ -60,6 +61,7 @@ V_RANGE = (-1.0, 3.5)
 W_RANGE = 2.5
 COST_ALPHA, COST_RANGE = 4.0, 0.6   # costmap: up to 5x traversal cost within 0.6 m of the footprint touching anything
 PLAN_MARGIN = 0.08               # planner keeps this much air between the robot's footprint and any mapped obstacle
+MAP_RAYS = 1152                  # the pods' 3-D LiDARs return dense clouds: 0.31 deg rays for the local map
 LIDAR_OVERSAMPLE = 4             # rays per beam bin; a beam reports the minimum (how a 2-D scan is cut from a 3-D cloud)
 
 
@@ -136,7 +138,7 @@ def _footprint(o):
 
 
 class Nav2Env:
-    def __init__(self, seed=0, low_ckpt=None, level=0.0, adaptive=True, scenario=None):
+    def __init__(self, seed=0, low_ckpt=None, level=0.0, adaptive=True, scenario=None, shield=False):
         self.rng = np.random.default_rng(seed + 991)
         self.level, self.adaptive, self.scenario = level, adaptive and scenario is None, scenario
         self.low = LowLevel(low_ckpt or os.environ.get("GYRA_LOW", os.path.join(ROOT, "rl/runs/loco2/best_train.pt")))
@@ -144,8 +146,12 @@ class Nav2Env:
         # navigation resets are frequent (short early episodes): reuse a per-worker terrain bank (flips/transposes add variety)
         self.loco.terrain_tol, self.loco.terrain_reuse, self.loco.terrain_cache = 0.3, 0.95, 24
         self.loco.lite = True
+        self.shield = shield                        # plan phase 1: safety filter on a local occupancy map
+        self.lmap = LocalMap(size=192, cell=0.05) if shield else None
+        self.filter = None
         self.robot_r = footprint_radius(self.loco.hw)
         self.beam_ang = np.linspace(-np.pi, np.pi, N_BEAM, endpoint=False)
+        self.map_ang = np.linspace(-np.pi, np.pi, MAP_RAYS, endpoint=False)    # dense rays for the local map
         k = np.arange(LIDAR_OVERSAMPLE) - (LIDAR_OVERSAMPLE - 1) / 2
         self.fine_ang = (self.beam_ang[:, None] + k[None, :] * (2 * np.pi / N_BEAM / LIDAR_OVERSAMPLE)).ravel()
         hf, vf = np.radians(45), np.radians(22.5)
@@ -180,6 +186,9 @@ class Nav2Env:
         P["depth_drop"] = 0.1 * k
         P["map"] = r.random() < 0.7
         P["map_stale"] = r.uniform(0, 0.4)
+        # localisation: GYRA's pods carry two 3-D LiDARs + IMU, so the production stack runs LiDAR-inertial odometry
+        # (drift ~0.1-1 % of distance); "wheel" = LiDAR odometry lost, encoder + gyro dead reckoning only
+        P["odom"] = "wheel" if r.random() < 0.1 * k else "lio"
         if self.scenario:
             P.update(self.scenario.get("nav", {}))
         return P
@@ -527,6 +536,10 @@ class Nav2Env:
         self.odo = np.array([pos[0], pos[1], yaw])
         self.odo_bias = self.rng.normal(0, 0.01) + lo.S["gyro_bias"][2]
         self.odo_scale = 1 + self.rng.normal(0, 0.02)
+        # LIO error model: per-episode drift direction (0.5 % of distance per axis) + noise, heading 0.1 deg per metre
+        self.lio_drift = self.rng.normal(0, 0.005, 2)
+        self.lio_hdrift = self.rng.normal(0, np.radians(0.1))
+        self.lio_err = np.zeros(3)
         self.est = np.zeros(N_EST)
         self.last_a = np.zeros(2)
         self.steps = 0
@@ -537,7 +550,40 @@ class Nav2Env:
         true = self._true_scan(pos, yaw)
         scan = self._lidar(true)
         self.scans = [scan] * LIDAR_FRAMES
-        return self._obs(pos, yaw, t, true)
+        obs = self._obs(pos, yaw, t, true)
+        self.n_interv, self.interv_mag = 0, 0.0
+        if self.shield:
+            if self.filter is None:
+                from safety_filter import SafetyFilter
+                self.filter = SafetyFilter(self.robot_r)
+            self.lmap.reset(self.odo[:2])
+            self._map_update()
+        return obs
+
+    def _map_scan(self):
+        """Dense masked LiDAR for the map: same sensor model as the policy scan (pod self-occlusion, noise, dropouts,
+        dust, dead sector) at 0.31 deg resolution."""
+        pos, yaw, _ = self._pose()
+        a = self.map_ang + yaw
+        true = self._rays(np.array([pos[0], pos[1], self.d.qpos[2]]), np.stack([np.cos(a), np.sin(a), np.zeros_like(a)], -1), self.g_obs)
+        r, P = self.rng, self.P
+        vis = visible_from_pods(true * np.cos(self.map_ang), true * np.sin(self.map_ang)) | (true >= MAX_R - 1e-6)
+        meas = np.where(vis, true, MAX_R) + r.normal(0, 0.02, len(true))
+        meas[r.random(len(true)) < 0.02] = MAX_R
+        spur = r.random(len(true)) < P["lidar_spurious"]
+        meas[spur] = r.uniform(0.3, 3.0, spur.sum())
+        dead = None
+        if self.lidar_sector is not None:
+            a0, w = self.lidar_sector
+            dead = np.abs((self.map_ang - a0 + np.pi) % (2 * np.pi) - np.pi) < w / 2
+            meas[dead] = MAX_R
+        return np.clip(meas, 0, MAX_R), dead
+
+    def _map_update(self):
+        """Fuse the dense masked LiDAR and the depth image into the local map at the odometry pose (robot knowledge only)."""
+        scan, dead = self._map_scan()
+        self.lmap.update(self.odo.copy(), self.map_ang, scan, depth=(self.cam_dirs, self.depth_last, 0.32, 0.25),
+                         visible=visible_from_pods, dead=dead, free_every=4, free_max=6.0, robot_r=self.robot_r)
 
     def _goal_feat(self, pos, yaw, goal=None):
         dv = (self.goal if goal is None else goal) - pos
@@ -548,6 +594,7 @@ class Nav2Env:
         lo = self.loco
         v_est = (lo.qd("tyreL") + lo.qd("tyreR")) * 0.5 * 0.3 * self.odo_scale
         depth = self._depth(pos, yaw)
+        self.depth_last = depth
         actor = np.concatenate([1.0 - np.concatenate(self.scans[::-1]) / MAX_R, 1.0 - depth / MAX_R,
                                 self._goal_feat(self.odo[:2], self.odo[2]),
                                 self._goal_feat(self.odo[:2], self.odo[2], self.subgoal(self.odo[:2])), [float(self.P["map"])],
@@ -585,7 +632,23 @@ class Nav2Env:
         a = np.clip(np.asarray(a, dtype=np.float64), -1, 1)
         lo = self.loco
         v_cmd = V_RANGE[0] + (a[0] + 1) / 2 * (V_RANGE[1] - V_RANGE[0])
-        lo.cmd = np.array([v_cmd, a[1] * W_RANGE])
+        w_cmd = a[1] * W_RANGE
+        intervened = False
+        if self.shield:
+            # velocity from the LiDAR-inertial odometry (encoders mislead while the pendulum swings the spine);
+            # with LIO lost, fall back to encoders + gyro
+            tr = self.loco._truth()
+            if self.P["odom"] == "lio":
+                v_now = tr["v"] + self.rng.normal(0, 0.03)
+                w_now = tr["w"] + self.rng.normal(0, 0.02)
+            else:
+                v_now = (lo.qd("tyreL") + lo.qd("tyreR")) * 0.5 * 0.3 * self.odo_scale
+                w_now = tr["w"] + self.odo_bias
+            v_f, w_f, intervened, _ = self.filter(self.lmap, self.odo.copy(), v_now, w_now, v_cmd, w_cmd)
+            self.interv_mag += abs(v_f - v_cmd) / 4.5 + abs(w_f - w_cmd) / 5.0
+            self.n_interv += intervened
+            v_cmd, w_cmd = v_f, w_f
+        lo.cmd = np.array([v_cmd, w_cmd])
         hit_s = hit_d = fell = False
         p0 = self.d.qpos[0:2].copy()
         for _ in range(LOW_STEPS):
@@ -594,8 +657,15 @@ class Nav2Env:
             self._move_dyn(0.02)
             v_enc = (lo.qd("tyreL") + lo.qd("tyreR")) * 0.5 * 0.3 * self.odo_scale
             t = lo._truth()
-            self.odo[2] += (t["w"] + self.odo_bias) * 0.02
-            self.odo[:2] += v_enc * 0.02 * np.array([math.cos(self.odo[2]), math.sin(self.odo[2])])
+            if self.P["odom"] == "lio":
+                ds = float(np.linalg.norm(self.d.qvel[0:2])) * 0.02
+                self.lio_err[:2] += ds * (self.lio_drift + self.rng.normal(0, 0.005, 2))
+                self.lio_err[2] += ds * (self.lio_hdrift + self.rng.normal(0, np.radians(0.05)))
+                pos_t, yaw_t = self.d.qpos[0:2], t["yaw"]
+                self.odo = np.array([pos_t[0] + self.lio_err[0], pos_t[1] + self.lio_err[1], yaw_t + self.lio_err[2]])
+            else:
+                self.odo[2] += (t["w"] + self.odo_bias) * 0.02
+                self.odo[:2] += v_enc * 0.02 * np.array([math.cos(self.odo[2]), math.sin(self.odo[2])])
             hs, hd = self._collided()
             hit_s |= hs
             hit_d |= hd
@@ -633,7 +703,13 @@ class Nav2Env:
                     self.level = min(1.0, self.level + 0.05)
                 elif collided or fell:
                     self.level = max(0.0, self.level - 0.05)
-        return self._obs(pos, yaw, t, true), float(rew), done, info
+        obs = self._obs(pos, yaw, t, true)
+        if self.shield:
+            self._map_update()
+            info["intervened"] = intervened
+            if done:
+                info["episode"]["interventions"] = self.n_interv / max(self.steps, 1)
+        return obs, float(rew), done, info
 
     @staticmethod
     def mirror_spec():
