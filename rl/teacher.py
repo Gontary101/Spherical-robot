@@ -24,6 +24,7 @@ VS = np.linspace(-0.5, 2.5, 13)
 WS = np.linspace(-2.0, 2.0, 17)
 CAND = np.array([(v, w) for v in VS for w in WS])
 K_HEAD, K_REV = float(os.environ.get("K_HEAD", 0.4)), float(os.environ.get("K_REV", 0.2))                                # m of route per unit heading misalignment / per m/s reverse
+K_PATH = float(os.environ.get("K_PATH", 1.5))            # m of route per m^2 of cross-track error (mid + end)
 TIGHTEN = float(os.environ.get("MPC_TIGHTEN", 0.0))     # m of spare filter slack per m/s of speed (32-episode A/B: no gain)
 
 
@@ -66,6 +67,9 @@ class GeoMPC:
         clr_pen = np.zeros(N)
         hit = np.zeros(N, bool)
         k = 0.0
+        mid_k = int(round(self.h / self.dt / 2))
+        step = 0
+        mx = my = None
         while k < self.h - 1e-9:
             if k >= DEAD:
                 acc = np.where((C[:, 0] < v) & (v <= 0.0), A_REV, A_FWD)
@@ -81,11 +85,16 @@ class GeoMPC:
             clr_pen += np.maximum(0.0, 0.15 + 0.25 * np.maximum(v, 0.0) - c) ** 2
             hit |= c < 0.0
             k += self.dt
+            step += 1
+            if step == mid_k:
+                mx, my = x.copy(), y.copy()
         if self.deployable:
             d = env.odo[2] - env.loc[2]
             c_, s_ = math.cos(d), math.sin(d)
             rx, ry = x - env.loc[0], y - env.loc[1]
             ex, ey, eth, G = env.odo[0] + c_ * rx - s_ * ry, env.odo[1] + s_ * rx + c_ * ry, th + d, env.plan_geo
+            mrx, mry = mx - env.loc[0], my - env.loc[1]
+            mx, my = env.odo[0] + c_ * mrx - s_ * mry, env.odo[1] + s_ * mrx + c_ * mry
         else:
             ex, ey, eth, G = x, y, th, env.geo
         geo = grid_bilinear(env, G, np.c_[ex, ey])
@@ -97,7 +106,20 @@ class GeoMPC:
         gn = np.hypot(gxd, gyd)
         valid = (gn > 0.3) & (gn < 8.0) & (geo > 0.8)
         head = np.where(valid, 1.0 - (np.cos(eth) * -gxd + np.sin(eth) * -gyd) / np.maximum(gn, 1e-6), 0.0)
+        # cross-track: stay on the planner's route (costmap-centred, so doors are approached aligned and centred)
+        track = np.zeros(len(C))
+        if self.deployable and K_PATH > 0:
+            path = env.plan_path(env.odo[:2], 40)
+            if len(path) >= 3:
+                A, B = path[:-1], path[1:]
+                AB = B - A
+                for (qx, qy) in ((mx, my), (ex, ey)):
+                    Q = np.c_[qx, qy][:, None, :]
+                    u = np.clip(((Q - A[None]) * AB[None]).sum(-1) / np.maximum((AB ** 2).sum(-1), 1e-9)[None], 0, 1)
+                    dist = np.linalg.norm(Q - (A[None] + u[..., None] * AB[None]), axis=-1).min(1)
+                    track += np.minimum(dist, 1.0) ** 2
         cost = (geo + 2.0 * clr_pen + 50.0 * hit + 0.05 * np.abs(C[:, 1]) + K_HEAD * head + K_REV * np.maximum(0.0, -C[:, 0])
+                + K_PATH * track
                 + 0.15 * np.abs(C[:, 1] - self.prev[1]) + 0.1 * np.abs(C[:, 0] - self.prev[0]))
         if env.shield and env.filter is not None:
             v0, w0 = env._velocity_estimate()

@@ -481,6 +481,20 @@ class Nav2Env:
                 nxt = np.where(better, ci, nxt)
         self.plan_geo, self.plan_next = pg, nxt.ravel()
 
+    def plan_path(self, pos, n=40):
+        """The planner's route from pos (global frame), following its descent pointers: up to n cells (GRID each)."""
+        i, j = self._cell(pos)
+        c = i * self.n_grid + j
+        pts = []
+        for _ in range(n):
+            ii, jj = divmod(int(c), self.n_grid)
+            pts.append((self.gx[ii, jj], self.gy[ii, jj]))
+            c2 = self.plan_next[c]
+            if c2 == c:
+                break
+            c = c2
+        return np.array(pts)
+
     def subgoal(self, pos):
         """Point LOOKAHEAD metres down the planner's shortest path from pos (goal itself without a map)."""
         if not self.P["map"]:
