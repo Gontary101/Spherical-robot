@@ -61,11 +61,11 @@ class GeoMPC:
             th = th + w * self.dt
             x, y = x + v * np.cos(th) * self.dt, y + v * np.sin(th) * self.dt
             c = grid_bilinear(env, env.clear, np.c_[x, y]) - env.robot_r
-            clr_pen += np.maximum(0.0, 0.35 - c) ** 2
-            hit |= c < 0.03
+            clr_pen += np.maximum(0.0, 0.15 - c) ** 2         # a 1.0 m door leaves 0.107 m: don't price doors out
+            hit |= c < 0.0
             k += self.dt
         geo = grid_bilinear(env, env.geo, np.c_[x, y])
-        cost = (geo + 4.0 * clr_pen + 50.0 * hit + 0.05 * np.abs(CAND[:, 1])
+        cost = (geo + 2.0 * clr_pen + 50.0 * hit + 0.05 * np.abs(CAND[:, 1])
                 + 0.15 * np.abs(CAND[:, 1] - self.prev[1]) + 0.1 * np.abs(CAND[:, 0] - self.prev[0]))
         if env.shield and env.filter is not None:
             v0, w0 = env._velocity_estimate()

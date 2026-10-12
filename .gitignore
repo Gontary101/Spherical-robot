@@ -30,3 +30,6 @@ rl/runs/nav3/*.pt
 rl/runs/nav3/*.ts
 rl/runs/nav3/*.log
 rl/runs/nav3/*.csv
+rl/runs/nav3d/*.pt
+rl/runs/nav3d/*.ts
+rl/runs/nav3d/*.log
