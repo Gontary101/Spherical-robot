@@ -152,3 +152,39 @@ Before this plan (nav v2, no safety layer, tyre contacts only): 58.9 % success, 
 What is left: the static contacts are side grazes at the end of a stop (median 0.19 m/s, map knew the obstacle
 1-4 cm away) — lateral drift that position hold does not correct, and hard braking while turning; LiDAR-odometry
 loss (the map is built on drifting wheel odometry: needs scan-to-map registration); maze timeouts.
+
+## Consolidated benchmark (after straight-braking recovery and the LIO-loss fallback)
+
+Deployable MPC + safety layer, 13 scenarios × 16 episodes, pod contacts counted, benchmark disturbances (rough
+ground, 10 N wind + gusts, 3 kg off-centre payload, **150 N shoves every ~6 s**):
+
+| scenario | success | collision | at fault | timeout |
+|---|---|---|---|---|
+| clutter | 94 % | 0 % | 0 % | 6 % |
+| forest (thin poles) | 88 % | 0 % | 0 % | 12 % |
+| rooms, 1.0 m doors | 81 % | 0 % | 0 % | 19 % |
+| maze | 69 % | 6 % | 6 % | 25 % |
+| mixed | 88 % | 6 % | 6 % | 6 % |
+| maze, no map | 75 % | 6 % | 6 % | 19 % |
+| mixed, 40 % stale map | 75 % | 12 % | 12 % | 12 % |
+| 6 pedestrians to 1.4 m/s | 56 % | 31 % | 6 % | 12 % |
+| LiDAR 60° blind sector | 88 % | 12 % | 12 % | 0 % |
+| depth camera dead | 100 % | 0 % | 0 % | 0 % |
+| dust: spurious returns 3 % | 88 % | 12 % | 12 % | 0 % |
+| LiDAR odometry lost | 81 % | 6 % | 6 % | 12 % |
+| everything at once | 88 % | 0 % | 0 % | 12 % |
+| **all (208)** | **82.2 %** | 7.2 % | 5.3 % | 10.6 % |
+
+**Where the at-fault contacts come from.** 10 of the 11 at-fault static contacts happened within 1 s of a 150 N
+shove (a shove is active or just over in ~20 % of random moments, so this is not chance): a shove adds up to ~1 m/s
+sideways, which no margin compatible with a 1.0 m door absorbs. **Static collisions without an external shove:
+1 in 208 episodes (0.5 %)** — the plan's < 1 % target. **At-fault pedestrian collisions: 0**; the 4 pedestrian contacts
+are people walking into a robot that is stopped or backing away.
+
+16. **Braking while turning** swung the pods into what is beside the path: recovery from > 0.3 m/s brakes straight.
+17. **Losing LiDAR odometry** left the map and the route on wheel + gyro dead reckoning (31 % success): each dense
+    scan is now registered against the local map (local error 1-4 cm, global 3-19 cm over 7-13 m): 81 %.
+
+Remaining: timeouts in mazes (dead ends discovered late, the 1.5 s MPC horizon) and pedestrian-dense scenes; the
+learned navigator (76.6 % on the 4-scenario set) is below the deployable MPC (87.5-90.6 % on the same set), so the
+deployed stack uses the MPC as the navigator, the learned policy for locomotion.
