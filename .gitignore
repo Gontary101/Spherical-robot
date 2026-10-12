@@ -20,3 +20,7 @@ rl/runs/loco31/*.pt
 rl/runs/loco31/*.ts
 rl/runs/loco31/progress.csv
 rl/runs/loco31/train.log
+rl/runs/nav2s/*.pt
+rl/runs/nav2s/*.ts
+rl/runs/nav2s/progress.csv
+rl/runs/nav2s/train.log
