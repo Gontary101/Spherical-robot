@@ -65,6 +65,7 @@ MAP_RAYS = 1152                  # the pods' 3-D LiDARs return dense clouds: 0.3
 HOLD_K = 2.0                     # position-hold gain (1/s) at rest; 0.5 ... 4 tested, 2 best under field disturbances
 SHIELD_COST = 0.3                # reward per unit of safety-filter correction (action units, 0..2 per step); 1.0
                                  # with no envelope in the observation taught the navigator to stand still
+SCAN_MATCH = True                # without LIO, register each dense scan against the local map
 NEARFIELD = True                 # pod ground cameras observe the floor around the robot (except the wedge ahead)
 MAP_3D = True                    # map scan cut from 3-D returns (low obstacles below the hub plane are seen)
 
@@ -627,6 +628,7 @@ class Nav2Env:
         self.loc_err = np.zeros(3)                     # prior-map localisation error (OU process), used when map=True
         self.tracks = {}                               # people tracker: id -> dict(p, v, seen) in the local frame
         self.loc = self.odo.copy()                     # local pose: what the local map / filter / MPC are expressed in
+        self.wheel = self.odo.copy()                   # wheel + gyro dead reckoning (used when LIO is lost)
         self.est = np.zeros(N_EST)
         self.last_a = np.zeros(2)
         self.applied_a = np.zeros(2)
@@ -763,6 +765,29 @@ class Nav2Env:
                 occ.append((hw_ - pos) @ R)                      # world -> robot frame
         return np.concatenate(free), (np.concatenate(occ) if occ else np.zeros((0, 2)))
 
+    def _scan_match(self, scan):
+        """Scan-to-map registration (the fallback when LiDAR-inertial odometry is lost): around the dead-reckoned
+        local pose, a grid search (+-6 cm, +-1.5 deg) for the pose whose dense-scan returns lie closest to the mapped
+        surfaces (mean distance to the nearest occupied cell's mean hit point, clipped at 0.2 m). Needs enough
+        structure in view; otherwise the dead-reckoned pose is kept."""
+        hit = scan < MAX_R - 1e-3
+        if hit.sum() < 60 or not self.lmap.occupied().any():
+            return self.loc
+        idx = np.flatnonzero(hit)[::max(1, hit.sum() // 300)]
+        pr = np.c_[scan[idx] * np.cos(self.map_ang[idx]), scan[idx] * np.sin(self.map_ang[idx])]
+        best, best_s = self.loc, None
+        for dth in np.radians([-1.5, -0.75, 0.0, 0.75, 1.5]):
+            th = self.loc[2] + dth
+            c, s_ = math.cos(th), math.sin(th)
+            pw = pr @ np.array([[c, s_], [-s_, c]])
+            for dx in (-0.06, -0.03, 0.0, 0.03, 0.06):
+                for dy in (-0.06, -0.03, 0.0, 0.03, 0.06):
+                    q = pw + self.loc[:2] + np.array([dx, dy])
+                    sc = float(np.minimum(self.lmap.clearance(q), 0.2).mean())
+                    if best_s is None or sc < best_s - 1e-4:
+                        best, best_s = np.array([self.loc[0] + dx, self.loc[1] + dy, th]), sc
+        return best
+
     def _track_people(self, scan):
         """People tracker: a person is detected when one of the dense map rays that survived the sensor model
         (self-occlusion, dead sector, dropouts) returns from it; measured centroid noise 5 cm. Velocity by smoothed
@@ -810,6 +835,9 @@ class Nav2Env:
         """Fuse the dense masked LiDAR, the depth image and the near-field ground cameras into the local map at the
         odometry pose (robot knowledge only)."""
         scan, dead = self._map_scan()
+        if self.P["odom"] != "lio" and SCAN_MATCH:
+            self.loc = self._scan_match(scan)
+            self.odo = self.loc.copy()
         self._track_people(scan)
         fr, oc = self._nearfield() if NEARFIELD else (np.zeros((0, 2)), np.zeros((0, 2)))
         dfr, doc = self._depth_points()
@@ -943,9 +971,16 @@ class Nav2Env:
                     err = self.lio_err
                 self.odo = np.array([pos_t[0] + err[0], pos_t[1] + err[1], yaw_t + err[2]])
             else:
-                self.odo[2] += (t["w"] + self.odo_bias) * 0.02
-                self.odo[:2] += v_enc * 0.02 * np.array([math.cos(self.odo[2]), math.sin(self.odo[2])])
-                self.loc = self.odo.copy()                           # no LIO: the map is built on wheel odometry
+                d_odo = self.wheel.copy()
+                self.wheel[2] += (t["w"] + self.odo_bias) * 0.02
+                self.wheel[:2] += v_enc * 0.02 * np.array([math.cos(self.wheel[2]), math.sin(self.wheel[2])])
+                # no LIO: dead-reckon the local pose with the wheel+gyro increment; it is re-registered against the
+                # local map once per navigation step (scan matching, in _map_update). The registered pose is a LiDAR
+                # odometry in its own right, so it is also the global estimate (no prior-map localisation assumed).
+                c, s_ = math.cos(self.loc[2] - d_odo[2]), math.sin(self.loc[2] - d_odo[2])
+                dx, dy = self.wheel[0] - d_odo[0], self.wheel[1] - d_odo[1]
+                self.loc = self.loc + np.array([c * dx - s_ * dy, s_ * dx + c * dy, self.wheel[2] - d_odo[2]])
+                self.odo = self.loc.copy() if SCAN_MATCH else self.wheel.copy()
             hs, hd = self._collided()
             hit_s |= hs
             hit_d |= hd
