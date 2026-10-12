@@ -87,11 +87,16 @@ class SafetyFilter:
         sgn = np.sign(v)
         ds = d_stop / n_brake
         t_stop = 2.0 * d_stop / np.maximum(np.abs(v), 0.2)          # uniform deceleration: t = 2 d / v
-        for k in range(1, n_brake + 1):
-            TH = TH + kappa * ds * sgn
-            X, Y = X + sgn * ds * np.cos(TH), Y + sgn * ds * np.sin(TH)
-            pts.append(np.stack([X, Y], -1))
-            ts.append(t + t_stop * k / n_brake)
+        # the braking path lies between the arc (curvature held) and a straight line (yaw rate dies out while the
+        # pendulum swings through): both must be clear, or a turn that curves past an obstacle at speed is admitted
+        # although stopping would run straight into it
+        for kap in (kappa, 0.0):
+            Xb, Yb, THb = X, Y, TH
+            for k in range(1, n_brake + 1):
+                THb = THb + kap * ds * sgn
+                Xb, Yb = Xb + sgn * ds * np.cos(THb), Yb + sgn * ds * np.sin(THb)
+                pts.append(np.stack([Xb, Yb], -1))
+                ts.append(t + t_stop * k / n_brake)
         return np.stack(pts, 1), np.stack(ts, 1)
 
     def admissible(self, lmap, pose, v0, w0, cmds):
@@ -145,7 +150,7 @@ class SafetyFilter:
         ok = slow & no_worse
         if not ok.any():
             ok = slow
-        end = M[:, -1]
+        end = np.minimum(M[:, -13], M[:, -1])                        # end of the arc and of the straight braking path
         score = end - 0.05 * (np.abs(self.cand[:, 0] - v_cmd) + 0.3 * np.abs(self.cand[:, 1] - w_cmd)) - 0.2 * self._switch(self.cand)
         i = np.flatnonzero(ok)[int(np.argmax(score[ok]))]
         return self._out(self.cand[i], True, sl[i])

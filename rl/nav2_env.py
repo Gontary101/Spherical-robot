@@ -62,6 +62,7 @@ W_RANGE = 2.5
 COST_ALPHA, COST_RANGE = 4.0, 0.6   # costmap: up to 5x traversal cost within 0.6 m of the footprint touching anything
 PLAN_MARGIN = 0.08               # planner keeps this much air between the robot's footprint and any mapped obstacle
 MAP_RAYS = 1152                  # the pods' 3-D LiDARs return dense clouds: 0.31 deg rays for the local map
+HOLD_K = 2.0                     # position-hold gain (1/s) at rest; 0.5 ... 4 tested, 2 best under field disturbances
 SHIELD_COST = 1.0                # reward per unit of safety-filter correction (action units, 0..2 per step)
 MAP_3D = True                    # map scan cut from 3-D returns (low obstacles below the hub plane are seen)
 
@@ -592,7 +593,8 @@ class Nav2Env:
         self.lio_err = np.zeros(3)
         self.est = np.zeros(N_EST)
         self.last_a = np.zeros(2)
-        self.applied_a = np.zeros(2)                # the command actually executed (after the safety filter), action units
+        self.applied_a = np.zeros(2)
+        self.hold_anchor = None                # the command actually executed (after the safety filter), action units
         self.steps = 0
         self.geo_prev, _ = self._geo_at(pos)
         gl = self.geo_len[self._cell(pos)]
@@ -730,6 +732,18 @@ class Nav2Env:
             self.interv_mag += corr
             self.n_interv += intervened
             v_cmd, w_cmd = v_f, w_f
+        # position hold: "stop" means "stay here", not "zero velocity". Under rough ground and wind a velocity-zero
+        # command lets disturbances integrate into drift (up to 0.4 m in 5 s, measured); once the robot is at rest, a
+        # slow outer loop on the along-track displacement from that rest point bounds it (0.13-0.17 m worst case).
+        # The anchor is taken only once the robot has slowed, so hold never pulls back through the braking distance.
+        if abs(v_cmd) < 0.05:
+            if self.hold_anchor is None and abs(self.loco._truth()["v"]) < 0.1:
+                self.hold_anchor = self.odo[:2].copy()
+            if self.hold_anchor is not None:
+                hd = np.array([math.cos(self.odo[2]), math.sin(self.odo[2])])
+                v_cmd = float(np.clip(-HOLD_K * (self.odo[:2] - self.hold_anchor) @ hd, -0.3, 0.3))
+        else:
+            self.hold_anchor = None
         lo.cmd = np.array([v_cmd, w_cmd])
         hit_s = hit_d = fell = False
         p0 = self.d.qpos[0:2].copy()
