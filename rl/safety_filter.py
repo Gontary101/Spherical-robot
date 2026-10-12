@@ -54,6 +54,7 @@ class SafetyFilter:
 
     def reset(self):
         self.prev = np.zeros(2)                                     # last output: corrections must be consistent in time
+        self.scan_dir = 0.0                                         # look-around direction while active, else 0
 
     def stop_dist(self, v):
         """Worst-case stopping distance over friction / slope / payload (identified table, linear in between)."""
@@ -107,7 +108,7 @@ class SafetyFilter:
         self.heads = np.stack(hs, 1)
         return np.stack(pts, 1), np.stack(ts, 1)
 
-    def admissible(self, lmap, pose, v0, w0, cmds):
+    def admissible(self, lmap, pose, v0, w0, cmds, unknown_is_obstacle=True):
         cmds = np.atleast_2d(cmds)
         P, ts = self._rollout(pose, v0, w0, cmds)
         speed = np.maximum(abs(v0), np.abs(cmds[:, 0]))[:, None]
@@ -121,13 +122,13 @@ class SafetyFilter:
                 Ea[sel] = np.interp(th[sel], self.tab_t, self.al_tab[j])
             u = np.stack([np.cos(self.heads), np.sin(self.heads)], -1) * Ea[..., None]
             Q = np.stack([P, P + u, P - u], 0)                     # nominal, ahead and behind along the path
-            cl = lmap.clearance(Q.reshape(-1, 2), unknown_is_obstacle=True).reshape(Q.shape[:3]).min(0)
+            cl = lmap.clearance(Q.reshape(-1, 2), unknown_is_obstacle=unknown_is_obstacle).reshape(Q.shape[:3]).min(0)
             need = self.r + self.margin + El + self.k_spin * np.abs(cmds[:, 1])[:, None]
             margin = cl - need
             self._last = margin
             slack = margin.min(1)
             return slack >= 0, slack
-        clear = lmap.clearance(P.reshape(-1, 2), unknown_is_obstacle=True).reshape(P.shape[:2])
+        clear = lmap.clearance(P.reshape(-1, 2), unknown_is_obstacle=unknown_is_obstacle).reshape(P.shape[:2])
         # prediction-error margin: grows with the reaction horizon and the speed involved (sysid: p95 ~0.25 m per
         # s per m/s), plus the translation a fast spin causes on this pendulum robot
         if self.err_tab is not None:
@@ -150,6 +151,7 @@ class SafetyFilter:
         """Returns (v, w, intervened, slack of the returned command)."""
         ok, slack = self.admissible(lmap, pose, v0, w0, np.array([[v_cmd, w_cmd]]))
         if ok[0]:
+            self.scan_dir = 0.0
             return self._out((v_cmd, w_cmd), False, slack[0])
         okc, sl = self.admissible(lmap, pose, v0, w0, self.cand)
         if okc.any():
@@ -158,6 +160,19 @@ class SafetyFilter:
             cost = (1.0 * np.abs(c[:, 0] - v_cmd) + 0.6 * np.abs(c[:, 1] - w_cmd) + 2.0 * np.maximum(c[:, 0] - v_cmd, 0)
                     + 0.2 * np.abs(c[:, 1]) + self._switch(c))
             i = int(np.argmin(cost))
+            # look-around: the request is blocked only by space nobody has seen (the pods' wedge ahead of the tyre)
+            # and the best alternative is to stand still. Standing still never reveals it; a yaw sweep does (the
+            # wedge turns with the robot and the side sensors see what was ahead). Turn in place, keeping one
+            # direction, until the request becomes admissible.
+            if v_cmd > 0.15 and abs(c[i, 0]) < 0.15 and abs(v0) < 0.3:
+                ok_known, _ = self.admissible(lmap, pose, v0, w0, np.array([[v_cmd, w_cmd]]), unknown_is_obstacle=False)
+                if ok_known[0]:
+                    if self.scan_dir == 0.0:
+                        self.scan_dir = float(np.sign(w_cmd) or np.sign(self.prev[1]) or 1.0)
+                    spin = (np.abs(c[:, 0]) < 1e-9) & (np.sign(c[:, 1]) == self.scan_dir) & (np.abs(c[:, 1]) <= 0.8)
+                    if spin.any():
+                        j = np.flatnonzero(spin)[int(np.argmax(np.abs(c[spin, 1])))]
+                        return self._out(c[j], True, sl[okc][j])
             return self._out(c[i], True, sl[okc][i])
         # recovery (already inside the guard band, e.g. an obstacle appeared late, or a push): every path's worst point
         # is the present pose, so the minimum slack cannot rank candidates. Instead: never get closer than now (the

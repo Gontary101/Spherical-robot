@@ -98,7 +98,8 @@ class LocalMap:
                 self.HN[big] = 30.0
 
     # ----------------------------------------------------------------------------------------------- fusion
-    def update(self, pose, beam_ang, scan, depth=None, visible=None, dead=None, free_every=1, free_max=None, robot_r=0.0):
+    def update(self, pose, beam_ang, scan, depth=None, visible=None, dead=None, free_every=1, free_max=None, robot_r=0.0,
+               nearfield=None):
         """pose = odometry (x, y, yaw). scan: masked LiDAR ranges (MAX_R = no return).
         depth: (dirs_robot (N, 3), ranges (N,), cam_height, cam_forward_offset) or None.
         visible(px, py) -> bool array: which robot-frame points the sensor can physically see (its self-occlusion), or
@@ -141,6 +142,14 @@ class LocalMap:
                 wy = y + s * d[:, 0] + c * d[:, 1]
                 self._mark(np.c_[wx[above], wy[above]], L_OCC, hits=True)
                 self._mark(np.c_[wx[~above], wy[~above]], L_FREE)
+        if nearfield is not None:                                       # ground cameras: robot-frame floor / obstacle points
+            fr, oc = nearfield
+            c, s = math.cos(yaw), math.sin(yaw)
+            Rm = np.array([[c, s], [-s, c]])
+            if len(fr):
+                self._mark(np.array([x, y]) + fr @ Rm, L_FREE)
+            if len(oc):
+                self._mark(np.array([x, y]) + oc @ Rm, L_OCC, hits=True)
         np.clip(self.L, L_MIN, L_MAX, out=self.L)
         if robot_r > 0:                                                  # the robot's own disc is known free
             self.mark_free_disc((x, y), robot_r)

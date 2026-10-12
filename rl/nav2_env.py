@@ -65,6 +65,7 @@ MAP_RAYS = 1152                  # the pods' 3-D LiDARs return dense clouds: 0.3
 HOLD_K = 2.0                     # position-hold gain (1/s) at rest; 0.5 ... 4 tested, 2 best under field disturbances
 SHIELD_COST = 0.3                # reward per unit of safety-filter correction (action units, 0..2 per step); 1.0
                                  # with no envelope in the observation taught the navigator to stand still
+NEARFIELD = True                 # pod ground cameras observe the floor around the robot (except the wedge ahead)
 MAP_3D = True                    # map scan cut from 3-D returns (low obstacles below the hub plane are seen)
 
 
@@ -111,6 +112,30 @@ def min_visible_range(visible, ang, r_max=MAX_R, dr=0.005):
     last = np.where(blind.any(0), len(rs) - 1 - np.argmax(blind[::-1], 0), -1)
     rmin = np.where(last >= 0, rs[np.minimum(last + 1, len(rs) - 1)], 0.0)
     return rmin
+
+
+def nearfield_table(hw, r_min=0.35, r_max=1.5, cell=0.1, cam_z=0.33):
+    """Ground/near-field cameras (one per pod, Mk1 design): the floor points (robot frame, grid `cell`) one of the
+    pods can see past the tyre, and which pod. The tyre is modelled as the two crown spheres (R 0.30, offset
+    +-crown_d) clipped at the tyre half-width; on Mk2.1 this sees 91 % of the floor between 0.3 and 1.5 m and the
+    centreline from 1.14 m ahead (design doc: 1.1-2.3 m); the wedge just ahead of the tyre stays blind."""
+    dc = hw["crown_d"] - 0.050
+    pod_y, tyre_y, cd = 0.335 + dc, 0.285 + dc, hw["crown_d"]
+    g = np.arange(-r_max, r_max + 1e-9, cell)
+    X, Y = np.meshgrid(g, g)
+    X, Y = X.ravel(), Y.ravel()
+    sel = (np.hypot(X, Y) > r_min) & (np.hypot(X, Y) < r_max)
+    X, Y = X[sel], Y[sel]
+    ts = np.linspace(0, 1, 40)[:, None]
+    pod = np.full(len(X), -1)
+    for k, sy in enumerate((pod_y, -pod_y)):
+        px, py, pz = ts * X, sy + ts * (Y - sy), cam_z * (1 - ts)
+        cy = np.sign(py) * cd
+        inside = (np.abs(py) < tyre_y) & (px ** 2 + (py - cy) ** 2 + (pz - 0.30) ** 2 < 0.30 ** 2)
+        vis = ~inside.any(0)
+        pod = np.where((pod < 0) & vis, k, pod)
+    ok = pod >= 0
+    return np.c_[X[ok], Y[ok]], pod[ok], pod_y
 
 
 def footprint_radius(hw):
@@ -205,6 +230,7 @@ class Nav2Env:
         self.map_ang = np.linspace(-np.pi, np.pi, MAP_RAYS, endpoint=False)    # dense rays for the local map
         self.visible = pod_visibility(self.loco.hw)
         self.map_rmin = min_visible_range(self.visible, self.map_ang)
+        self.nf_pts, self.nf_pod, self.pod_y = nearfield_table(self.loco.hw)
         k = np.arange(LIDAR_OVERSAMPLE) - (LIDAR_OVERSAMPLE - 1) / 2
         self.fine_ang = (self.beam_ang[:, None] + k[None, :] * (2 * np.pi / N_BEAM / LIDAR_OVERSAMPLE)).ravel()
         hf, vf = np.radians(45), np.radians(22.5)
@@ -689,11 +715,39 @@ class Nav2Env:
             meas[dead] = MAX_R
         return np.clip(meas, 0, MAX_R), dead
 
+    def _nearfield(self):
+        """The pods' ground cameras: for every visible floor point, a sight line from its pod (true pose, obstacles
+        only, returns under the terrain rejected). Robot-frame (free floor points, obstacle points)."""
+        pos, yaw, _ = self._pose()
+        c, s_ = math.cos(yaw), math.sin(yaw)
+        R = np.array([[c, -s_], [s_, c]])
+        z0 = self.d.qpos[2] + 0.03
+        free, occ = [], []
+        for k, sy in enumerate((self.pod_y, -self.pod_y)):
+            pts = self.nf_pts[self.nf_pod == k]
+            o = np.array([pos[0], pos[1], z0]) + np.r_[R @ np.array([0.0, sy]), 0.0]
+            tw = pos + pts @ R.T
+            zg = TR.height_at(self.loco.hmap, tw[:, 0], tw[:, 1]) if self.loco.hmap is not None else np.zeros(len(tw))
+            d = np.c_[tw - o[:2], zg - o[2]]
+            L = np.linalg.norm(d, axis=1)
+            d = d / L[:, None]
+            n = len(d)
+            dist, gid = np.zeros(n), np.zeros(n, np.int32)
+            mujoco.mj_multiRay(self.m, self.d, o, d.reshape(-1), self.g_obs, 1, self.loco.bid["spine"], gid, dist, None, n, MAX_R)
+            hit = (gid >= 0) & (dist >= 0) & (dist < L - 0.03)
+            free.append(pts[~hit])
+            if hit.any():
+                hw_ = o[:2] + d[hit, :2] * dist[hit, None]
+                occ.append((hw_ - pos) @ R)                      # world -> robot frame
+        return np.concatenate(free), (np.concatenate(occ) if occ else np.zeros((0, 2)))
+
     def _map_update(self):
-        """Fuse the dense masked LiDAR and the depth image into the local map at the odometry pose (robot knowledge only)."""
+        """Fuse the dense masked LiDAR, the depth image and the near-field ground cameras into the local map at the
+        odometry pose (robot knowledge only)."""
         scan, dead = self._map_scan()
         self.lmap.update(self.odo.copy(), self.map_ang, scan, depth=(self.cam_dirs, self.depth_last, 0.32, 0.25),
-                         visible=self.map_rmin, dead=dead, free_every=4, free_max=6.0, robot_r=self.robot_r)
+                         visible=self.map_rmin, dead=dead, free_every=4, free_max=6.0, robot_r=self.robot_r,
+                         nearfield=self._nearfield() if NEARFIELD else None)
 
     def _goal_feat(self, pos, yaw, goal=None):
         dv = (self.goal if goal is None else goal) - pos
