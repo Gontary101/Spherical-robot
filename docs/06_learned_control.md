@@ -1,3 +1,9 @@
+> **Correction (see [`08_robust_rl_v2.md`](08_robust_rl_v2.md) §0).** The navigation numbers in this document were
+> measured in a world where obstacles never collided (stale MuJoCo broad-phase data after moving static geoms at
+> run time); only walls registered. Re-measured in the corrected world, the v1 navigator reaches **36 % success with
+> 62 % collisions**, not 79 % / 2 %. The locomotion results are unaffected (no obstacles there). The v2 stack
+> (doc 08) replaces both policies.
+
 # GYRA Mk2: learned control (asymmetric PPO)
 
 Two policies, trained in MuJoCo on the CAD-derived Mk2 model:

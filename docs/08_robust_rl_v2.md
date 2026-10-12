@@ -31,8 +31,10 @@ missed. Only the walls, which never move, registered.
 
 Consequences and fix:
 
-* v1's reported navigation collision rate (2 %) only counted walls. The v1 numbers in
-  doc 06 are wrong and are restated below, measured in the corrected world.
+* v1's reported navigation collision rate (2 %) only counted walls. Re-measured in the corrected world
+  (`rl/eval_nav.py`, 50 maps, same policies): **v1 learned navigator 36 % success / 62 % collisions**
+  (reported: 79 % / 2 %), VFH baseline 36 % / 56 %. v1 was no better than the classical baseline once
+  obstacles were solid. For comparison, v2 on far harder worlds: 59 % / 20 % (sec. 3).
 * Updating the AABBs alone is not enough (8 117 of 15 792 probe states still
   disagreed): the world-body BVH is also stale.
 * v2 compiles a fresh world every episode (5 ms). Every static obstacle and wall is a

@@ -1,18 +1,18 @@
 {
  "vfh_baseline": {
-  "success_rate": 0.72,
-  "collision_rate": 0.11,
-  "fall_rate": 0.02,
-  "mean_time_success_s": 9.572222222222223,
-  "path_efficiency": 0.9984472839835709,
-  "mean_speed_success_ms": 0.8611515902444131
+  "success_rate": 0.36,
+  "collision_rate": 0.56,
+  "fall_rate": 0.0,
+  "mean_time_success_s": 6.405555555555556,
+  "path_efficiency": 1.021294042678075,
+  "mean_speed_success_ms": 1.0765474369646362
  },
  "learned": {
-  "success_rate": 0.79,
-  "collision_rate": 0.02,
-  "fall_rate": 0.06,
-  "mean_time_success_s": 6.540506329113923,
-  "path_efficiency": 0.8696089197971925,
-  "mean_speed_success_ms": 1.352036389800234
+  "success_rate": 0.36,
+  "collision_rate": 0.62,
+  "fall_rate": 0.0,
+  "mean_time_success_s": 5.438888888888888,
+  "path_efficiency": 0.9216902502597719,
+  "mean_speed_success_ms": 1.4417637039462745
  }
 }
