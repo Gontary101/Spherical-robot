@@ -47,8 +47,8 @@ class LocalMap:
 
     def mark_free_disc(self, center, radius):
         """Prior knowledge that a disc is free (e.g. the spot the robot was placed on)."""
-        g = np.arange(-radius, radius + 1e-9, self.cell)
-        gx, gy = np.meshgrid(g, g)
+        g = np.arange(-radius, radius + 1e-9, self.cell / 2)       # half-cell sampling: a stride equal to the cell
+        gx, gy = np.meshgrid(g, g)                                 # skips whole rows/columns under floating-point floor
         inside = gx ** 2 + gy ** 2 <= radius ** 2
         r_, c_ = self._idx(np.c_[center[0] + gx[inside], center[1] + gy[inside]])
         ok = (r_ >= 0) & (r_ < self.n) & (c_ >= 0) & (c_ < self.n)

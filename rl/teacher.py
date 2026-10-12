@@ -16,18 +16,20 @@ import sys
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(__file__))
-from nav2_env import ARENA, GRID, V_RANGE, W_RANGE  # noqa: E402
+import nav2_env as NE  # noqa: E402
+from nav2_env import GRID, V_RANGE, W_RANGE  # noqa: E402
 from sysid_low import A_FWD, A_REV, DEAD, TAU_W  # noqa: E402
 
 VS = np.linspace(-0.5, 2.5, 13)
 WS = np.linspace(-2.0, 2.0, 17)
 CAND = np.array([(v, w) for v in VS for w in WS])
+TIGHTEN = float(os.environ.get("MPC_TIGHTEN", 0.05))    # m of spare filter slack per m/s of speed
 
 
 def grid_bilinear(env, G, p, far=99.0):
     """Bilinear lookup of a GRID-resolution world field at points p (N, 2); unreachable (> 98) cells count as far."""
-    fx = (p[:, 0] + ARENA) / GRID - 0.5
-    fy = (p[:, 1] + ARENA) / GRID - 0.5
+    fx = (p[:, 0] + NE.ARENA) / GRID - 0.5                 # module attribute: a showcase world may enlarge the arena
+    fy = (p[:, 1] + NE.ARENA) / GRID - 0.5
     n = G.shape[0]
     j0 = np.clip(np.floor(fx).astype(int), 0, n - 2)
     i0 = np.clip(np.floor(fy).astype(int), 0, n - 2)
@@ -40,9 +42,10 @@ class GeoMPC:
     """deployable=False: privileged teacher (true pose, true geodesic, true clearance).
     deployable=True: the same MPC on what the robot knows - LiDAR-inertial odometry pose and velocity, the onboard
     planner's geodesic field on the prior map, clearance from its own local map."""
-    def __init__(self, horizon=1.5, dt=0.1, deployable=False):
+    def __init__(self, horizon=1.5, dt=0.1, deployable=False, v_max=2.5):
         self.h, self.dt, self.deployable = horizon, dt, deployable
         self.prev = np.zeros(2)
+        self.cand = CAND if v_max == 2.5 else np.array([(v, w) for v in np.arange(-0.5, v_max + 1e-9, 0.25) for w in WS])
 
     def reset(self):
         self.prev = np.zeros(2)
@@ -54,7 +57,8 @@ class GeoMPC:
         else:
             pos, yaw, t = env._pose()
             v0, w0 = t["v"], t["w"]
-        N = len(CAND)
+        C = self.cand
+        N = len(C)
         x, y, th = np.full(N, pos[0]), np.full(N, pos[1]), np.full(N, yaw)
         v, w = np.full(N, v0), np.full(N, w0)
         aw = 1 - math.exp(-self.dt / TAU_W)
@@ -63,9 +67,9 @@ class GeoMPC:
         k = 0.0
         while k < self.h - 1e-9:
             if k >= DEAD:
-                acc = np.where((CAND[:, 0] < v) & (v <= 0.0), A_REV, A_FWD)
-                v = v + np.clip(CAND[:, 0] - v, -acc * self.dt, acc * self.dt)
-                w = w + aw * (CAND[:, 1] - w)
+                acc = np.where((C[:, 0] < v) & (v <= 0.0), A_REV, A_FWD)
+                v = v + np.clip(C[:, 0] - v, -acc * self.dt, acc * self.dt)
+                w = w + aw * (C[:, 1] - w)
             th = th + w * self.dt
             x, y = x + v * np.cos(th) * self.dt, y + v * np.sin(th) * self.dt
             if self.deployable:
@@ -82,16 +86,21 @@ class GeoMPC:
             geo = grid_bilinear(env, env.plan_geo, np.c_[env.odo[0] + c_ * rx - s_ * ry, env.odo[1] + s_ * rx + c_ * ry])
         else:
             geo = grid_bilinear(env, env.geo, np.c_[x, y])
-        cost = (geo + 2.0 * clr_pen + 50.0 * hit + 0.05 * np.abs(CAND[:, 1])
-                + 0.15 * np.abs(CAND[:, 1] - self.prev[1]) + 0.1 * np.abs(CAND[:, 0] - self.prev[0]))
+        cost = (geo + 2.0 * clr_pen + 50.0 * hit + 0.05 * np.abs(C[:, 1])
+                + 0.15 * np.abs(C[:, 1] - self.prev[1]) + 0.1 * np.abs(C[:, 0] - self.prev[0]))
         if env.shield and env.filter is not None:
             v0, w0 = env._velocity_estimate()
-            ok, _ = env.filter.admissible(env.lmap, env.loc.copy(), v0, w0, CAND)
+            ok, sl = env.filter.admissible(env.lmap, env.loc.copy(), v0, w0, C)
+            # constraint tightening (robust MPC): a command that is only just admissible now can leave the robot, one
+            # step later, faster and further turned with no admissible option at all (stop-and-go at speed). The
+            # navigator picks only commands with spare slack growing with speed; the filter's own test is unchanged.
+            tight = ok & (sl >= TIGHTEN * np.maximum(np.abs(C[:, 0]), np.abs(v0)))
+            ok = tight if tight.any() else ok
             if ok.any():
                 cost = np.where(ok, cost, cost + 1e3)
         i = int(np.argmin(cost))
-        self.prev = CAND[i].copy()
-        return CAND[i]
+        self.prev = C[i].copy()
+        return C[i]
 
     def __call__(self, oa, env):
         if env.steps == 0:
@@ -123,7 +132,7 @@ if __name__ == "__main__":
                 return sc, dict(success=bool(e["success"]), collision=bool(e["collision"]), timeout=bool(e["timeout"]),
                                 spl=e["spl"], time=e["time"])
     with mp.get_context("fork").Pool(4) as p:
-        R = p.map(run, [(s, e) for s in scen for e in range(16)], chunksize=1)
+        R = p.map(run, [(s, e) for s in scen for e in range(int(os.environ.get("EPISODES", 16)))], chunksize=1)
     for s in scen:
         r = [x for k, x in R if k == s]
         print(f"{s:28s} success {np.mean([x['success'] for x in r]):5.1%} collision {np.mean([x['collision'] for x in r]):5.1%} "
