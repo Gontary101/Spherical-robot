@@ -23,7 +23,8 @@ from sysid_low import A_FWD, A_REV, DEAD, TAU_W  # noqa: E402
 VS = np.linspace(-0.5, 2.5, 13)
 WS = np.linspace(-2.0, 2.0, 17)
 CAND = np.array([(v, w) for v in VS for w in WS])
-TIGHTEN = float(os.environ.get("MPC_TIGHTEN", 0.05))    # m of spare filter slack per m/s of speed
+K_HEAD, K_REV = float(os.environ.get("K_HEAD", 0.4)), float(os.environ.get("K_REV", 0.2))                                # m of route per unit heading misalignment / per m/s reverse
+TIGHTEN = float(os.environ.get("MPC_TIGHTEN", 0.0))     # m of spare filter slack per m/s of speed (32-episode A/B: no gain)
 
 
 def grid_bilinear(env, G, p, far=99.0):
@@ -76,17 +77,27 @@ class GeoMPC:
                 c = np.minimum(env.lmap.clearance(np.c_[x, y]), 3.0) - env.robot_r
             else:
                 c = grid_bilinear(env, env.clear, np.c_[x, y]) - env.robot_r
-            clr_pen += np.maximum(0.0, 0.15 - c) ** 2         # a 1.0 m door leaves 0.107 m: don't price doors out
+            # wanted clearance grows with speed (slow down near obstacles); a 1.0 m door leaves 0.107 m at a crawl
+            clr_pen += np.maximum(0.0, 0.15 + 0.25 * np.maximum(v, 0.0) - c) ** 2
             hit |= c < 0.0
             k += self.dt
         if self.deployable:
             d = env.odo[2] - env.loc[2]
             c_, s_ = math.cos(d), math.sin(d)
             rx, ry = x - env.loc[0], y - env.loc[1]
-            geo = grid_bilinear(env, env.plan_geo, np.c_[env.odo[0] + c_ * rx - s_ * ry, env.odo[1] + s_ * rx + c_ * ry])
+            ex, ey, eth, G = env.odo[0] + c_ * rx - s_ * ry, env.odo[1] + s_ * rx + c_ * ry, th + d, env.plan_geo
         else:
-            geo = grid_bilinear(env, env.geo, np.c_[x, y])
-        cost = (geo + 2.0 * clr_pen + 50.0 * hit + 0.05 * np.abs(C[:, 1])
+            ex, ey, eth, G = x, y, th, env.geo
+        geo = grid_bilinear(env, G, np.c_[ex, ey])
+        # heading: face along the route at the end of the rollout. Without it the 1.5 s horizon prefers reversing at
+        # 0.5 m/s (0.75 m of progress) to turning round (none within the horizon) - and then reverses forever.
+        e = 0.15
+        gxd = (grid_bilinear(env, G, np.c_[ex + e, ey]) - grid_bilinear(env, G, np.c_[ex - e, ey])) / (2 * e)
+        gyd = (grid_bilinear(env, G, np.c_[ex, ey + e]) - grid_bilinear(env, G, np.c_[ex, ey - e])) / (2 * e)
+        gn = np.hypot(gxd, gyd)
+        valid = (gn > 0.3) & (gn < 8.0) & (geo > 0.8)
+        head = np.where(valid, 1.0 - (np.cos(eth) * -gxd + np.sin(eth) * -gyd) / np.maximum(gn, 1e-6), 0.0)
+        cost = (geo + 2.0 * clr_pen + 50.0 * hit + 0.05 * np.abs(C[:, 1]) + K_HEAD * head + K_REV * np.maximum(0.0, -C[:, 0])
                 + 0.15 * np.abs(C[:, 1] - self.prev[1]) + 0.1 * np.abs(C[:, 0] - self.prev[0]))
         if env.shield and env.filter is not None:
             v0, w0 = env._velocity_estimate()

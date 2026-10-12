@@ -632,7 +632,8 @@ class Nav2Env:
         self.est = np.zeros(N_EST)
         self.last_a = np.zeros(2)
         self.applied_a = np.zeros(2)
-        self.hold_anchor = None                # the command actually executed (after the safety filter), action units
+        self.hold_anchor = None
+        self.v_prev = 0.0                # the command actually executed (after the safety filter), action units
         self.steps = 0
         self.geo_prev, _ = self._geo_at(pos)
         gl = self.geo_len[self._cell(pos)]
@@ -925,6 +926,9 @@ class Nav2Env:
             # velocity from the LiDAR-inertial odometry (encoders mislead while the pendulum swings the spine);
             # with LIO lost, fall back to encoders + gyro
             v_now, w_now = self._velocity_estimate()
+            # longitudinal acceleration (IMU), smoothed: the filter extrapolates it through the dead time
+            self.filter.a0 = 0.6 * self.filter.a0 + 0.4 * float(np.clip((v_now - getattr(self, "v_prev", v_now)) / 0.1, -4, 4))
+            self.v_prev = v_now
             v_f, w_f, intervened, _ = self.filter(self.lmap, self.loc.copy(), v_now, w_now, v_cmd, w_cmd)
             corr = abs(v_f - v_cmd) / (V_RANGE[1] - V_RANGE[0]) + abs(w_f - w_cmd) / (2 * W_RANGE)
             self.interv_mag += corr

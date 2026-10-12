@@ -21,6 +21,7 @@ import os
 import numpy as np
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+A_PUSH_MAX = 2.9                             # m/s^2: pendulum at 90 deg on the flat (m g L / R / M)
 PED_R, PED_T, PED_GROW = 0.25, 1.5, 0.2      # person radius, prediction horizon (s), deviation growth (m per s)
 
 
@@ -31,6 +32,9 @@ class SafetyFilter:
         sysid = sysid or os.path.join(ROOT, "rl/runs/nav2/bench/sysid.json")
         S = json.load(open(sysid))
         self.bv, self.bd = np.array(S["brake_table"]["v"]), np.array(S["brake_table"]["d"])
+        if "brake_table2" in S:                                     # stops from random dynamic states (any pendulum
+            T2 = S["brake_table2"]                                  # angle): worst case over the angle bins
+            self.bd = np.maximum(self.bd, np.interp(self.bv, T2["v"], np.max(np.array(T2["d"]), axis=1)))
         R = S["response"]
         self.dead, self.a_fwd, self.a_rev, self.tau_w = R["dead"], R["a_fwd"], R["a_rev"], R["tau_w"]
         e = S["arc_error"]
@@ -57,6 +61,7 @@ class SafetyFilter:
         self.prev = np.zeros(2)                                     # last output: corrections must be consistent in time
         self.scan_dir = 0.0                                         # look-around direction while active, else 0
         self.peds = []                                              # tracked people: (position, velocity), local frame
+        self.a0 = 0.0                                               # current longitudinal acceleration (IMU / LIO)
 
     def stop_dist(self, v):
         """Worst-case stopping distance over friction / slope / payload (identified table, linear in between)."""
@@ -67,7 +72,7 @@ class SafetyFilter:
         slope = (self.ee[-1] - self.ee[-2]) / (self.et[-1] - self.et[-2])
         return np.where(t <= self.et[-1], np.interp(t, self.et, self.ee), self.ee[-1] + slope * (t - self.et[-1]))
 
-    def _rollout(self, pose, v0, w0, cmds):
+    def _rollout(self, pose, v0, w0, cmds, a0=0.0):
         """Predicted paths for N commands with the identified response (dead time, acceleration-limited speed, lagged
         yaw rate) for one control period, then a worst-case stop along the arc. Points (N, K, 2), times (N, K)."""
         x, y, th = pose
@@ -79,8 +84,15 @@ class SafetyFilter:
         pts, ts, hs = [], [], []
         t = 0.0
         while t < self.period + self.dead - 1e-9:                  # react: dead time, then move toward the command
-            if t >= self.dead:
-                acc = np.where((cmds[:, 0] < v) & (v <= 0.0), self.a_rev, self.a_fwd)
+            if t < self.dead:
+                # during the dead time the robot keeps its current acceleration: with the pendulum already swung deep
+                # into a push it is still speeding up when a stop is commanded (measured: 2.1 -> 2.5 m/s)
+                v = v + a0 * self.dt
+            else:
+                # worst case toward a faster command: the physical limit (pendulum at 90 deg: 133 N / 45.8 kg), not
+                # the typical step response; slowing down uses the identified rate (braking is the table below)
+                acc = np.where((cmds[:, 0] < v) & (v <= 0.0), self.a_rev,
+                               np.where(np.abs(cmds[:, 0]) > np.abs(v), A_PUSH_MAX, self.a_fwd))
                 v = v + np.clip(cmds[:, 0] - v, -acc * self.dt, acc * self.dt)
                 w = w + aw * (cmds[:, 1] - w)
             TH = TH + w * self.dt
@@ -125,7 +137,7 @@ class SafetyFilter:
 
     def admissible(self, lmap, pose, v0, w0, cmds, unknown_is_obstacle=True):
         cmds = np.atleast_2d(cmds)
-        P, ts = self._rollout(pose, v0, w0, cmds)
+        P, ts = self._rollout(pose, v0, w0, cmds, self.a0)
         pm = self.ped_margin(P, ts)
         speed = np.maximum(abs(v0), np.abs(cmds[:, 0]))[:, None]
         if self.err_tab is not None and self.lat_tab is not None:
