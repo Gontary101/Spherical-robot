@@ -24,7 +24,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 
 class SafetyFilter:
-    def __init__(self, robot_r, margin=0.04, period=0.1, sysid=None, dt=0.05, k_err=0.25, k_spin=0.04):
+    def __init__(self, robot_r, margin=float(os.environ.get("GYRA_MARGIN", 0.04)), period=0.1, sysid=None, dt=0.05, k_err=0.25, k_spin=0.04):
         self.r, self.margin, self.period, self.dt = robot_r, margin, period, dt
         self.k_err, self.k_spin = k_err, k_spin
         sysid = sysid or os.path.join(ROOT, "rl/runs/nav2/bench/sysid.json")
@@ -164,7 +164,10 @@ class SafetyFilter:
             # and the best alternative is to stand still. Standing still never reveals it; a yaw sweep does (the
             # wedge turns with the robot and the side sensors see what was ahead). Turn in place, keeping one
             # direction, until the request becomes admissible.
-            if v_cmd > 0.15 and abs(c[i, 0]) < 0.15 and abs(v0) < 0.3:
+            # (forward or reverse: the wedge exists behind the tyre too, and backing out to re-approach a gap is the
+            # manoeuvre a good navigator wants most often - 86 % of a privileged teacher's stalls were reverses
+            # blocked by unknown space)
+            if abs(v_cmd) > 0.15 and abs(c[i, 0]) < 0.15 and abs(v0) < 0.3:
                 ok_known, _ = self.admissible(lmap, pose, v0, w0, np.array([[v_cmd, w_cmd]]), unknown_is_obstacle=False)
                 if ok_known[0]:
                     if self.scan_dir == 0.0:

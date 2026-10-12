@@ -178,9 +178,19 @@ class LocalMap:
         return self._dist
 
     def safety_field(self):
-        """Nearest cell that is occupied OR not yet observed free (unknown counts as an obstacle)."""
+        """Nearest cell that is occupied OR not yet observed free (unknown counts as an obstacle). An unknown cell all
+        of whose 8 neighbours are observed free is a sampling hole, not a hiding place: obstacles leave occupied
+        evidence, and the thinnest (a 0.10 m pole) spans more than one 5 cm cell."""
         if self._sdist is None:
-            self._sdist = self._nearest(self.L > KNOWN_FREE)
+            free = self.L <= KNOWN_FREE
+            nb = np.zeros(free.shape, np.int8)
+            fp = np.pad(free, 1)
+            for dr in (-1, 0, 1):
+                for dc in (-1, 0, 1):
+                    if dr or dc:
+                        nb += fp[1 + dr:1 + dr + self.n, 1 + dc:1 + dc + self.n]
+            hole = (~free) & (self.L <= OCC_TH) & (nb == 8)
+            self._sdist = self._nearest((self.L > KNOWN_FREE) & ~hole)
         return self._sdist
 
     def clearance(self, pts, unknown_is_obstacle=False):

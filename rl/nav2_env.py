@@ -47,7 +47,7 @@ import terrain as TR  # noqa: E402
 from gyra2_model import obstacle_vertices  # noqa: E402
 from loco2_env import FRAME, HIST, N_ACT, N_CMD, N_EST, Loco2Env  # noqa: E402
 from nav_env import visible_from_pods  # noqa: E402
-from local_map import LocalMap  # noqa: E402
+from local_map import OBST_H, LocalMap  # noqa: E402
 from ppo2 import Actor2  # noqa: E402
 
 N_BEAM = 72
@@ -729,6 +729,7 @@ class Nav2Env:
         free, occ = [], []
         for k, sy in enumerate((self.pod_y, -self.pod_y)):
             pts = self.nf_pts[self.nf_pod == k]
+            pts = pts + self.rng.uniform(-0.05, 0.05, 2)              # jitter: the 0.1 m sample grid covers every 5 cm cell
             o = np.array([pos[0], pos[1], z0]) + np.r_[R @ np.array([0.0, sy]), 0.0]
             tw = pos + pts @ R.T
             zg = TR.height_at(self.loco.hmap, tw[:, 0], tw[:, 1]) if self.loco.hmap is not None else np.zeros(len(tw))
@@ -749,9 +750,32 @@ class Nav2Env:
         """Fuse the dense masked LiDAR, the depth image and the near-field ground cameras into the local map at the
         odometry pose (robot knowledge only)."""
         scan, dead = self._map_scan()
-        self.lmap.update(self.odo.copy(), self.map_ang, scan, depth=(self.cam_dirs, self.depth_last, 0.32, 0.25),
+        fr, oc = self._nearfield() if NEARFIELD else (np.zeros((0, 2)), np.zeros((0, 2)))
+        dfr, doc = self._depth_points()
+        self.lmap.update(self.odo.copy(), self.map_ang, scan, depth=None,
                          visible=self.map_rmin, dead=dead, free_every=4, free_max=6.0, robot_r=self.robot_r,
-                         nearfield=self._nearfield() if NEARFIELD else None)
+                         nearfield=(np.concatenate([fr, dfr]), np.concatenate([oc, doc])))
+
+    def _depth_points(self):
+        """Depth image endpoints classified against the ground surface (ground segmentation, as for the LiDAR rings
+        and ground cameras): obstacle if more than OBST_H above the terrain at its xy. Classifying against a flat plane
+        at the robot's own level marked bumps of rough ground as obstacles; in the blind wedge such a cell decays to
+        unknown and can never be re-observed, blocking every forward command (the cause of most stalls of a
+        privileged teacher). Robot-frame (free points, obstacle points)."""
+        z = self.depth_last
+        ok = z > 0.35
+        if not ok.any():
+            return np.zeros((0, 2)), np.zeros((0, 2))
+        pos, yaw, _ = self._pose()
+        c, s_ = math.cos(yaw), math.sin(yaw)
+        d = self.cam_dirs[ok] * z[ok, None]                      # camera frame = robot axes, origin 0.25 m ahead
+        rx, ry = 0.25 + d[:, 0], d[:, 1]
+        wx, wy = pos[0] + c * rx - s_ * ry, pos[1] + s_ * rx + c * ry
+        wz = self.d.qpos[2] + 0.02 + d[:, 2]
+        zg = TR.height_at(self.loco.hmap, wx, wy) if self.loco.hmap is not None else np.zeros(len(wx))
+        obst = wz - zg > OBST_H
+        pts = np.c_[rx, ry]
+        return pts[~obst], pts[obst]
 
     def _goal_feat(self, pos, yaw, goal=None):
         dv = (self.goal if goal is None else goal) - pos
