@@ -17,17 +17,67 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, ".."))
-FPS, W, H = 24, 1920, 1080
+FPS, W, H = 24, 1920, 1080                             # layout units: every overlay coordinate is in 1080p pixels
+S = 1.0                                                # output scale (--res): 1 -> 1080p, 2 -> 2160p
+OW, OH = W, H                                          # output pixels
 FD = os.path.join(HERE, "fonts")
 F = {w: os.path.join(FD, f"Poppins-{w}.ttf") for w in ("Light", "Regular", "Medium", "SemiBold", "Bold")}
 _fc = {}
+_fkey = {}
 
 
 def font(w, size):
     k = (w, size)
     if k not in _fc:
         _fc[k] = ImageFont.truetype(F[w], size)
+        _fkey[id(_fc[k])] = k
     return _fc[k]
+
+
+class ScaledDraw:
+    """ImageDraw in layout units (1080p) drawing onto an output-resolution layer."""
+
+    def __init__(self, d):
+        self.d = d
+
+    @staticmethod
+    def _p(xy):
+        if isinstance(xy[0], (tuple, list)):
+            return [(x * S, y * S) for x, y in xy]
+        return [v * S for v in xy]
+
+    @staticmethod
+    def _kw(kw):
+        for k in ("width", "radius"):
+            if k in kw:
+                kw[k] = max(1, round(kw[k] * S))
+        return kw
+
+    def text(self, xy, s, font=None, **kw):
+        w, size = _fkey[id(font)]
+        self.d.text(tuple(self._p(xy)), s, font=globals()["font"](w, max(1, round(size * S))), **kw)
+
+    def rounded_rectangle(self, box, **kw):
+        self.d.rounded_rectangle(self._p(box), **self._kw(kw))
+
+    def ellipse(self, box, **kw):
+        self.d.ellipse(self._p(box), **self._kw(kw))
+
+    def line(self, xy, **kw):
+        self.d.line(self._p(xy), **self._kw(kw))
+
+    def polygon(self, xy, **kw):
+        self.d.polygon(self._p(xy), **self._kw(kw))
+
+
+class ScaledLayer:
+    def __init__(self, layer):
+        self.layer = layer
+
+    def alpha_composite(self, im, dest):
+        if S != 1:
+            im = im.resize((round(im.width * S), round(im.height * S)), Image.Resampling.NEAREST)
+        self.layer.alpha_composite(im, (round(dest[0] * S), round(dest[1] * S)))
 
 
 INK, MUTED, AMBER, CYAN, CORAL, GREEN, VIOLET = (236, 239, 247), (154, 163, 189), (255, 181, 71), (70, 199, 255), (255, 107, 94), (75, 214, 155), (168, 139, 255)
@@ -47,11 +97,11 @@ def win(t, t0, t1, fade=0.5):
 
 
 def gradient():
-    y = np.linspace(0, 1, H)[:, None, None]
+    y = np.linspace(0, 1, OH)[:, None, None]
     a, b = np.array(BG0)[None, None], np.array(BG1)[None, None]
-    img = (a * (1 - y) + b * y) * np.ones((1, W, 1))
-    yy, xx = np.mgrid[0:H, 0:W]
-    v = np.clip(((xx / W - 0.5) ** 2 / 0.35 + (yy / H - 0.45) ** 2 / 0.6), 0, 1) * 0.35
+    img = (a * (1 - y) + b * y) * np.ones((1, OW, 1))
+    yy, xx = np.mgrid[0:OH, 0:OW]
+    v = np.clip(((xx / OW - 0.5) ** 2 / 0.35 + (yy / OH - 0.45) ** 2 / 0.6), 0, 1) * 0.35
     return Image.fromarray((img * (1 - v[..., None])).astype(np.uint8))
 
 
@@ -67,7 +117,7 @@ def text(d, xy, s, w, size, color, alpha=1.0, anchor="la"):
 def overlay(base, draw_fn):
     """Draw with alpha onto an RGBA layer and composite onto base (RGB)."""
     layer = Image.new("RGBA", base.size, (0, 0, 0, 0))
-    draw_fn(ImageDraw.Draw(layer), layer)
+    draw_fn(ScaledDraw(ImageDraw.Draw(layer)), ScaledLayer(layer))
     out = base.convert("RGBA")
     out.alpha_composite(layer)
     return out.convert("RGB")
@@ -85,10 +135,10 @@ def ffmpeg_frames(inputs, vf, n_max=None):
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
     n = 0
     while True:
-        buf = p.stdout.read(W * H * 3)
-        if len(buf) < W * H * 3:
+        buf = p.stdout.read(OW * OH * 3)
+        if len(buf) < OW * OH * 3:
             break
-        yield np.frombuffer(buf, np.uint8).reshape(H, W, 3)
+        yield np.frombuffer(buf, np.uint8).reshape(OH, OW, 3)
         n += 1
         if n_max and n >= n_max:
             break
@@ -96,25 +146,46 @@ def ffmpeg_frames(inputs, vf, n_max=None):
     p.wait()
 
 
-INTERP = "minterpolate=fps=24:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1,scale=1920:1080:flags=lanczos"
+INTERP = "minterpolate=fps=24:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1"
+
+
+def full_rate(pattern):
+    """True when every 24 fps frame was rendered (--step 1), False for every other frame (--step 2)."""
+    files = sorted(glob.glob(pattern))
+    return len(files) > 1 and int(files[1][-9:-4]) - int(files[0][-9:-4]) == 1
 
 
 def seq12(pattern):
-    """PNG sequence rendered at every other 24 fps frame -> 24 fps (motion-compensated interpolation), 1080p."""
-    return ffmpeg_frames(["-framerate", "12", "-pattern_type", "glob", "-i", pattern], INTERP)
+    """Rendered PNG sequence -> 24 fps at output size. Every-other-frame renders (12 fps) get motion-compensated
+    interpolation; full-rate renders are only rescaled."""
+    scale = f"scale={OW}:{OH}:flags=lanczos"
+    if full_rate(pattern):
+        return ffmpeg_frames(["-framerate", "24", "-pattern_type", "glob", "-i", pattern], scale)
+    return ffmpeg_frames(["-framerate", "12", "-pattern_type", "glob", "-i", pattern], INTERP + "," + scale)
+
+
+_src_h = {}
 
 
 def anchors_at(dirn, shot, k):
-    """Label anchors (720p json) for output frame k, interpolated between rendered (even) frames, scaled to 1080p."""
+    """Label anchors (render-resolution pixels) for output frame k, in layout units. Frames that were not rendered
+    (--step 2) are interpolated between their rendered neighbours."""
+    if shot not in _src_h:
+        first = sorted(glob.glob(os.path.join(dirn, f"{shot}_*.png")))
+        _src_h[shot] = Image.open(first[0]).height if first else 720
+    c = H / _src_h[shot]
+
     def load(f):
         p = os.path.join(dirn, f"{shot}_{f:05d}.json")
         return json.load(open(p)) if os.path.exists(p) else None
-    a0, a1 = load(k - k % 2), load(k - k % 2 + 2)
+    a = load(k)
+    if a is not None:
+        return {n: (v[0] * c, v[1] * c) for n, v in a.items()}
+    a0, a1 = load(k - 1), load(k + 1)
     if a0 is None:
         return {}
-    if a1 is None or k % 2 == 0:
-        return {n: (v[0] * 1.5, v[1] * 1.5) for n, v in a0.items()}
-    return {n: ((v[0] + a1.get(n, v)[0]) * 0.75, (v[1] + a1.get(n, v)[1]) * 0.75) for n, v in a0.items()}
+    a1 = a1 or a0
+    return {n: ((v[0] + a1.get(n, v)[0]) * c / 2, (v[1] + a1.get(n, v)[1]) * c / 2) for n, v in a0.items()}
 
 
 def callout(d, anchor, label, sub, color, alpha, side=None):
@@ -147,7 +218,7 @@ def lower_third(d, kicker, title, sub, alpha, y=860):
 def scrim(img, strength=0.55, top=False):
     """Darken the lower (or upper) part of a frame for legible text."""
     a = np.asarray(img).astype(np.float32)
-    y = np.linspace(0, 1, H)[:, None, None]
+    y = np.linspace(0, 1, a.shape[0])[:, None, None]
     g = np.clip((y - 0.55) / 0.45, 0, 1) if not top else np.clip((0.35 - y) / 0.35, 0, 1)
     return Image.fromarray((a * (1 - strength * g)).astype(np.uint8))
 
@@ -234,7 +305,8 @@ def seg_roll(fr):
 def seg_png(dirn, scene):
     files = sorted(glob.glob(os.path.join(dirn, f"{scene}_*.png")))
     for p in files:
-        yield Image.open(p).convert("RGB")
+        im = Image.open(p).convert("RGB")
+        yield im if im.size == (OW, OH) else im.resize((OW, OH), Image.Resampling.LANCZOS)
 
 
 def seg_card(title, sub, lines, dur, kicker=None):
@@ -374,13 +446,23 @@ def main():
     ap.add_argument("--explainer", required=True)
     ap.add_argument("--out", default=os.path.join(ROOT, "media", "gyra_mk21_film.mp4"))
     ap.add_argument("--crf", type=int, default=20)
+    ap.add_argument("--res", default="1080", choices=["1080", "1440", "2160"], help="output height (overlays scale with it)")
+    ap.add_argument("--codec", default="h264", choices=["h264", "h265", "prores"],
+                    help="prores writes a 10-bit ProRes 422 HQ master (.mov) for editing or archiving")
+    ap.add_argument("--preset", default="slow", help="x264/x265 preset (slow, slower, veryslow)")
     ap.add_argument("--only", default=None, help="comma-separated segment names (preview)")
     ap.add_argument("--results", default=None, help="json list of result lines for the end card")
     a = ap.parse_args()
+    global S, OW, OH
+    S = int(a.res) / H
+    OW, OH = round(W * S), round(H * S)
     a.results = json.loads(a.results) if a.results else ["Field run: 238 m, 17 waypoints, no collisions"]
-    enc = subprocess.Popen(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(FPS),
-                            "-i", "-", "-c:v", "libx264", "-preset", "slow", "-crf", str(a.crf), "-pix_fmt", "yuv420p",
-                            "-movflags", "+faststart", a.out], stdin=subprocess.PIPE)
+    codec = {"h264": ["-c:v", "libx264", "-preset", a.preset, "-crf", str(a.crf), "-pix_fmt", "yuv420p"],
+             "h265": ["-c:v", "libx265", "-preset", a.preset, "-crf", str(a.crf), "-pix_fmt", "yuv420p10le", "-tag:v", "hvc1"],
+             "prores": ["-c:v", "prores_ks", "-profile:v", "3", "-pix_fmt", "yuv422p10le"]}[a.codec]
+    enc = subprocess.Popen(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{OW}x{OH}", "-r", str(FPS),
+                            "-i", "-"] + codec + (["-movflags", "+faststart"] if a.codec != "prores" else []) + [a.out],
+                           stdin=subprocess.PIPE)
     held = []                                          # previous segment's last XFADE frames: they fade into this one
     total = 0
     only = set(a.only.split(",")) if a.only else None

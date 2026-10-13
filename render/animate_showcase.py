@@ -38,6 +38,7 @@ def args():
     ap.add_argument("--start", type=int, default=0)
     ap.add_argument("--end", type=int, default=-1)
     ap.add_argument("--step", type=int, default=2)
+    ap.add_argument("--hq", action="store_true", help="final-quality bounces and noise threshold")
     ap.add_argument("--only", type=int, nargs="*", default=None, help="render just these frames (previews)")
     return ap.parse_args(argv)
 
@@ -183,6 +184,8 @@ def main():
     sc.cycles.denoiser = "OPENIMAGEDENOISE"
     sc.render.use_persistent_data = True
     sc.view_settings.look = "AgX - Base Contrast"
+    if a.hq:
+        RG.high_quality(sc)
     mission = np.load(a.mission, allow_pickle=True)
     F = mission["frames"]
     hud = json.loads(str(mission["hud"]))

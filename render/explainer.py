@@ -34,6 +34,7 @@ FP = {w: font_manager.FontProperties(family=["Poppins", "DejaVu Sans"], weight=n
 
 FPS = 24
 W, H = 1920, 1080
+DPI = 100                                             # 100 -> 1920x1080; --scale 2 -> 3840x2160 (same layout)
 # palette (dark navy studio, amber = GYRA's status light ring)
 BG0, BG1 = "#0A0F1E", "#141C35"
 INK, MUTED, FAINT = "#ECEFF7", "#9AA3BD", "#3A4466"
@@ -60,7 +61,7 @@ def win(t, t0, t1, fade=0.5):
 
 
 def figure():
-    fig = plt.figure(figsize=(W / 100, H / 100), dpi=100)
+    fig = plt.figure(figsize=(W / 100, H / 100), dpi=DPI)
     bg = fig.add_axes([0, 0, 1, 1])
     g = np.linspace(0, 1, 256)[:, None] * np.ones((1, 4))
     c0, c1 = np.array(matplotlib.colors.to_rgb(BG0)), np.array(matplotlib.colors.to_rgb(BG1))
@@ -504,7 +505,7 @@ def render(scene, out, only=None):
             continue
         fig, bg = figure()
         fn(f / FPS, fig, bg)
-        fig.savefig(path, dpi=100, facecolor=BG0)
+        fig.savefig(path, dpi=DPI, facecolor=BG0)
         plt.close(fig)
     return out
 
@@ -514,5 +515,7 @@ if __name__ == "__main__":
     ap.add_argument("--scene", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--only", type=int, default=None)
+    ap.add_argument("--scale", type=float, default=1.0, help="output size x 1920x1080 (2 = 4K)")
     a = ap.parse_args()
+    DPI = round(100 * a.scale)
     render(a.scene, a.out, a.only)

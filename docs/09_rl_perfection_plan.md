@@ -245,4 +245,5 @@ plays at 2x) and the results card.
 
 The repository copy is a two-pass 1.7 Mbit/s encode to stay under GitHub's 100 MB file
 limit. Fonts: Poppins (upright weights only), DejaVu Sans as fallback for Greek symbols.
+High-quality (1080p or 4K, every frame, GPU) rendering: [10_render_film_tutorial.md](10_render_film_tutorial.md).
 

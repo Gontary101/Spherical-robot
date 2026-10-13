@@ -54,12 +54,30 @@ def reset():
     sc = bpy.context.scene
     sc.render.engine = "CYCLES"
     sc.cycles.device = "CPU"
+    gpu = os.environ.get("GYRA_DEVICE", "").upper()       # OPTIX / CUDA / HIP / METAL / ONEAPI: render on the GPU
+    if gpu:
+        cp = bpy.context.preferences.addons["cycles"].preferences
+        cp.compute_device_type = gpu
+        cp.get_devices()
+        for dev in cp.devices:
+            dev.use = dev.type != "CPU"
+        if any(dev.use for dev in cp.devices):
+            sc.cycles.device = "GPU"
+        else:
+            print(f"GYRA_DEVICE={gpu}: no such GPU found, rendering on the CPU", flush=True)
     sc.cycles.use_denoising = True
     sc.render.film_transparent = False
     sc.view_settings.view_transform = "AgX"
     sc.view_settings.look = "AgX - Medium High Contrast"
     sc.unit_settings.system = "METRIC"
     return sc
+
+
+def high_quality(sc):
+    """Final-quality light transport (the preview defaults trade bounces for speed)."""
+    sc.cycles.max_bounces, sc.cycles.diffuse_bounces, sc.cycles.glossy_bounces, sc.cycles.transmission_bounces = 12, 4, 4, 8
+    sc.cycles.adaptive_threshold = 0.005
+    sc.render.film_transparent = False
 
 
 def mat(name, rgb, metallic=0.0, rough=0.5, emit=0.0, transmission=0.0, alpha=1.0, ior=1.45, coat=0.0):

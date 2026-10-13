@@ -50,6 +50,7 @@ def args():
     ap.add_argument("--start", type=int, default=0)
     ap.add_argument("--end", type=int, default=-1)
     ap.add_argument("--step", type=int, default=1)
+    ap.add_argument("--hq", action="store_true", help="final-quality bounces and noise threshold")
     return ap.parse_args(argv)
 
 
@@ -76,7 +77,7 @@ def studio(sc):
     l.rotation_euler = (Vector((0, 0, 0)) - Vector(l.location)).to_track_quat("-Z", "Y").to_euler()
 
 
-def setup(shot, res, samples):
+def setup(shot, res, samples, hq=False):
     RG.CAD_OUT = os.path.join(RG.ROOT, "cad", "out21")
     sc = RG.reset()
     W, H = (int(v) for v in res.split("x"))
@@ -86,6 +87,8 @@ def setup(shot, res, samples):
     sc.cycles.max_bounces, sc.cycles.diffuse_bounces, sc.cycles.glossy_bounces, sc.cycles.transmission_bounces = 4, 2, 2, 4
     sc.cycles.denoiser = "OPENIMAGEDENOISE"
     sc.render.use_persistent_data = True
+    if hq:
+        RG.high_quality(sc)
     objs = RG.load()
     M = RG.materials()
     rg = RG.rig(objs)
@@ -191,7 +194,7 @@ def pose(shot, t, sc, objs, rg, cam, base_loc, hl):
 
 def main():
     a = args()
-    sc, objs, rg, cam, M = setup(a.shot, a.res, a.samples)
+    sc, objs, rg, cam, M = setup(a.shot, a.res, a.samples, a.hq)
     base_loc = {n: tuple(o.location) for n, o in objs.items()}
     hl = highlight_materials(objs) if a.shot == "xray" else {}
     os.makedirs(a.out, exist_ok=True)

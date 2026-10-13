@@ -31,7 +31,8 @@ This repo has three parts (the third is the Mk2 section below):
 Mk2.1 is built and assembled, how it drives, steers and keeps its sensors level (physics and
 control), how the software stack decides, and a 4-minute autonomous field mission over hills,
 through a pole forest, doorways, a boulder garden and fast open stretches. How it is made:
-[docs/09_rl_perfection_plan.md](docs/09_rl_perfection_plan.md#film).
+[docs/09_rl_perfection_plan.md](docs/09_rl_perfection_plan.md#film). To render it at 1080p or 4K
+with final-quality settings, see [docs/10_render_film_tutorial.md](docs/10_render_film_tutorial.md).
 
 ![GYRA Mk2](media/mk2_cutaway_annotated.png)
 
