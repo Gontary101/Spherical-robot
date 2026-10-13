@@ -425,7 +425,7 @@ def scene_arch(t, fig, bg):
     text(bg, 0.86, 0.43, "safe (v, ω)", 15, "Medium", CORAL, ease((t - 8.2) / 0.5))
     notes = [(13, "Learning is used where it beats hand design: balancing the pendulum on rough ground, wind and pushes."),
              (16.5, "Model-based layers decide where to go and guarantee every command can still be stopped."),
-             (20, "Field result: 82 % of 208 test missions reach the goal; 0.5 % static contacts without an external shove.")]
+             (20, "Benchmark: 88.9 % of 208 test missions reach the goal; 0.5 % of missions end in a contact the robot caused.")]
     for i, (t0, s_) in enumerate(notes):
         text(bg, 0.0625, 0.12 - i * 0.0 + (0.0 if i == 0 else 0.0), "", 1)
     for i, (t0, s_) in enumerate(notes):
