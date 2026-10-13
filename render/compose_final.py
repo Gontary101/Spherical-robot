@@ -182,9 +182,11 @@ def seg_assembly(fr):
     for k, f in enumerate(src):
         t = k / FPS
         A = anchors_at(d_robot, "assembly", k)
+        ha = win(t, 0.3, 2.2, 0.4)
+        im = scrim(Image.fromarray(f), 0.6 * ha, top=True)
 
         def dr(d, l):
-            lower_third(d, "How it is built", "79 parts, five groups", None, win(t, 0.3, 2.2, 0.4), y=90)
+            lower_third(d, "How it is built", "79 parts, five groups", None, ha, y=90)
             for t0, t1, key, lab, sub, col in ASM:
                 callout(d, A.get(key), lab, sub, col, win(t, t0 + 0.4, t1, 0.4))
             a = ease((t - 24.5) / 0.8)
@@ -193,10 +195,10 @@ def seg_assembly(fr):
                 panel(d, (x, 900, x + 270, 1000), a)
                 text(d, (x + 22, 914), lab, "Medium", 22, MUTED, a)
                 text(d, (x + 22, 946), val, "SemiBold", 38, AMBER, a)
-        yield overlay(Image.fromarray(f), dr)
+        yield overlay(im, dr)
 
 
-XR = [(1.0, 8.0, "drive", "Drive", "motor → belt → pinion → ring gear, one per tyre half", GREEN),
+XR = [(1.0, 8.0, "drive", "Drive", "motor, belt, pinion and ring gear: one set per tyre half", GREEN),
       (8.0, 13.5, "level", "Levelling motor", "holds the sensor spine level against the pendulum", AMBER),
       (13.5, 18.5, "lean", "Lean drive", "swings the battery bob sideways, 180 °/s", VIOLET),
       (18.5, 23.5, "lidar", "Sensors", "two Mid-360 LiDARs on the axle line, six cameras", CYAN)]
@@ -208,12 +210,14 @@ def seg_xray(fr):
     for k, f in enumerate(src):
         t = k / FPS
         A = anchors_at(d_robot, "xray", k)
+        ha = win(t, 0.2, 6.5, 0.6)                              # heading only while the drive callout is up
+        im = scrim(Image.fromarray(f), 0.65 * ha, top=True)
 
         def dr(d, l):
-            lower_third(d, "How the parts connect", "Everything hangs from one axle", None, win(t, 0.2, 24, 0.5), y=90)
+            lower_third(d, "How the parts connect", "Everything hangs from one axle", None, ha, y=90)
             for t0, t1, key, lab, sub, col in XR:
                 callout(d, A.get(key), lab, sub, col, win(t, t0 + 0.3, t1, 0.4))
-        yield overlay(Image.fromarray(f), dr)
+        yield overlay(im, dr)
 
 
 def seg_roll(fr):
