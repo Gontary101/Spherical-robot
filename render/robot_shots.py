@@ -167,7 +167,7 @@ def pose(shot, t, sc, objs, rg, cam, base_loc, hl):
             if g in ("yoke", "bob"):
                 k = 1.0 * (1 - prog)                          # inner parts fly in from below/side, closer
             o.location = (base_loc[o.name][0] + e[0] * k, base_loc[o.name][1] + e[1] * k, base_loc[o.name][2] + e[2] * k
-                          - (0.6 * (1 - prog) if g in ("yoke", "bob") else 0.0))
+                          + (0.75 * (1 - prog) if g in ("yoke", "bob") else 0.0))   # inner groups drop in from above
         a = math.radians(25 + 55 * ease(t / SHOTS["assembly"]))
         r = 3.1 - 1.1 * ease((t - 18) / 12.0)
         look(cam, (r * math.cos(a), r * math.sin(a), 0.75 - 0.3 * ease(t / SHOTS["assembly"])), (0, 0, -0.08))
