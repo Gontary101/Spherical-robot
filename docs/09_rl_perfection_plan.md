@@ -226,3 +226,23 @@ contacts).
     now takes the braking distance by speed *and* pendulum angle, and extrapolates the measured acceleration
     through the dead time.
 22. **The known-free disc had holes**: sampled at exactly the cell pitch, floating-point flooring skipped rows.
+
+## Film
+
+`media/gyra_mk21_film.mp4` (1080p, 24 fps, 6 min 58 s). Sections: title, assembly of the CAD
+(79 parts in five groups), x-ray of the drive / levelling / lean / sensor subsystems, how it
+moves, steers and stays level (the levelling plot is recorded mission data), the software
+architecture, the safety filter on a real map snapshot, then the field mission
+(`media/showcase.npz`: 17/17 waypoints, 238 m in 238.9 s, no collisions; the doorway section
+plays at 2x) and the results card.
+
+| step | command | output |
+|---|---|---|
+| record mission | `python rl/showcase.py` | `media/showcase.npz` |
+| explainer scenes | `python render/explainer.py --scene move\|steer\|level\|arch\|filter --out F/explainer` | PNG frames |
+| CAD shots + mission | `render/render_video.sh F` (Blender 4.2 Cycles, 12 fps rendered) | `F/robot`, `F/mission` |
+| compose | `python render/compose_final.py --frames F --explainer F/explainer --out film.mp4 --results '[...]'` | 1080p film (12 to 24 fps by motion interpolation) |
+
+The repository copy is a two-pass 1.7 Mbit/s encode to stay under GitHub's 100 MB file
+limit. Fonts: Poppins (upright weights only), DejaVu Sans as fallback for Greek symbols.
+

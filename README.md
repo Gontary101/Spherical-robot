@@ -27,6 +27,12 @@ This repo has three parts (the third is the Mk2 section below):
 
 ## Mk2: split differential tyre + learned control (latest)
 
+**Film (7 min):** [media/gyra_mk21_film.mp4](media/gyra_mk21_film.mp4). It covers how the
+Mk2.1 is built and assembled, how it drives, steers and keeps its sensors level (physics and
+control), how the software stack decides, and a 4-minute autonomous field mission over hills,
+through a pole forest, doorways, a boulder garden and fast open stretches. How it is made:
+[docs/09_rl_perfection_plan.md](docs/09_rl_perfection_plan.md#film).
+
 ![GYRA Mk2](media/mk2_cutaway_annotated.png)
 
 Mk2 drops the CMGs. The tyre becomes **two independently driven halves whose crowns
