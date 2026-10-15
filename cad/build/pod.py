@@ -1,0 +1,235 @@
+"""
+Sensor pods (spine body). One per axle end; the left pod locates its tyre half axially and radially on 8 DualVee
+V-wheels running on the rim's 90 deg V-track, the right pod carries its half on 8 crowned track rollers on a
+cylindrical land (axially floating, so thermal growth between the CFRP axle and the GFRP tyre cannot preload
+anything). 4 of the 8 studs per pod are eccentric (0.5 mm) to set the preload.
+
+    pod_hub       6061 split clamp on the axle end, flange bolted to the pod plate (6 x M5)
+    pod_plate     6061, 8 mm, CNC
+    wheel studs   303 stainless, CNC turned: seat d9.525 g6 (DualVee bore 3/8"), shoulder d14, stem M8x1.25
+    lidar_riser   6061, 5 mm, 2 dowels into the Mid-360 locating hole + slot, 4 x M3 into the LiDAR
+    light_ring    clear PC, turned; status LED PCB underneath
+    pod_shield    PA12 (MJF), 6 mm wall, heat-set inserts in its base flange; screwed from inside the tyre
+    cameras       3 global-shutter USB modules behind PC windows, printed holders on inserts
+"""
+import math
+
+from cadquery import Vector
+
+import spec as S
+from lib import (Joint, Part, box, cone, cut_dowel_holes, cyl, dowel, fuse, solid, mirror_y, plate, revolve_y, rot_y, sphere, tube, unit,
+                 washer_solid, nut_solid, slab_y)
+
+# DualVee size 2 (W2): OD 1.21", vee dia 1.000", bore 3/8", width .438"  (Bishop-Wisecarver via Applied Industrial)
+W2 = dict(od=30.73, vee=25.4, bore=9.525, width=11.13, mass=0.038)
+# crowned yoke-type track roller, 12 x 32 x 10 class (INA LR 6001-2RSR class)
+ROLLER = dict(od=32.0, bore=12.0, width=10.0, mass=0.040)
+WHEEL_GAP = 0.3          # flank / land clearance modelled (preload is set with the eccentric studs)
+
+
+def g(u, side):
+    """Global y of local pod coordinate u (distance outward from the crown centre)."""
+    return side * (S.D + u)
+
+
+def vwheel(c, side):
+    """DualVee W2 wheel at centre c (x, y, z), axis along y."""
+    w2 = W2["width"] / 2
+    ro, rv = W2["od"] / 2, W2["vee"] / 2
+    prof = [(W2["bore"] / 2, -w2), (ro, -w2), (ro, -(ro - rv)), (rv, 0.0), (ro, ro - rv), (ro, w2), (W2["bore"] / 2, w2)]
+    s = revolve_y([(r, y) for r, y in prof])
+    return s.translate(Vector(*c))
+
+
+def roller(c):
+    w2 = ROLLER["width"] / 2
+    ro = ROLLER["od"] / 2
+    prof = [(ROLLER["bore"] / 2, -w2), (ro - 0.6, -w2), (ro, 0.0), (ro - 0.6, w2), (ROLLER["bore"] / 2, w2)]
+    return revolve_y(prof).translate(Vector(*c))
+
+
+def build_pod(side):
+    s = "L" if side > 0 else "R"
+    sg = side
+    P, J = [], []
+    ex = Vector(1, 0, 0)
+    ny = Vector(0, sg, 0)                      # outward along the axle
+
+    def Y(u):
+        return g(u, sg)
+
+    # ---------------------------------------------------------------- hub (clamps the axle end)
+    u_ax = S.AXLE_END - S.D                    # axle end, local u (222)
+    hub = tube(10.0, 32.0, (0, Y(u_ax - 26), 0), (0, Y(S.U_POD_PLATE[0]), 0))
+    hub = hub.fuse(tube(10.0, 56.0, (0, Y(S.U_POD_PLATE[0] - 8), 0), (0, Y(S.U_POD_PLATE[0]), 0)))
+    hub = hub.cut(cyl(S.AXLE_OD / 2 + 0.02, (0, Y(u_ax - 27), 0), (0, Y(u_ax), 0)))        # axle bore (H7)
+    slot = box(-1.0, 1.0, min(Y(u_ax - 27), Y(u_ax - 2)), max(Y(u_ax - 27), Y(u_ax - 2)), -40, -12)
+    hub = hub.cut(slot)                                                                  # clamp slit (bottom)
+    lug = box(-11, 11, min(Y(u_ax - 25), Y(u_ax - 3)), max(Y(u_ax - 25), Y(u_ax - 3)), -44, -22)
+    hub = hub.fuse(lug).cut(slot)
+    P.append(Part(f"pod_hub_{s}", hub, "spine", "alu", rho="al",
+                  spec=dict(material="6061-T6", process="CNC mill-turn", finish="clear anodise", fit="bore 40 H7, slit clamp")))
+    for k, uu in enumerate((u_ax - 20, u_ax - 8)):          # 2 x M5 across the slit
+        J.append(Joint(f"pod_hub_clamp_{s}{k}", 5, (11.0, Y(uu), -35.0), (-1, 0, 0), [f"pod_hub_{s}", f"pod_hub_{s}"],
+                       end="tap", step=f"pod_{s}_on_axle"))
+
+    # ---------------------------------------------------------------- pod plate
+    u0, u1 = S.U_POD_PLATE
+    pp = tube(11.0, 176.0, (0, Y(u0), 0), (0, Y(u1), 0))
+    for k in range(S.N_WHEELS):                  # lightening windows between the studs
+        a = math.radians(22.5 + k * 45.0)
+        c = (95 * math.cos(a), 0, 95 * math.sin(a))
+        pp = pp.cut(cyl(26.0, (c[0], Y(u0) - sg, c[2]), (c[0], Y(u1) + sg, c[2])))
+    P.append(Part(f"pod_plate_{s}", pp, "spine", "alu_dark", rho="al",
+                  spec=dict(material="6061-T6 plate 8 mm", process="waterjet + CNC finish (stud holes reamed 8 H7)", finish="black anodise")))
+    for k in range(6):                            # hub flange to plate: 6 x M5 from outside
+        a = math.radians(30 + k * 60)
+        J.append(Joint(f"pod_hub_bolt_{s}{k}", 5, (44 * math.cos(a), Y(u1), 44 * math.sin(a)), -ny,
+                       [f"pod_plate_{s}", f"pod_hub_{s}"], step=f"pod_{s}_plate"))
+
+    # ---------------------------------------------------------------- wheels / rollers on studs
+    if side > 0:
+        rc = S.R_TRACK - W2["vee"] / 2 - WHEEL_GAP * math.sqrt(2)      # flanks 45 deg: radial offset -> flank gap
+    else:
+        rc = S.R_TRACK - ROLLER["od"] / 2 - WHEEL_GAP
+    for k in range(S.N_WHEELS):
+        a = math.radians(k * 45.0)
+        x, z = rc * math.cos(a), rc * math.sin(a)
+        ecc = k % 2 == 1
+        uw = S.U_TRACK
+        width = W2["width"] if side > 0 else ROLLER["width"]
+        seat_d = W2["bore"] if side > 0 else ROLLER["bore"]
+        w0, w1 = uw - width / 2, uw + width / 2
+        stud = fuse(cyl(seat_d / 2, (x, Y(w0 - 0.0), z), (x, Y(w1), z)),
+                    cyl(7.0, (x, Y(w1), z), (x, Y(u0), z)),
+                    cyl(4.0, (x, Y(u0), z), (x, Y(u1 + 1.6 + 8.0 + 2.5), z)))
+        P.append(Part(f"wheel_stud_{s}{k}", stud, "spine", "steel", rho="ss", kind="custom",
+                      spec=dict(material="303 stainless", process="CNC turn", type="eccentric 0.5 mm" if ecc else "concentric",
+                                note="seat g6, M8x1.25 stem, axial M5 tapped end for the wheel retainer")))
+        pp_hole = cyl(4.2, (x, Y(u0) - sg, z), (x, Y(u1) + sg, z))
+        P[[p.name for p in P].index(f"pod_plate_{s}")].shape = P[[p.name for p in P].index(f"pod_plate_{s}")].shape.cut(pp_hole)
+        P.append(Part(f"stud_washer_{s}{k}", washer_solid(8, (x, Y(u1), z), ny), "spine", "steel", mass=0.0026, kind="fastener",
+                      spec=dict(type="washer", std="ISO 7089", d=8)))
+        P.append(Part(f"stud_nut_{s}{k}", nut_solid(8, Vector(x, Y(u1), z) + ny * 1.6, ny), "spine", "steel", mass=0.0055,
+                      kind="fastener", spec=dict(type="nyloc nut", std="ISO 7040", d=8, torque_Nm=12.0)))
+        if side > 0:
+            P.append(Part(f"vwheel_{s}{k}", vwheel((x, Y(uw), z), sg), "spine", "steel", mass=W2["mass"], kind="cots",
+                          spec=dict(pn="Bishop-Wisecarver DualVee W2 (W2X)", note="steel, shielded")))
+        else:
+            P.append(Part(f"roller_{s}{k}", roller((x, Y(uw), z)), "spine", "steel", mass=ROLLER["mass"], kind="cots",
+                          spec=dict(pn="crowned track roller 12x32x10 (INA LR 6001-2RSR class)")))
+        ret = cyl(7.5, (x, Y(w0 - 2.0), z), (x, Y(w0), z))        # the joint drills its clearance hole
+        P.append(Part(f"wheel_retainer_{s}{k}", ret, "spine", "steel", rho="ss", kind="custom",
+                      spec=dict(material="303 stainless", process="turned washer 15 x 2 (clamps the inner race)")))
+        J.append(Joint(f"wheel_screw_{s}{k}", 5, (x, Y(w0 - 2.0), z), ny, [f"wheel_retainer_{s}{k}", f"wheel_stud_{s}{k}"],
+                       step=f"pod_{s}_wheels", grade="A2-70"))
+
+    # ---------------------------------------------------------------- LiDAR (Livox Mid-360) on a doweled riser
+    L = S.COTS["lidar"]
+    u_base = S.R_OUT - L["optical_h"]               # optical centre on the sphere surface
+    t_riser = u_base - u1
+    riser = box(-50, 50, min(Y(u1), Y(u_base)), max(Y(u1), Y(u_base)), -50, 50)
+    riser = riser.cut(box(-6, 6, min(Y(u1), Y(u_base)) - 1, max(Y(u1), Y(u_base)) + 1, -50, 0))     # cable groove
+    P.append(Part(f"lidar_riser_{s}", riser, "spine", "alu", rho="al",
+                  spec=dict(material="6061-T6", process="CNC", finish="black anodise", note="2 x d3 m6 dowels to the LiDAR")))
+    # Mid-360 body: 65 x 65 base to h 39.5, window / dome above (the axis is along the axle)
+    hb = 39.5
+    lid = box(-32.5, 32.5, min(Y(u_base), Y(u_base + hb)), max(Y(u_base), Y(u_base + hb)), -32.5, 32.5)
+    lid = lid.fuse(cyl(29.0, (0, Y(u_base + hb), 0), (0, Y(u_base + 52.0), 0)))
+    lid = lid.fuse(sphere(29.0, (0, Y(u_base + 52.0), 0)).intersect(slab_y(*sorted((Y(u_base + 52.0), Y(u_base + 60.0))))))
+    lid = lid.fuse(cyl(7.0, (32.5, Y(u_base + 14.3), 0), (40.5, Y(u_base + 14.3), 0)))         # M12 connector stub
+    P.append(Part(f"lidar_{s}", lid, "spine", "lidar_white", mass=L["mass"], kind="cots",
+                  spec=dict(pn=L["pn"], source=L["source"], power_W=L["power_W"], connector=L["connector"])))
+    hx, hz = L["hole_rect"][0] / 2, L["hole_rect"][1] / 2
+    for k, (px, pz) in enumerate(((hx, hz), (-hx, hz), (-hx, -hz), (hx, -hz))):
+        J.append(Joint(f"lidar_screw_{s}{k}", 3, (px, Y(u1 + 3.4), pz), ny, [f"lidar_riser_{s}", f"lidar_{s}"],
+                       cbore=True, max_engage=4.6, step=f"pod_{s}_lidar_sub"))     # Mid-360: M3 x 5 deep
+    byname = {p.name: p for p in P}
+    for k, (px, pz) in enumerate(((0.0, -16.0), (0.0, 23.0))):
+        pin = dowel(f"lidar_dowel_{s}{k}", 3.0, 6.0, (px, Y(u_base - 4.2), pz), ny, "spine", [f"lidar_riser_{s}", f"lidar_{s}"])
+        P.append(pin)
+        cut_dowel_holes(byname, pin)
+    for k, (px, pz) in enumerate(((44, 44), (-44, 44), (-44, -44), (44, -44))):
+        J.append(Joint(f"riser_bolt_{s}{k}", 4, (px, Y(u_base), pz), -ny, [f"lidar_riser_{s}", f"pod_plate_{s}"],
+                       step=f"pod_{s}_lidar"))
+    # ---------------------------------------------------------------- light ring + LED PCB, shield
+    R_SH = S.R_OUT - 1.0                         # shield outer sphere (1 mm inside the tyre envelope)
+    c0 = Vector(0, sg * S.D, 0)
+    def ring_rev(prof_ru):                        # (r, u) profile -> solid on this side
+        sh = revolve_y([(r, u) for r, u in prof_ru]).translate(Vector(0, S.D, 0))
+        return sh if side > 0 else mirror_y(sh)
+    u_lr = (u1, u1 + 8.0)                          # light ring 248..256
+    r_out = lambda u: math.sqrt(R_SH ** 2 - u * u)
+    lr = ring_rev([(146.0, u_lr[0]), (r_out(u_lr[0]), u_lr[0]), (r_out(u_lr[1]), u_lr[1]), (146.0, u_lr[1])])
+    lr = lr.cut(ring_rev([(150.0, u_lr[0] - 0.1), (166.0, u_lr[0] - 0.1), (166.0, u_lr[0] + 2.0), (150.0, u_lr[0] + 2.0)]))
+    P.append(Part(f"light_ring_{s}", lr, "spine", "glass", rho="pc",
+                  spec=dict(material="PC clear (Makrolon 2405)", process="CNC turn + vapour polish", note="diffuses the status LEDs")))
+    pcb = ring_rev([(151.0, u_lr[0]), (165.0, u_lr[0]), (165.0, u_lr[0] + 1.6), (151.0, u_lr[0] + 1.6)])
+    P.append(Part(f"led_pcb_{s}", pcb, "spine", "pcb", mass=0.03, kind="custom",
+                  spec=dict(material="FR4 1.6 mm", process="PCBA: 24 x WS2812B-2020 RGB LEDs, JST-GH 3-pin")))
+    u_sh0 = u_lr[1]
+    t_sh = 6.0
+    # cap as sphere shell clipped to u >= u_sh0
+    shell = sphere(R_SH, (0, sg * S.D, 0)).cut(sphere(R_SH - t_sh, (0, sg * S.D, 0)))
+    shell = solid(shell.intersect(slab_y(*sorted((Y(u_sh0), Y(R_SH + 5))))))
+    fl = ring_rev([(140.0, u_sh0), (r_out(u_sh0) - 3.0, u_sh0), (r_out(u_sh0 + 10) - 3.0, u_sh0 + 10.0), (140.0, u_sh0 + 10.0)])
+    shield = shell.fuse(fl)
+    shield = shield.cut(cyl(52.0, (0, Y(u_sh0), 0), (0, Y(R_SH + 10), 0)))           # LiDAR aperture (FOV to -6 deg)
+    CAMS = [((0.30, 0.94, 0.16), (0.95, 0.31, 0.0), "front"), ((-0.30, 0.94, 0.16), (-0.95, 0.31, 0.0), "rear"),
+            ((0.0, 0.95, -0.31), (0.0, 0.55, -0.83), "ground")]
+    cam_parts = []
+    for i, (dp, da, nm) in enumerate(CAMS):
+        dp, da = unit(dp), unit(da)
+        dp = Vector(dp.x, sg * dp.y, dp.z)
+        da = Vector(da.x, sg * da.y, da.z)
+        pw = c0 + dp * (R_SH - t_sh / 2)                                  # window centre in the shield wall
+        shield = shield.cut(cyl(11.0, pw - da * 10, pw + da * 10))        # window bore d22
+        shield = shield.cut(cyl(13.0, pw - da * 10, pw - da * 1.0))       # window seat d26
+        win = cyl(12.9, pw - da * 2.9, pw - da * 1.0)
+        cam_parts.append(Part(f"cam_window_{s}{i}", win, "spine", "glass", rho="pc", spec=dict(
+            material="PC 2 mm, AR coated", process="laser cut disc d25.8", bond="Dow 732 RTV seal")))
+        # camera module (38 x 38 PCB + M12 lens) behind the window, in a printed holder
+        xr = _perp_to(da)
+        yr = da.cross(xr)
+        lens = cyl(7.0, pw - da * 3.4, pw - da * 21.0)
+        board_c = pw - da * 23.0
+        board = _box_on(board_c, da, xr, yr, 38.0, 38.0, 6.0)
+        cam_parts.append(Part(f"camera_{s}{i}", lens.fuse(board), "spine", "motor_black", mass=0.018, kind="cots",
+                              spec=dict(pn="global-shutter USB camera module, 38 x 38 mm, M12 lens (OV9281 class)", view=nm,
+                                        verified=False)))
+        hold = _box_on(pw - da * 13.0, da, xr, yr, 30.0, 30.0, 14.0).cut(cyl(8.0, pw - da * 2, pw - da * 22))
+        cam_parts.append(Part(f"cam_holder_{s}{i}", hold, "spine", "nylon", rho="pa12",
+                              spec=dict(material="PA12", process="MJF print", note="bonded to the shield boss, board on 2 x M2 screws")))
+    P.append(Part(f"pod_shield_{s}", shield, "spine", "nylon", rho="pa12",
+                  spec=dict(material="PA12 (HP MJF), dyed black", process="MJF print", finish="bead blast + clear coat",
+                            note="RF-transparent over the GNSS patch")))
+    P += cam_parts
+    # GNSS patch antenna bonded under the shield top
+    gd = unit((0.0, sg * 0.95, 0.31))
+    gc = c0 + gd * (R_SH - t_sh - 4.5)
+    gx = Vector(1, 0, 0)
+    P.append(Part(f"gnss_{s}", _box_on(gc, gd, gx, gd.cross(gx), 36.0, 36.0, 8.0), "spine", "nylon_light", mass=0.025, kind="cots",
+                  spec=dict(pn="multiband GNSS patch antenna 36 x 36 (L1/L5)", bond="3M VHB 4910", verified=False)))
+    for k in range(S.N_WHEELS):                    # shield to plate: 8 x M4 from inside the tyre into heat-set inserts
+        a = math.radians(22.5 + k * 45.0)
+        J.append(Joint(f"shield_screw_{s}{k}", 4, (150.0 * math.cos(a), Y(u0), 150.0 * math.sin(a)), ny,
+                       [f"pod_plate_{s}", f"light_ring_{s}", f"pod_shield_{s}"], end="insert", step=f"pod_{s}_shield"))
+    return P, J
+
+
+def np_lin(a, b, n):
+    return [a + (b - a) * i / (n - 1) for i in range(n)]
+
+
+def _perp_to(n):
+    n = unit(n)
+    a = Vector(0, 0, 1) if abs(n.z) < 0.9 else Vector(1, 0, 0)
+    return n.cross(a).normalized()
+
+
+def _box_on(c, n, xr, yr, w, h, t):
+    """Box of w x h (in the xr, yr directions) and thickness t along n, centred at c."""
+    from lib import plane as mkplane
+    import cadquery as cq
+    pl = cq.Plane(origin=tuple(c - n * (t / 2)), xDir=tuple(xr), normal=tuple(n))
+    return cq.Workplane(pl).rect(w, h).extrude(t).val()
