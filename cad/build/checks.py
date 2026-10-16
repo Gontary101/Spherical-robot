@@ -264,10 +264,13 @@ def main():
     print("3. floating parts ...", flush=True)
     rep["floating"] = floating(parts, ok, bonds)
     print(f"   {len(rep['floating'])} {rep['floating'][:20]}", flush=True)
-    print("4. continuous motion clearance (pitch 360 deg, lean +-41.5 deg to the stops, tyre spin) ...", flush=True)
+    print("4. continuous motion clearance (yoke pitch to its stops +-103.3 deg, lean +-41.5 deg to its stops, tyre spin) ...", flush=True)
     import sweep
-    rep["motion"] = sweep.run(parts, ok, lean_deg=41.5, procs=int(os.environ.get("GYRA_PROCS", "4")),
-                              log=lambda m: print(m, flush=True))
+    import spec as S
+    ok_m = ok | {frozenset((f"pitch_bumper{k}", "level_bracket")) for k in (0, 1)}          # the designed stop contact
+    ok_m |= {frozenset(("hub_bearing_L", "level_bracket")), frozenset(("hub_bearing_R", "slip_sleeve"))}   # lands on the inner races
+    rep["motion"] = sweep.run(parts, ok_m, lean_deg=41.5, procs=int(os.environ.get("GYRA_PROCS", "4")),
+                              pitch_deg=S.PITCH_STOP + 0.8, log=lambda m: print(m, flush=True))
     n_motion = len(rep["motion"]["hits"])
     print(f"   {n_motion} hits, {len(rep['motion']['touches'])} touches over {rep['motion']['n_pairs']} pairs "
           f"({rep['motion']['n_eval']} exact distance evaluations)", flush=True)

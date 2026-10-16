@@ -68,7 +68,7 @@ def build_bob():
                 w0, w1 = xt - W2["width"] / 2, xt + W2["width"] / 2
                 nm = f"bob_stud_{sp}{name}{i}"
                 if into is None:     # nut on the plate's inner face
-                    stem = cyl(4.0, at(rc, ph, sx * (x0 - 9.0)), at(rc, ph, sx * x1))
+                    stem = cyl(4.0, at(rc, ph, sx * (x0 - 12.5)), at(rc, ph, sx * x1))     # through washer 1.6 + nyloc 8 + 2.3 pitches
                 else:                # threaded into the tungsten
                     stem = cyl(4.0, at(rc, ph, sx * (x0 - 12.0)), at(rc, ph, sx * x1))
                 st = fuse(stem, cyl(7.0, at(rc, ph, sx * x1), at(rc, ph, sx * w0)), cyl(W2["bore"] / 2, at(rc, ph, sx * w0), at(rc, ph, sx * (w1 + 1.2))))

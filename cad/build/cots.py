@@ -8,7 +8,9 @@ import math
 from cadquery import Vector
 
 import spec as S
-from lib import Part, cyl, fuse, tube, unit
+import cadquery as cq
+
+from lib import Joint, Part, box, cyl, fuse, tube, unit
 
 
 def _frame(axis, xref=None):
@@ -80,3 +82,62 @@ def circlip_shaft(name, c, axis, d, body):
     t = 1.0 if d <= 12 else 1.5
     s = tube(d / 2 - 0.5, d / 2 + 1.8, Vector(*c), Vector(*c) + a * t)
     return Part(name, s, body, "steel", mass=0.001, kind="fastener", spec=dict(type="retaining ring", std="DIN 471", d=d))
+
+
+def _place(shape, origin, w, sv, a):
+    """Map a solid built in local (w, s, a) coordinates to the robot frame."""
+    from OCP.BRepBuilderAPI import BRepBuilderAPI_Transform
+    from OCP.gp import gp_Ax3, gp_Dir, gp_Pnt, gp_Trsf
+    o = Vector(*origin)
+    t = gp_Trsf()
+    t.SetTransformation(gp_Ax3(gp_Pnt(o.x, o.y, o.z), gp_Dir(a.x, a.y, a.z), gp_Dir(w.x, w.y, w.z)), gp_Ax3())
+    return cq.Shape.cast(BRepBuilderAPI_Transform(shape.wrapped, t, True).Shape())
+
+
+ENC_LB = 80.5          # encoder base plane from the motor mounting face (shaft end at +90 -> 9.5 mm into the AMT sleeve)
+
+
+def motor_encoder(prefix, face, axis, leg, body, mount, step, slot_dir=None):
+    """AMT212B-V-OD on the D6374's rear encoder shaft, carried by a 6061 L-bracket footed on the motor's mount plate.
+
+    face: motor mounting face centre; axis: from the face into the motor; leg: unit vector (perpendicular to axis) to the
+    side where the bracket's leg runs past the can (2.5 mm clear of the d63 can) and its foot sits on the plate
+    (w 34..52 from the motor axis). slot_dir: belt-tension slot direction of the motor (foot holes slotted +-2 mm to match).
+    Returns (parts, joints)."""
+    C = S.COTS["encoder"]
+    a = unit(axis)
+    w = unit(leg)
+    sv = a.cross(w)
+    Lb = ENC_LB
+    foot = box(34.0, 52.0, -10.0, 10.0, 0.0, 3.0)
+    legp = box(34.0, 37.0, -10.0, 10.0, 3.0, Lb - 5.0)
+    bridge = box(-13.0, 37.0, -14.5, 14.5, Lb - 5.0, Lb).cut(cyl(6.0, (0, 0, Lb - 6), (0, 0, Lb + 1)))
+    br = _place(fuse(foot, legp, bridge), face, w, sv, a)
+    if slot_dir is not None:
+        u = unit(slot_dir)
+        for ss in (-6.0, 6.0):
+            c = Vector(*face) + w * 45.0 + sv * ss
+            for d_ in (-2.0, -1.0, 0.0, 1.0, 2.0):
+                cc = c + u * d_
+                br = br.cut(cyl(1.7, cc - a * 1.0, cc + a * 4.0))
+    parts = [Part(f"{prefix}_enc_bracket", br, body, "alu", rho="al",
+                  spec=dict(material="6061-T6", process="CNC from 6 mm plate (or 3 mm bent L + 5 mm bridge)",
+                            note="M2.5 tapped through in the bridge; foot holes " + ("slotted +-2 mm with the motor" if slot_dir else "d3.4")))]
+    enc = fuse(cyl(15.3, (0, 0, Lb), (0, 0, Lb + C["thick"])),
+               box(0.0, 20.0, -C["width"] / 2, C["width"] / 2, Lb, Lb + C["thick"]),
+               box(20.0, C["height"] - C["h_top"], -8.0, 8.0, Lb, Lb + C["thick_conn"]))
+    enc = enc.cut(cyl(C["sleeve"] / 2, (0, 0, Lb - 1), (0, 0, Lb + C["thick"] + 1)))           # sleeve bore on the shaft
+    for ss in (-9.525, 9.525):                                                                  # base screws under the snap-on cover
+        enc = enc.cut(cyl(2.5, (0, ss, Lb + 1.5), (0, ss, Lb + 4.5)))
+    parts.append(Part(f"{prefix}_encoder", _place(enc, face, w, sv, a), body, "motor_black", mass=C["mass"], kind="cots",
+                      spec=dict(pn=C["pn"], source=C["source"], note=C["note"])))
+    J = []
+    for k, ss in enumerate((-6.0, 6.0)):
+        seat = Vector(*face) + w * 45.0 + sv * ss + a * 3.0
+        J.append(Joint(f"{prefix}_enc_bracket_screw{k}", 3, tuple(seat), tuple(-a), [f"{prefix}_enc_bracket", mount],
+                       precut=(f"{prefix}_enc_bracket",) if slot_dir is not None else (), step=step))
+    for k, ss in enumerate((-9.525, 9.525)):
+        seat = Vector(*face) + sv * ss + a * (Lb + 1.5)
+        J.append(Joint(f"{prefix}_encoder_screw{k}", 2.5, tuple(seat), tuple(-a), [f"{prefix}_encoder", f"{prefix}_enc_bracket"],
+                       step=step))
+    return parts, J

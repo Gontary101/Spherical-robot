@@ -124,29 +124,61 @@ def _job(task):
     return S[i][0], S[k][0], axes, r, round(time.time() - t0, 1)
 
 
-def pairs_for(parts, ok, lean_deg, log=print):
-    """Candidate pairs (moving index, static index, axes, box, rho per axis)."""
-    lean = math.radians(lean_deg)
+def sector(bb, axis):
+    """Angular interval (deg) that a box covers about axis x or y (angle grows with a positive rotation), or None when
+    the box surrounds the axis."""
+    if axis == "x":
+        u, v = (bb[2], bb[3]), (bb[4], bb[5])          # angle = atan2(z, y)
+    else:
+        u, v = (bb[4], bb[5]), (bb[0], bb[1])          # angle = atan2(x, z)
+    if u[0] <= 0 <= u[1] and v[0] <= 0 <= v[1]:
+        return None
+    angs = [math.degrees(math.atan2(vv, uu)) for uu in u for vv in v]
+    a0 = angs[0]
+    rel = [((a - a0 + 180) % 360) - 180 for a in angs]
+    return a0 + min(rel), a0 + max(rel)
+
+
+def rel_intervals(sm, ss, lo, hi, m):
+    """Rotations t in [lo, hi] (deg) for which sector sm rotated by t can meet sector ss; list of (a, b) in deg."""
+    if sm is None or ss is None:
+        return [(lo, hi)]
+    a, b = ss[0] - sm[1] - m, ss[1] - sm[0] + m
+    if b - a >= 360:
+        return [(lo, hi)]
+    out = []
+    for k in range(-2, 3):
+        x, y = max(lo, a + 360 * k), min(hi, b + 360 * k)
+        if x < y:
+            out.append((x, y))
+    return out
+
+
+def pairs_for(parts, ok, lean_deg, log=print, pitch_deg=180.0, only=None):
+    """Candidate (moving index, static index, axes, box (rad), rho per axis) after envelope + angular pruning."""
     bbs = [_bb(p.shape) for p in parts]
     env = {ax: [envelope(b, ax) for b in bbs] for ax in ("x", "y")}
-    sh = [shell(b) for b in bbs]
+    sec = {ax: [sector(b, ax) for b in bbs] for ax in ("x", "y")}
     by = {}
     for i, p in enumerate(parts):
         by.setdefault(p.body, []).append(i)
     tasks = []
+    R = math.radians
 
     def add(mi, si, axes, box, rhos):
-        if frozenset((parts[mi].name, parts[si].name)) in ok:
+        if only and not (only(parts[mi].name) or only(parts[si].name)):
             return
-        tasks.append((mi, si, axes, box, rhos))
+        if frozenset((parts[mi].name, parts[si].name)) not in ok:
+            tasks.append((mi, si, axes, box, rhos))
 
-    # yoke vs spine: pitch about y over a full turn
+    # yoke vs spine: pitch about y
     for mi in by.get("yoke", []):
         a = env["y"][mi]
         for si in by.get("spine", []):
             b = env["y"][si]
             if overlap(a[0], a[1], b[0], b[1]) and overlap(a[2], a[3], b[2], b[3]):
-                add(mi, si, ("y",), [(-math.pi, math.pi)], [a[3]])
+                for lo, hi in rel_intervals(sec["y"][mi], sec["y"][si], -pitch_deg, pitch_deg, 1.0):
+                    add(mi, si, ("y",), [(R(lo), R(hi))], [a[3]])
     # bob vs yoke and bob vs tyres: lean about x
     for mi in by.get("bob", []):
         a = env["x"][mi]
@@ -154,20 +186,58 @@ def pairs_for(parts, ok, lean_deg, log=print):
             for si in by.get(body, []):
                 b = env["x"][si]
                 if overlap(a[0], a[1], b[0], b[1]) and overlap(a[2], a[3], b[2], b[3]):
-                    add(mi, si, ("x",), [(-lean, lean)], [a[3]])
-    # bob vs spine: lean then pitch
+                    for lo, hi in rel_intervals(sec["x"][mi], sec["x"][si], -lean_deg, lean_deg, 1.0):
+                        add(mi, si, ("x",), [(R(lo), R(hi))], [a[3]])
+    # bob vs spine: lean then pitch. Per 1-deg lean sample, the posed part's (y range, distance from y, sector about y)
+    step = 1.0
+    leans = [-lean_deg + step * k for k in range(int(2 * lean_deg / step) + 1)] + [lean_deg]
+    sp = by.get("spine", [])
     for mi in by.get("bob", []):
-        a = sh[mi]
-        for si in by.get("spine", []):
-            b = sh[si]
-            if overlap(a[0], a[1], b[0], b[1]):
-                add(mi, si, ("x", "y"), [(-lean, lean), (-math.pi, math.pi)], [a[1], a[1]])
-    log(f"   {len(tasks)} candidate pairs after envelope pruning")
+        rx = env["x"][mi][3]
+        g = rx * math.radians(step / 2) + 0.5
+        samples = []
+        ry_max = 0.0
+        for L in leans:
+            bb = _bb(parts[mi].shape.rotate(O, AX["x"], L))
+            e = envelope(bb, "y")
+            ry_max = max(ry_max, e[3])
+            samples.append((L, e, sector(bb, "y")))
+        for si in sp:
+            b = env["y"][si]
+            cells = {}
+            for L, e, sm in samples:
+                if not (overlap(e[0] - g, e[1] + g, b[0], b[1]) and overlap(e[2] - g, e[3] + g, b[2], b[3])):
+                    continue
+                m = 1.0 + (math.degrees(g / e[2]) if e[2] > g else 180.0)
+                for lo, hi in rel_intervals(sm, sec["y"][si], -pitch_deg, pitch_deg, m):
+                    for k in range(int((lo + 180) // 10), int(min(hi + 180, 359.999) // 10) + 1):
+                        cells.setdefault(k, []).append(L)
+            if not cells:
+                continue
+            ks = sorted(cells)
+            runs, cur = [], [ks[0]]
+            for k in ks[1:]:
+                if k == cur[-1] + 1:
+                    cur.append(k)
+                else:
+                    runs.append(cur)
+                    cur = [k]
+            runs.append(cur)
+            if len(runs) > 1 and runs[0][0] == 0 and runs[-1][-1] == 35:          # wraps through +-180
+                runs[0] = [k - 36 for k in runs[-1]] + runs[0]
+                runs.pop()
+            for run in runs:
+                Ls = [L for k in run for L in cells[k % 36]]
+                lb = (max(-lean_deg, min(Ls) - step), min(lean_deg, max(Ls) + step))
+                pb = (run[0] * 10 - 180.0, (run[-1] + 1) * 10 - 180.0)
+                add(mi, si, ("x", "y"), [(R(lb[0]), R(lb[1])), (R(pb[0]), R(pb[1]))], [rx, ry_max])
+    n2 = sum(1 for t in tasks if len(t[2]) == 2)
+    log(f"   {len(tasks)} candidate pair-intervals after envelope + angular pruning ({n2} two-axis)")
     return tasks
 
 
-def run(parts, ok, lean_deg=41.5, procs=4, log=print):
-    tasks = pairs_for(parts, ok, lean_deg, log)
+def run(parts, ok, lean_deg=41.5, procs=4, log=print, pitch_deg=180.0, only=None):
+    tasks = pairs_for(parts, ok, lean_deg, log, pitch_deg, only)
     # longest first (2-D boxes, big parts)
     tasks.sort(key=lambda t: -(len(t[2]) * 10 + sum(t[4]) / 100))
     shapes = [(p.name, p.shape) for p in parts]

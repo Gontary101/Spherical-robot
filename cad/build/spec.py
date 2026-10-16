@@ -70,6 +70,8 @@ LEVEL_MOTOR_Y = 66.0           # level motor mount face (spine side), shaft towa
 # ------------------------------------------------------------------ bob
 BOB_X = (62.0, 68.0)           # |x| of the carriage plates (6 mm 6061)
 BOB_HALF = 24.0                # carriage angular half-width (deg)
+PITCH_STOP = 102.5             # yoke-to-spine pitch stop (deg, PU bumper contact; <= 0.8 deg compression). The deployed control
+                               # uses up to 99.4 (rl/yoke_range.py); first collision (bob inner wheel vs level motor) at 104.4
 BOB_LEAN = 40.0                # lean travel +- (deg), as simulated
 W_R = (222.0, 246.0)           # tungsten block radii
 LEAN_PINION_Z = 40             # 40T m1.5 (r 30) in the internal rack r 195: 6.5:1
@@ -123,6 +125,19 @@ COTS = {
                    lens_protrusion=5.5, fov=120, mass=0.027, verified=True, source="waveshare.com outline drawing"),
     "gnss_antenna": dict(pn="u-blox ANN-MB1-00 (L1/L5)", size=(82.0, 60.0, 22.5), flange_t=6.0, holes="2 x d4.5 on 68 (M4)",
                          mass=0.164, verified=True, source="u-blox ANN-MB1 datasheet R04 + distributors"),
+    "encoder": dict(pn="CUI Devices (Same Sky) AMT212B-V-OD (AMT21 RS485 absolute, ODrive firmware)", width=28.58, r_top=15.49, h_top=15.33,
+                    height=39.94, thick=10.30, thick_conn=11.70, holes="2 x d2.95 on PCD 19.05 (M2.5)", sleeve=8.0, mass=0.015, verified=True,
+                    source="Same Sky AMT21 datasheet rev 1.11 (2026-06-23) p.7-8; ODrive docs hardware.html (S1 supports CUI-AMT212B-V-OD)",
+                    note="the S1s are mounted on the hangers / bay, away from the motors, so their on-board encoder cannot see the motor;"
+                         " RS485 to the S1's ISO/RS485 port, 5 V from the S1"),
+    "gnss_receiver": dict(pn="SparkFun GPS-RTK2 Board - ZED-F9P (GPS-15136)", board=(43.5, 43.2), height=10.0, mass=0.015, verified=False,
+                          note="UART2 to the Jetson 40-pin header (UART1 /dev/ttyTHS0), SMA to the ANN-MB1 cable; mounting-hole"
+                               " positions from SparkFun's board file before punching the mezzanine",
+                          source="sparkfun.com GPS-15136 (43.5 x 43.2 mm)"),
+    "usb_hub": dict(pn="Waveshare 12694 USB HUB HAT (4 x USB 2.0, 65 x 30 mm, d3.0 holes)", board=(65.0, 30.0), height=16.0, mass=0.02,
+                    verified=False, note="4 pod cameras; the other 2 cameras + IMU go straight to the J401's USB-A ports;"
+                                         " hole pattern assumed 58 x 23 (Pi Zero) - check the Waveshare drawing",
+                    source="waveshare.com/usb-hub-hat.htm"),
     "imu": dict(pn="MicroStrain 3DM-CV7-AHRS", size=(38.0, 24.0, 8.6), mass=0.0083, verified=False,
                 note="hole positions from the MicroStrain drawing before machining", source="MicroStrain product page"),
     "dcdc": dict(pn="RECOM RPA60-4812SFW (18-75 V in, 12 V 60 W, 2 x 1 in brick)", size=(50.8, 25.4, 10.2), mass=0.04,

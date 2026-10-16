@@ -127,7 +127,8 @@ def main():
     G = groups(parts, joints, [t for t in threads if set(t) != {"slipring_housing", "slipring_pin"}], bonds,
                links=[("level_pinion", "level_motor"), ("slipring_rotor", "slip_sleeve"), ("slipring_housing", "slip_sleeve"),
                       ("compute", "compute_standoff0"), ("compute_standoff0", "bay_tray_L"),
-                      ("compute_standoff1", "bay_tray_L"), ("compute_standoff2", "bay_tray_L"), ("compute_standoff3", "bay_tray_L")])
+                      ("compute_standoff1", "bay_tray_L"), ("compute_standoff2", "bay_tray_L"), ("compute_standoff3", "bay_tray_L")]
+               + [(f"wheel_stud_{s}{k}", f"pod_plate_{s}") for s in "LR" for k in range(8)])
 
     def grp(name):
         return next(g for g in G if name in {p.name for p in g})

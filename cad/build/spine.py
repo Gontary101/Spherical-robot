@@ -3,7 +3,7 @@ Spine (the levelled, non-rotating body): CFRP axle, the electronics bays, the le
 stationary core. Everything here sits inside radius 89 mm of the axle wherever the pendulum can sweep past it
 (the bob's closest approach at |y| = 200 mm is 97.5 mm), see checks.py for the swept-volume test.
 
-    axle            roll-wrapped CFRP tube 40 x 34 (3 mm wall), 624 mm, ends inside the pod hubs
+    axle            roll-wrapped HM CFRP tube 40 x 30 (5 mm wall), 624 mm, ends inside the pod hubs
     hub_spacer      6061 tube between the two 6908 inner races (they are clamped between the level bracket and
                     the slip-ring sleeve)
     level_bracket   6061 split clamp + arm carrying the levelling D6374 (motor face at y 66, pinion 14T m1.5)
@@ -18,7 +18,7 @@ import math
 from cadquery import Vector
 
 import spec as S
-from cots import d6374, d6374_holes
+from cots import d6374, d6374_holes, motor_encoder
 from lib import Joint, Part, box, cyl, fuse, tube, unit
 
 AX_R = S.AXLE_OD / 2
@@ -49,6 +49,22 @@ def clamp_joints(name, y0, y1, r_out, lug_side=-1, step=""):
     return [Joint(f"{name}_clamp{k}", 5, (11.0, yy, zc), (-1, 0, 0), [name, name], step=step) for k, yy in enumerate(ys)]
 
 
+def board_on_spacers(P, J, name, C, x0, y0, z_plate, plate, step, rotate=False):
+    """COTS board (envelope C['board'] x C['height']) on 4 nylon spacers (5 mm) with M3 screws into PEM nuts in `plate`
+    (top face at z_plate). Hole centres 3.3 mm in from the board corners (`rotate`: long side along y). Head pockets are
+    cut into the component envelope over each hole."""
+    bx, by = (C["board"][1], C["board"][0]) if rotate else C["board"]
+    holes = [(x0 + 3.3, y0 + 3.3), (x0 + bx - 3.3, y0 + 3.3), (x0 + 3.3, y0 + by - 3.3), (x0 + bx - 3.3, y0 + by - 3.3)]
+    zb = z_plate + 5.0
+    env = box(x0, x0 + bx, y0, y0 + by, zb, zb + C["height"])
+    for k, (xx, yy) in enumerate(holes):
+        env = env.cut(cyl(3.2, (xx, yy, zb + 1.6), (xx, yy, zb + C["height"] + 1)))
+        P.append(Part(f"{name}_spacer{k}", cyl(3.0, (xx, yy, z_plate), (xx, yy, zb)), "spine", "nylon", mass=0.0003, kind="cots",
+                      spec=dict(pn="nylon spacer 6 x 3.2 x 5 mm")))
+        J.append(Joint(f"{name}_screw{k}", 3, (xx, yy, zb + 1.6), (0, 0, -1), [name, f"{name}_spacer{k}", plate], end="pem", step=step))
+    return Part(name, env, "spine", "pcb", mass=C["mass"], kind="cots", spec=dict(pn=C["pn"], note=C["note"], verified=C["verified"]))
+
+
 def build_spine():
     P, J = [], []
     # ---------------------------------------------------------------- axle + bearing spacer
@@ -67,7 +83,7 @@ def build_spine():
     br = split_clamp("level_bracket", y_cl, ym, 30.0, "spine", lug_side=-1)
     br.shape = br.shape.fuse(tube(AX_R + 0.02, 23.5, (0, y_in, 0), (0, y_cl, 0)))      # inner-race land, inside the screw-head ring
     from lib import hull2d, extrude_xz, circle_pts
-    arm = extrude_xz(hull2d(circle_pts(0, 0, 30) + circle_pts(0, zc, 30)), ym - 8.0, ym)
+    arm = extrude_xz(hull2d(circle_pts(0, 0, 30) + circle_pts(0, zc, 30)), ym - 8.0, ym)   # its flanks are the yoke pitch stops
     arm = arm.cut(cyl(AX_R + 0.02, (0, ym - 9, 0), (0, ym + 1, 0))).cut(box(-1.0, 1.0, ym - 9, ym + 1, -45, -5))
     arm = arm.cut(cyl(7.0, (0, ym - 9, zc), (0, ym + 1, zc)))                               # shaft clearance
     br.shape = br.shape.fuse(arm)
@@ -79,6 +95,9 @@ def build_spine():
     for k, hp in enumerate(d6374_holes((0, ym, zc), (0, 1, 0), (1, 0, 0), pcd=44.0)):
         J.append(Joint(f"level_motor_screw{k}", 4, (hp.x, ym - 8.0, hp.z), (0, 1, 0), ["level_bracket", "level_motor"],
                        max_engage=5.5, step="spine_level_sub"))
+    ep, ej = motor_encoder("level_motor", (0, ym, zc), (0, 1, 0), (0, 0, -1), "spine", "level_bracket", "spine_level_sub")   # leg on the axle side
+    P += ep
+    J += ej
     from gyra_cad import gear_y
     pin = gear_y(S.LEVEL_GEAR["pinion"], S.LEVEL_GEAR["m"], 36.0, 46.0, 0.0, zc, bore=5.0)
     P.append(Part("level_pinion", pin, "spine", "steel", rho="steel", kind="custom",
@@ -123,8 +142,9 @@ def build_spine():
         # tray: 1.5 mm 5052, end flanges onto the clamp tabs
         ya, yb = 179.0, 265.0
         t = 1.5
-        outer = box(-BAY["x"], BAY["x"], ya, yb, BAY["z1"], BAY["z0"])
-        inner = box(-BAY["x"] + t, BAY["x"] - t, ya + t, yb - t, BAY["z1"] + t, BAY["z0"] + 1)
+        z1 = BAY["z1"] if side < 0 else -92.5        # left bay deeper: GNSS receiver under the Jetson
+        outer = box(-BAY["x"], BAY["x"], ya, yb, z1, BAY["z0"])
+        inner = box(-BAY["x"] + t, BAY["x"] - t, ya + t, yb - t, z1 + t, BAY["z0"] + 1)
         tray = outer.cut(inner)
         tray = tray.fuse(box(-BAY["x"], BAY["x"], 168.0, 179.0, BAY["z0"] - t, BAY["z0"])).fuse(
             box(-BAY["x"], BAY["x"], 265.0, 276.0, BAY["z0"] - t, BAY["z0"]))
@@ -136,24 +156,42 @@ def build_spine():
         for k, (yy, xx) in enumerate(((173.0, 35.0), (173.0, -35.0), (271.0, 35.0), (271.0, -35.0))):
             J.append(Joint(f"bay_tray_screw_{s}{k}", 4, (xx, side * yy, BAY["z0"] + 8.0), (0, 0, -1),
                            [f"bay_clamp_{s}{0 if yy < 200 else 1}", f"bay_tray_{s}"], end="pem", step=f"spine_bay_{s}"))
-        floor_z = BAY["z1"] + t
+        floor_z = z1 + t
         if side > 0:
             Cc = S.COTS["compute"]
-            jet = box(-Cc["board"][0] / 2, Cc["board"][0] / 2, 182.0, 182.0 + Cc["board"][1], floor_z + 6.0, floor_z + 6.0 + 30.0)
+            SOH = 25.0                                                      # Jetson standoffs; receiver underneath
+            jet = box(-Cc["board"][0] / 2, Cc["board"][0] / 2, 182.0, 182.0 + Cc["board"][1], floor_z + SOH, floor_z + SOH + 30.0)
             P.append(Part("compute", jet, "spine", "pcb", mass=Cc["mass"], kind="cots",
                           spec=dict(pn=Cc["pn"], note=Cc["note"], verified=Cc["verified"])))
             for k, (xx, yy) in enumerate(((44.0, 186.0), (-44.0, 186.0), (44.0, 258.0), (-44.0, 258.0))):
-                so = cyl(2.5, (xx, yy, floor_z), (xx, yy, floor_z + 6.0))
-                P.append(Part(f"compute_standoff{k}", so, "spine", "brass", mass=0.002, kind="cots",
-                              spec=dict(pn="M3 x 6 brass standoff, male-female")))
+                so = cyl(2.5, (xx, yy, floor_z), (xx, yy, floor_z + SOH))
+                P.append(Part(f"compute_standoff{k}", so, "spine", "brass", mass=0.004, kind="cots",
+                              spec=dict(pn="M3 x 25 brass standoff, male-female")))
+            Cr = S.COTS["gnss_receiver"]
+            rx0, ry0 = -Cr["board"][0] / 2, 200.0
+            P.append(board_on_spacers(P, J, "gnss_receiver", Cr, rx0, ry0, floor_z, "bay_tray_L", "spine_bay_L_sub"))
         else:
             Cs = S.COTS["controller"]
             hs = box(-35.0, 35.0, -(186.0 + 70.0), -186.0, floor_z, floor_z + 4.0)
             P.append(Part("level_controller", hs.fuse(box(-33.0, 33.0, -(196.0 + 50.0), -196.0, floor_z + 4.0, floor_z + 14.0)),
                           "spine", "pcb", mass=Cs["mass"], kind="cots", spec=dict(pn=Cs["pn"], note=Cs["note"])))
+            # the controller's 4 hold-down screws come up through the tray floor into M4 x 12 hex standoffs, which carry
+            # the mezzanine plate (USB hub) 2 mm above the S1
+            from lib import _hex_prism
+            m0 = floor_z + 16.0
             for k, (xx, yy) in enumerate(((30.0, 191.0), (-30.0, 191.0), (30.0, 251.0), (-30.0, 251.0))):
-                J.append(Joint(f"level_ctrl_screw{k}", 4, (xx, -yy, floor_z + 4.0), (0, 0, -1), ["level_controller", "bay_tray_R"],
-                               end="pem", step="spine_bay_R_sub"))
+                P.append(Part(f"mezz_standoff{k}", _hex_prism(7.0, 12.0, Vector(xx, -yy, floor_z + 4.0), Vector(0, 0, 1), Vector(1, 0, 0)),
+                              "spine", "brass", rho="brass", kind="cots",
+                              spec=dict(pn="hex standoff M4 female-female, 7 AF x 12 mm, aluminium or brass")))
+                J.append(Joint(f"level_ctrl_screw{k}", 4, (xx, -yy, floor_z - t), (0, 0, 1),
+                               ["bay_tray_R", "level_controller", f"mezz_standoff{k}"], max_engage=5.5, step="spine_bay_R_sub"))
+                J.append(Joint(f"mezz_screw{k}", 4, (xx, -yy, m0 + 1.5), (0, 0, -1), ["bay_mezzanine", f"mezz_standoff{k}"],
+                               max_engage=5.5, step="spine_bay_R_mezz"))
+            P.append(Part("bay_mezzanine", box(-49.0, 39.0, -253.0, -183.0, m0, m0 + 1.5), "spine", "alu", rho="al",
+                          spec=dict(material="5052-H32 1.5 mm", process="laser cut, PEM nuts (M3)",
+                                    note="cable tie slots along the edges; USB hub on PEM nuts")))
+            Ch = S.COTS["usb_hub"]
+            P.append(board_on_spacers(P, J, "usb_hub", Ch, -24.0, -251.0, m0 + 1.5, "bay_mezzanine", "spine_bay_R_mezz", rotate=True))
             Cd = S.COTS["dcdc"]
             # 48 -> 12 V brick standing on edge against the +x wall (baseplate to the wall: heat path)
             xw = BAY["x"] - t

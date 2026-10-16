@@ -174,7 +174,7 @@ def build_pod(side):
                   spec=dict(material="PC clear (Makrolon 2405)", process="CNC turn + vapour polish", note="diffuses the status LEDs")))
     pcb = ring_rev([(151.0, u_lr[0]), (165.0, u_lr[0]), (165.0, u_lr[0] + 1.6), (151.0, u_lr[0] + 1.6)])
     P.append(Part(f"led_pcb_{s}", pcb, "spine", "pcb", mass=0.03, kind="custom",
-                  spec=dict(material="FR4 1.6 mm", process="PCBA: 24 x WS2812B-2020 RGB LEDs, JST-GH 3-pin")))
+                  spec=dict(material="FR4 1.6 mm", process="PCBA: 24 x WS2812B-2020 RGB LEDs, on-board 12 V -> 5 V 1 A buck (TPS62933 class), JST-GH 3-pin (12 V, data, GND)")))
     u_sh0 = u_lr[1]
     t_sh = 6.0
     shell = sphere(R_SH, (0, sg * S.D, 0)).cut(sphere(R_SH - t_sh, (0, sg * S.D, 0)))

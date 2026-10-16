@@ -22,7 +22,7 @@ import cadquery as cq
 from cadquery import Vector
 
 import spec as S
-from cots import ball_bearing, circlip_bore, circlip_shaft, d6374, d6374_holes
+from cots import ball_bearing, circlip_bore, circlip_shaft, d6374, d6374_holes, motor_encoder
 from lib import (Joint, Part, box, circle_pts, compound, cut_dowel_holes, cyl, dowel, extrude_xz, extrude_yz, fuse,
                  hull2d, mirror_x, mirror_y, rot_z, sector_yz, solid, tube, unit)
 
@@ -57,16 +57,21 @@ def build_yoke():
     SO_F = [(160.0, -80.0), (225.0, -140.0), (150.0, -215.0)]          # cassette spacers (front cassette)
     SO_B = [(-x, z) for x, z in SO_F]
     MOD_SO = [(105.0, -95.0), (123.0, -95.0), (105.0, -200.0), (123.0, -200.0)]   # battery module spacers (x>0 side)
+    # yoke pitch stops: strikers on the left hanger meet the level-bracket arm's flanks at +-PITCH_STOP relative pitch
+    PS_R = 95.0
+    PS_TH = S.PITCH_STOP + 24.8                    # 24.8 deg: striker (bumper r 10) touching the arm's r 30 end arc at r 95
+    PS_X, PS_Z = PS_R * math.sin(math.radians(PS_TH)), PS_R * math.cos(math.radians(PS_TH))
     common = [("c", 0.0, 0.0, 64.0), ("h", [(0, 0, 36), (114, -62, 18)]), ("h", [(114, -62, 18), (114, -205, 18)]),
               ("h", [(0, 0, 36), (-114, -62, 18)]), ("h", [(-114, -62, 18), (-114, -205, 18)]),
               ("h", [(0, 0, 30), (0, 73, 12)]),                                                   # top lobe (slip-ring pin on R)
               ("h", [(-55, -49, 4), (7, -49, 4), (-55, -111, 4), (7, -111, 4)]),                  # ODrive S1 land (clear of the bob)
-              ("h", [(-50, -118, 4), (2, -118, 4), (-50, -208, 4), (2, -208, 4)])]                # power-box land (x > -51: bob studs sweep inboard of the rear carriage to x -53)
+              ("h", [(-41, -118, 4), (5, -118, 4), (-41, -208, 4), (5, -208, 4)])]                # power-box land (x > -47: the bob's inner wheel studs reach x -49.5)
     def hanger_pieces(sign):
         px, pz = (pxF, pzF) if sign > 0 else (pxB, pzB)
         so = SO_F if sign > 0 else SO_B
         bar = 114.0 * sign
-        return common + [("h", [(bar, -125, 18), (px, pz, 24)]), ("h", [(bar, -62, 18), (so[0][0], so[0][1], 12)]),
+        stops = [("h", [(0, 0, 36), (PS_X, PS_Z, 11)]), ("h", [(0, 0, 36), (-PS_X, PS_Z, 11)])] if sign > 0 else []
+        return common + stops + [("h", [(bar, -125, 18), (px, pz, 24)]), ("h", [(bar, -62, 18), (so[0][0], so[0][1], 12)]),
                          ("h", [(px, pz, 24), (so[1][0], so[1][1], 12)]), ("h", [(bar, -205, 18), (so[2][0], so[2][1], 12)])]
     for sign, s, (ya, yb) in ((+1, "L", (H0, H1)), (-1, "R", (-H1, -H0))):
         h = outline_union(hanger_pieces(sign), ya, yb)
@@ -105,6 +110,15 @@ def build_yoke():
         a = math.radians(60 * k)
         J.append(Joint(f"level_gear_screw{k}", 4, (58.0 * math.cos(a), LG["y"][1], 58.0 * math.sin(a)), (0, -1, 0),
                        ["level_gear", "hanger_L"], cbore=False, step="yoke_hanger_L_sub"))
+    # ---------------------------------------------------------------- yoke pitch stops (left hanger)
+    for k, sx in enumerate((1, -1)):
+        cx, cz = sx * PS_X, PS_Z
+        P.append(Part(f"pitch_striker{k}", cyl(6.0, (cx, H1, cz), (cx, 65.0, cz)), "yoke", "alu", rho="al",
+                      spec=dict(material="6061-T6 d12", process="turned 30 long, M6 tapped 14 deep",
+                                note=f"meets the level-bracket arm flank at {S.PITCH_STOP:.0f} deg yoke-to-spine pitch")))
+        P.append(Part(f"pitch_bumper{k}", tube(6.0, 10.0, (cx, 55.0, cz), (cx, 65.0, cz)), "yoke", "rubber", mass=0.002, kind="cots",
+                      spec=dict(pn="PU 90A tube 20 x 12, cut 10 long, bonded on (Loctite 406)")))
+        J.append(Joint(f"pitch_striker_screw{k}", 6, (cx, H0, cz), (0, 1, 0), ["hanger_L", f"pitch_striker{k}"], step="yoke_hanger_L_sub"))
     # ---------------------------------------------------------------- arc plates + brackets
     x0, x1 = S.ARC_X
     arc = extrude_yz(sector_yz(S.ARC_R[0], S.ARC_R[1], -S.ARC_HALF, S.ARC_HALF), x0, x1)
@@ -193,6 +207,7 @@ def build_yoke():
         so = SO_F if sign > 0 else SO_B
         # outer plate (motor slots +-2 mm along the belt line)
         op = outline_union([("h", [(mx, mz, 30.0), (px, pz, 24.0)]), ("h", [(mx, mz, 30.0), (so[0][0], so[0][1], 12.0)]),
+                            ("h", [(mx, mz, 30.0), (mx, mz - 44.0, 13.0)]),                    # encoder bracket foot
                             ("h", [(px, pz, 24.0), (so[1][0], so[1][1], 12.0)]), ("h", [(px, pz, 24.0), (so[2][0], so[2][1], 12.0)])],
                            oy0, oy1)
         op = op.cut(cyl(14.0, (px, oy0 - 1, pz), (px, oy1 + 1, pz)))            # 6001 bore
@@ -260,6 +275,10 @@ def build_yoke():
             J.append(Joint(f"drive_motor_screw_{t}{k}", 4, (hp.x, sy * S.OUTER_PLATE_Y[0], hp.z), (0, sy, 0),
                            [f"outer_plate_{t}", f"drive_motor_{t}"], max_engage=5.5, washer=True, precut=(f"outer_plate_{t}",),
                            step=f"yoke_cassette_{t}_sub"))
+        ep, ej = motor_encoder(f"drive_motor_{t}", (mx, mface, mz), (0, sy, 0), (0, 0, -1), "yoke", f"outer_plate_{t}",
+                               f"yoke_cassette_{t}_sub", slot_dir=(u.x, 0, u.z))
+        P += ep
+        J += ej
 
     # ---------------------------------------------------------------- battery modules (x>0: A on -y; x<0: B on +y)
     Cc = S.CELL
@@ -301,14 +320,14 @@ def build_yoke():
         for k, (xx, zz) in enumerate(((-54.0, -50.0), (6.0, -50.0), (-54.0, -110.0), (6.0, -110.0))):
             J.append(Joint(f"drive_controller_screw_{n}{k}", 4, (xx, yi - sy * 4.0, zz), (0, sy, 0), [f"drive_controller_{n}", f"hanger_{s}"],
                            step=f"yoke_hanger_{s}_sub"))
-    pb = box(-50.0, 2.0, -26.0, 26.0, -205.0, -125.0).cut(box(-48.5, 0.5, -24.5, 24.5, -203.5, -126.5))
+    pb = box(-45.0, 5.0, -26.0, 26.0, -205.0, -125.0).cut(box(-43.5, 3.5, -24.5, 24.5, -203.5, -126.5))
     P.append(Part("power_box", pb, "yoke", "alu_dark", rho="al",
                   spec=dict(material="5052-H32 1.5 mm", process="laser cut + bent, PEM nuts",
-                            note="12S BMS (<= 80 x 50 x 15), 40 A MIDI fuse, XT90-S anti-spark, CAN hub, e-stop relay")))
-    P.append(Part("power_box_parts", box(-46.0, -2.0, -12.0, 12.0, -203.5, -140.0), "yoke", "pcb", mass=0.20, kind="cots",
+                            note="12S BMS (<= 74 x 44 x 15, on edge), 40 A MIDI fuse, XT90-S anti-spark, CAN hub, e-stop relay")))
+    P.append(Part("power_box_parts", box(-41.0, 1.0, -12.0, 12.0, -203.5, -140.0), "yoke", "pcb", mass=0.20, kind="cots",
                   spec=dict(pn="BMS 12S 40 A + MIDI fuse + XT90-S + relay (wired subassembly)", verified=False)))
     for sy, s in ((1, "L"), (-1, "R")):
-        for k, (xx, zz) in enumerate(((-42.0, -140.0), (-6.0, -140.0), (-42.0, -190.0), (-6.0, -190.0))):
+        for k, (xx, zz) in enumerate(((-37.0, -140.0), (-1.0, -140.0), (-37.0, -190.0), (-1.0, -190.0))):
             J.append(Joint(f"power_box_screw_{s}{k}", 4, (xx, sy * H1, zz), (0, -sy, 0), [f"hanger_{s}", "power_box"], end="pem",
                            head="BHCS", step="yoke_frame"))
 
