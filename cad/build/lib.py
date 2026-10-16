@@ -232,26 +232,26 @@ def combine(props):
 
 # --------------------------------------------------------------------------------------------- ISO fasteners
 # ISO 4762 socket head cap screw: d -> (head dia dk, head height k, hex key s)
-SHCS = {2.5: (4.5, 2.5, 2.0), 3: (5.5, 3.0, 2.5), 4: (7.0, 4.0, 3.0), 5: (8.5, 5.0, 4.0), 6: (10.0, 6.0, 5.0),
+SHCS = {2: (3.8, 2.0, 1.5), 2.5: (4.5, 2.5, 2.0), 3: (5.5, 3.0, 2.5), 4: (7.0, 4.0, 3.0), 5: (8.5, 5.0, 4.0), 6: (10.0, 6.0, 5.0),
         8: (13.0, 8.0, 6.0), 10: (16.0, 10.0, 8.0)}
 # ISO 7380-1 button head: d -> (dk, k, s)
 BHCS = {3: (5.7, 1.65, 2.0), 4: (7.6, 2.2, 2.5), 5: (9.5, 2.75, 3.0), 6: (10.5, 3.3, 4.0), 8: (14.0, 4.4, 5.0)}
 # ISO 10642 countersunk (90 deg): d -> (dk theoretical, k, s)
 FHCS = {3: (6.72, 1.86, 2.0), 4: (8.96, 2.48, 2.5), 5: (11.2, 3.1, 3.0), 6: (13.44, 3.72, 4.0), 8: (17.92, 4.96, 5.0)}
 # ISO 4032 hex nut (s across flats, m height); ISO 7040 nyloc (s, h)
-NUT = {2.5: (5.0, 2.0), 3: (5.5, 2.4), 4: (7.0, 3.2), 5: (8.0, 4.7), 6: (10.0, 5.2), 8: (13.0, 6.8), 10: (16.0, 8.4)}
+NUT = {2: (4.0, 1.6), 2.5: (5.0, 2.0), 3: (5.5, 2.4), 4: (7.0, 3.2), 5: (8.0, 4.7), 6: (10.0, 5.2), 8: (13.0, 6.8), 10: (16.0, 8.4)}
 NYLOC = {3: (5.5, 4.0), 4: (7.0, 5.0), 5: (8.0, 5.0), 6: (10.0, 6.0), 8: (13.0, 8.0), 10: (16.0, 10.0)}
 # ISO 7089 washer: d -> (inner, outer, thickness)
-WASHER = {3: (3.2, 7.0, 0.5), 4: (4.3, 9.0, 0.8), 5: (5.3, 10.0, 1.0), 6: (6.4, 12.0, 1.6), 8: (8.4, 16.0, 1.6),
+WASHER = {2: (2.2, 5.0, 0.3), 3: (3.2, 7.0, 0.5), 4: (4.3, 9.0, 0.8), 5: (5.3, 10.0, 1.0), 6: (6.4, 12.0, 1.6), 8: (8.4, 16.0, 1.6),
           10: (10.5, 20.0, 2.0)}
 # ISO 273 medium clearance, tap drill, thread pitch
-CLEAR = {2.5: 2.9, 3: 3.4, 4: 4.5, 5: 5.5, 6: 6.6, 8: 9.0, 10: 11.0}
-TAPDRILL = {2.5: 2.05, 3: 2.5, 4: 3.3, 5: 4.2, 6: 5.0, 8: 6.8, 10: 8.5}
-PITCH = {2.5: 0.45, 3: 0.5, 4: 0.7, 5: 0.8, 6: 1.0, 8: 1.25, 10: 1.5}
+CLEAR = {2: 2.4, 2.5: 2.9, 3: 3.4, 4: 4.5, 5: 5.5, 6: 6.6, 8: 9.0, 10: 11.0}
+TAPDRILL = {2: 1.6, 2.5: 2.05, 3: 2.5, 4: 3.3, 5: 4.2, 6: 5.0, 8: 6.8, 10: 8.5}
+PITCH = {2: 0.4, 2.5: 0.45, 3: 0.5, 4: 0.7, 5: 0.8, 6: 1.0, 8: 1.25, 10: 1.5}
 # counterbore for ISO 4762 heads (dia, depth)
-CBORE = {2.5: (5.0, 2.8), 3: (6.5, 3.4), 4: (8.0, 4.4), 5: (10.0, 5.4), 6: (11.0, 6.4), 8: (15.0, 8.6), 10: (18.0, 10.6)}
+CBORE = {2: (4.4, 2.3), 2.5: (5.0, 2.8), 3: (6.5, 3.4), 4: (8.0, 4.4), 5: (10.0, 5.4), 6: (11.0, 6.4), 8: (15.0, 8.6), 10: (18.0, 10.6)}
 # heat-set inserts for thermoplastics (e.g. Ruthex RX-M3x5.7 / RX-M4x8.1): d -> (hole dia, length)
-INSERT = {2.5: (3.6, 5.7), 3: (4.0, 5.7), 4: (5.6, 8.1), 5: (6.4, 9.5)}
+INSERT = {2: (3.2, 4.0), 2.5: (3.6, 5.7), 3: (4.0, 5.7), 4: (5.6, 8.1), 5: (6.4, 9.5)}
 # standard stocked lengths
 LEN = {"SHCS": (6, 8, 10, 12, 14, 16, 18, 20, 22, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 80, 90, 100, 110, 120),
        "BHCS": (6, 8, 10, 12, 14, 16, 20, 25, 30, 35, 40),
@@ -260,7 +260,7 @@ STD = {"SHCS": "ISO 4762", "BHCS": "ISO 7380-1", "FHCS": "ISO 10642"}
 # minimum engagement by tapped-member material, in diameters
 ENGAGE = {"steel": 1.0, "ss": 1.0, "wnife": 1.0, "al7075": 1.25, "al": 1.5, "brass": 1.25, "insert": 0.0}
 # tightening torque (N m), A2-70 stainless / 8.8 steel into steel/aluminium, dry, ~70 % proof
-TORQUE = {"A2-70": {2.5: 0.5, 3: 1.0, 4: 2.3, 5: 4.5, 6: 7.8, 8: 19.0, 10: 37.0},
+TORQUE = {"A2-70": {2: 0.25, 2.5: 0.5, 3: 1.0, 4: 2.3, 5: 4.5, 6: 7.8, 8: 19.0, 10: 37.0},
           "8.8": {2.5: 0.6, 3: 1.2, 4: 2.9, 5: 5.7, 6: 9.9, 8: 24.0, 10: 48.0},
           "12.9": {3: 2.0, 4: 4.6, 5: 9.0, 6: 15.5, 8: 38.0, 10: 75.0}}
 
@@ -371,6 +371,8 @@ def apply_joints(parts: dict, joints: list[Joint]) -> list[Part]:
             # clamp across a slit in one part: clearance in the first material interval, thread in the next
             iv_all = sorted(i for i in ivs[0] if i[1] > 0)
             ivs = [[iv_all[0]], [iv_all[1]]]
+        if thread_m is not None and not [a for a, b in ivs[-1] if b > 0]:
+            raise RuntimeError(f"joint {j.name}: thread member {thread_m.name} lies behind the seat {ivs[-1]}")
         t_enter_thread = min(a for a, b in ivs[-1] if b > 0) if thread_m is not None else None
         t_exit_stack = max(b for iv in ivs for a, b in iv)
         washer_t = WASHER[d][2] if j.washer else 0.0

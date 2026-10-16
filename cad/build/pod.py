@@ -22,8 +22,7 @@ from lib import (Joint, Part, box, cone, cut_dowel_holes, cyl, dowel, fuse, soli
 
 # DualVee size 2 (W2): OD 1.21", vee dia 1.000", bore 3/8", width .438"  (Bishop-Wisecarver via Applied Industrial)
 W2 = dict(od=30.73, vee=25.4, bore=9.525, width=11.13, mass=0.038)
-# crowned yoke-type track roller, 12 x 32 x 10 class (INA LR 6001-2RSR class)
-ROLLER = dict(od=32.0, bore=12.0, width=10.0, mass=0.040)
+ROLLER = dict(od=35.0, bore=12.0, width=10.0, mass=0.047)          # INA LR201-2RSR
 WHEEL_GAP = 0.3          # flank / land clearance modelled (preload is set with the eccentric studs)
 
 
@@ -85,7 +84,7 @@ def build_pod(side):
     for k in range(6):                            # hub flange to plate: 6 x M5 from outside
         a = math.radians(30 + k * 60)
         J.append(Joint(f"pod_hub_bolt_{s}{k}", 5, (44 * math.cos(a), Y(u1), 44 * math.sin(a)), -ny,
-                       [f"pod_plate_{s}", f"pod_hub_{s}"], step=f"pod_{s}_plate"))
+                       [f"pod_plate_{s}", f"pod_hub_{s}"], head="FHCS", step=f"pod_{s}_plate"))   # flush under the riser
 
     # ---------------------------------------------------------------- wheels / rollers on studs
     if side > 0:
@@ -117,7 +116,7 @@ def build_pod(side):
                           spec=dict(pn="Bishop-Wisecarver DualVee W2 (W2X)", note="steel, shielded")))
         else:
             P.append(Part(f"roller_{s}{k}", roller((x, Y(uw), z)), "spine", "steel", mass=ROLLER["mass"], kind="cots",
-                          spec=dict(pn="crowned track roller 12x32x10 (INA LR 6001-2RSR class)")))
+                          spec=dict(pn="INA LR201-2RSR crowned track roller 12x35x10")))
         ret = cyl(7.5, (x, Y(w0 - 2.0), z), (x, Y(w0), z))        # the joint drills its clearance hole
         P.append(Part(f"wheel_retainer_{s}{k}", ret, "spine", "steel", rho="ss", kind="custom",
                       spec=dict(material="303 stainless", process="turned washer 15 x 2 (clamps the inner race)")))
@@ -169,51 +168,71 @@ def build_pod(side):
                   spec=dict(material="FR4 1.6 mm", process="PCBA: 24 x WS2812B-2020 RGB LEDs, JST-GH 3-pin")))
     u_sh0 = u_lr[1]
     t_sh = 6.0
-    # cap as sphere shell clipped to u >= u_sh0
     shell = sphere(R_SH, (0, sg * S.D, 0)).cut(sphere(R_SH - t_sh, (0, sg * S.D, 0)))
-    shell = solid(shell.intersect(slab_y(*sorted((Y(u_sh0), Y(R_SH + 5))))))
-    fl = ring_rev([(140.0, u_sh0), (r_out(u_sh0) - 3.0, u_sh0), (r_out(u_sh0 + 10) - 3.0, u_sh0 + 10.0), (140.0, u_sh0 + 10.0)])
-    shield = shell.fuse(fl)
-    shield = shield.cut(cyl(52.0, (0, Y(u_sh0), 0), (0, Y(R_SH + 10), 0)))           # LiDAR aperture (FOV to -6 deg)
-    CAMS = [((0.30, 0.94, 0.16), (0.95, 0.31, 0.0), "front"), ((-0.30, 0.94, 0.16), (-0.95, 0.31, 0.0), "rear"),
-            ((0.0, 0.95, -0.31), (0.0, 0.55, -0.83), "ground")]
+    shield = solid(shell.intersect(slab_y(*sorted((Y(u_sh0), Y(R_SH + 5))))))
+    shield = solid(shield.cut(cyl(52.0, (0, Y(u_sh0) - sg, 0), (0, Y(R_SH + 10), 0))))   # LiDAR aperture (FOV to -6 deg)
+    # 4 standoff lands (flat bosses) inside the shell at r 120
+    SO_R, SO_U, SO_L = 120.0, u1 + 18.0, 18.0
+    so_ang = [45.0 + 90.0 * k for k in range(4)]
+    for a_ in so_ang:
+        a = math.radians(a_)
+        cx, cz = SO_R * math.cos(a), SO_R * math.sin(a)
+        boss = cyl(7.0, (cx, Y(SO_U), cz), (cx, Y(SO_U + 12.0), cz)).intersect(sphere(R_SH - 1.0, (0, sg * S.D, 0)))
+        shield = solid(shield.fuse(boss))
+    for k in range(S.N_WHEELS):                    # reliefs over the stud nuts at the shield base
+        a = math.radians(k * 45.0)
+        cx, cz = rc * math.cos(a), rc * math.sin(a)
+        shield = solid(shield.cut(cyl(9.0, (cx, Y(u0), cz), (cx, Y(u1 + 14.0), cz))))
+    # cameras square to the shell (an oblique window would vignette a 120 deg lens or put the board into the wall);
+    # placed between the wheel studs, as far outboard-forward / -rearward / -down as the cap allows
+    CAMS = [((0.351, 0.925, 0.145), "front"), ((-0.351, 0.925, 0.145), "rear"), ((0.145, 0.925, -0.351), "ground")]
     cam_parts = []
-    for i, (dp, da, nm) in enumerate(CAMS):
-        dp, da = unit(dp), unit(da)
+    for i, (dp, nm) in enumerate(CAMS):
+        dp = unit(dp)
         dp = Vector(dp.x, sg * dp.y, dp.z)
-        da = Vector(da.x, sg * da.y, da.z)
-        pw = c0 + dp * (R_SH - t_sh / 2)                                  # window centre in the shield wall
-        shield = shield.cut(cyl(11.0, pw - da * 10, pw + da * 10))        # window bore d22
-        shield = shield.cut(cyl(13.0, pw - da * 10, pw - da * 1.0))       # window seat d26
-        win = cyl(12.9, pw - da * 2.9, pw - da * 1.0)
+        at = lambda rho: c0 + dp * rho                                     # point on the camera axis at radius rho
+        fx = unit((dp.z, 0.0, -dp.x))                                      # tangential: the holder's long side
+        fy = dp.cross(fx)
+        # PC window in a flat counterbore at the surface, conical aperture for the 120 deg field
+        shield = solid(shield.cut(cyl(16.5, at(297.0), at(R_SH + 3.0))))
+        shield = solid(shield.cut(cone(5.5, 14.5, at(290.0), at(297.05))))
+        win = cyl(16.3, at(297.0), at(298.5))
         cam_parts.append(Part(f"cam_window_{s}{i}", win, "spine", "glass", rho="pc", spec=dict(
-            material="PC 2 mm, AR coated", process="laser cut disc d25.8", bond="Dow 732 RTV seal")))
-        # camera module (38 x 38 PCB + M12 lens) behind the window, in a printed holder
-        xr = _perp_to(da)
-        yr = da.cross(xr)
-        lens = cyl(7.0, pw - da * 3.4, pw - da * 21.0)
-        board_c = pw - da * 23.0
-        board = _box_on(board_c, da, xr, yr, 38.0, 38.0, 6.0)
-        cam_parts.append(Part(f"camera_{s}{i}", lens.fuse(board), "spine", "motor_black", mass=0.018, kind="cots",
-                              spec=dict(pn="global-shutter USB camera module, 38 x 38 mm, M12 lens (OV9281 class)", view=nm,
-                                        verified=False)))
-        hold = _box_on(pw - da * 13.0, da, xr, yr, 30.0, 30.0, 14.0).cut(cyl(8.0, pw - da * 2, pw - da * 22))
+            material="PC 1.5 mm, AR coated", process="laser cut disc d32.6", bond="Dow 732 RTV seal")))
+        # Waveshare OV9281 1MP USB Camera (A): 25 x 25 board, 4 x d2 on 21 x 21, depth 11.6 incl. 5.5 lens, 120 deg
+        lens = cyl(4.55, at(285.0), at(290.5))
+        board = _box_on(at(281.95), dp, fx, fy, 25.0, 25.0, 6.1)
+        cam_parts.append(Part(f"camera_{s}{i}", lens.fuse(board), "spine", "motor_black", mass=0.027, kind="cots",
+                              spec=dict(pn="Waveshare OV9281 1MP Mono USB Camera (A)", view=nm, fov_deg=120,
+                                        source="waveshare.com product page + outline drawing", verified=True)))
+        # holder plate (rho 285..290) on two bosses at +-21
+        hold = _box_on(at(287.5), dp, fx, fy, 52.0, 30.0, 5.0).cut(cyl(5.5, at(284.0), at(291.0)))
         cam_parts.append(Part(f"cam_holder_{s}{i}", hold, "spine", "nylon", rho="pa12",
-                              spec=dict(material="PA12", process="MJF print", note="bonded to the shield boss, board on 2 x M2 screws")))
+                              spec=dict(material="PA12", process="MJF print", note="2 x M3 into shield inserts; camera on 4 x M2 into M2 inserts")))
+        for k, du in enumerate((21.0, -21.0)):
+            boss = cyl(4.5, at(290.0) + fx * du, at(296.0) + fx * du).intersect(sphere(R_SH - 1.0, (0, sg * S.D, 0)))
+            shield = solid(shield.fuse(boss))
+            J.append(Joint(f"cam_holder_screw_{s}{i}{k}", 3, tuple(at(285.0) + fx * du), tuple(dp),
+                           [f"cam_holder_{s}{i}", f"pod_shield_{s}"], end="insert", step=f"pod_{s}_shield_sub"))
+        for k, (du, dv) in enumerate(((10.5, 10.5), (-10.5, 10.5), (-10.5, -10.5), (10.5, -10.5))):
+            J.append(Joint(f"cam_screw_{s}{i}{k}", 2, tuple(at(278.9) + fx * du + fy * dv), tuple(dp),
+                           [f"camera_{s}{i}", f"cam_holder_{s}{i}"], end="insert", step=f"pod_{s}_shield_sub"))
     P.append(Part(f"pod_shield_{s}", shield, "spine", "nylon", rho="pa12",
                   spec=dict(material="PA12 (HP MJF), dyed black", process="MJF print", finish="bead blast + clear coat",
-                            note="RF-transparent over the GNSS patch")))
+                            note="4 x M4 button heads on spot faces into the standoffs; serviceable from outside")))
     P += cam_parts
-    # GNSS patch antenna bonded under the shield top
-    gd = unit((0.0, sg * 0.95, 0.31))
-    gc = c0 + gd * (R_SH - t_sh - 4.5)
-    gx = Vector(1, 0, 0)
-    P.append(Part(f"gnss_{s}", _box_on(gc, gd, gx, gd.cross(gx), 36.0, 36.0, 8.0), "spine", "nylon_light", mass=0.025, kind="cots",
-                  spec=dict(pn="multiband GNSS patch antenna 36 x 36 (L1/L5)", bond="3M VHB 4910", verified=False)))
-    for k in range(S.N_WHEELS):                    # shield to plate: 8 x M4 from inside the tyre into heat-set inserts
-        a = math.radians(22.5 + k * 45.0)
-        J.append(Joint(f"shield_screw_{s}{k}", 4, (150.0 * math.cos(a), Y(u0), 150.0 * math.sin(a)), ny,
-                       [f"pod_plate_{s}", f"light_ring_{s}", f"pod_shield_{s}"], end="insert", step=f"pod_{s}_shield"))
+    for k, a_ in enumerate(so_ang):                # standoffs: M4 male-female hex 7 AF x 18, male end into the plate
+        a = math.radians(a_)
+        cx, cz = SO_R * math.cos(a), SO_R * math.sin(a)
+        from lib import _hex_prism
+        so = _hex_prism(7.0, SO_L, Vector(cx, Y(u1), cz), ny, Vector(1, 0, 0)).fuse(cyl(2.0, (cx, Y(u1 - 6.0), cz), (cx, Y(u1), cz)))
+        P.append(Part(f"shield_standoff_{s}{k}", so, "spine", "steel", rho="ss", kind="cots",
+                      spec=dict(pn="hex standoff M4 male-female, 7 AF x 18 mm, stainless (e.g. Wurth 971180445 class)")))
+        pp = P[[p.name for p in P].index(f"pod_plate_{s}")]
+        pp.shape = pp.shape.cut(cyl(1.65, (cx, Y(u1 + 0.5), cz), (cx, Y(u1 - 7.5), cz)))       # M4 tapped, 7 deep
+        seat_u = math.sqrt(R_SH ** 2 - (SO_R + 5.0) ** 2) - 0.2
+        J.append(Joint(f"shield_screw_{s}{k}", 4, (cx, Y(seat_u), cz), -ny, [f"pod_shield_{s}", f"shield_standoff_{s}{k}"],
+                       head="BHCS", cbore=True, max_engage=6.0, step=f"pod_{s}_shield"))
     return P, J
 
 
