@@ -62,8 +62,8 @@ def build_spine():
     y_in = S.HUB_BRG_Y[1]                                    # 37: bracket face against the left inner race
     ym = S.LEVEL_MOTOR_Y                                    # 66: motor face
     zc = S.LEVEL_GEAR["m"] * (S.LEVEL_GEAR["z"] + S.LEVEL_GEAR["pinion"]) / 2      # 82.5 centre distance
-    br = split_clamp("level_bracket", y_in + 1.0, ym, 30.0, "spine", lug_side=-1)
-    br.shape = br.shape.fuse(tube(AX_R + 0.02, 23.5, (0, y_in, 0), (0, y_in + 1.0, 0)))      # inner-race land
+    br = split_clamp("level_bracket", y_in + 2.5, ym, 30.0, "spine", lug_side=-1)
+    br.shape = br.shape.fuse(tube(AX_R + 0.02, 23.5, (0, y_in, 0), (0, y_in + 2.5, 0)))      # inner-race land (clears the DIN 472 ring)
     from lib import hull2d, extrude_xz, circle_pts
     arm = extrude_xz(hull2d(circle_pts(0, 0, 30) + circle_pts(0, zc, 30)), ym - 8.0, ym)
     arm = arm.cut(cyl(AX_R + 0.02, (0, ym - 9, 0), (0, ym + 1, 0))).cut(box(-1.0, 1.0, ym - 9, ym + 1, -45, -5))
@@ -71,7 +71,7 @@ def build_spine():
     br.shape = br.shape.fuse(arm)
     br.spec.update(note="split clamp locates the left inner race; arm carries the levelling motor")
     P.append(br)
-    J += clamp_joints("level_bracket", y_in + 1.0, ym - 8.0, 30.0, -1, step="spine_level")
+    J += clamp_joints("level_bracket", y_in + 2.5, ym - 8.0, 30.0, -1, step="spine_level")
     mot = d6374("level_motor", (0, ym, zc), (0, 1, 0), "spine", xref=(1, 0, 0))
     P.append(mot)
     for k, hp in enumerate(d6374_holes((0, ym, zc), (0, 1, 0), (1, 0, 0), pcd=44.0)):
@@ -86,15 +86,15 @@ def build_spine():
     # ---------------------------------------------------------------- slip ring core sleeve (right)
     C = S.COTS["slip_ring"]
     y0 = -y_in
-    sl = tube(AX_R + 0.02, 23.5, (0, y0 - 1.0, 0), (0, y0, 0))                              # inner-race land
-    sl = sl.fuse(tube(AX_R + 0.02, C["bore"] / 2 - 0.02, (0, -126.0, 0), (0, y0 - 1.0, 0)))
+    sl = tube(AX_R + 0.02, 23.5, (0, y0 - 2.5, 0), (0, y0, 0))                              # inner-race land
+    sl = sl.fuse(tube(AX_R + 0.02, C["bore"] / 2 - 0.02, (0, -126.0, 0), (0, y0 - 2.5, 0)))
     clamp = split_clamp("slip_sleeve_tmp", -126.0, -146.0, 30.0, "spine", lug_side=-1)
     P.append(Part("slip_sleeve", sl.fuse(clamp.shape), "spine", "alu", rho="al",
                   spec=dict(material="6061-T6", process="CNC turn + slit", fit="OD 50 h7 for the slip-ring bore; bore 40 H7",
                             note="locates the right inner race; slip-ring rotor collar set screws bear on it")))
     J += [Joint(f"slip_sleeve_clamp{k}", 5, (11.0, yy, -33.0), (-1, 0, 0), ["slip_sleeve", "slip_sleeve"], step="spine_slipring")
           for k, yy in enumerate((-130.5, -141.5))]
-    ys0, ys1 = -40.0, -40.0 - (C["length"] - C["collar_len"])
+    ys0, ys1 = -44.5, -44.5 - (C["length"] - C["collar_len"])
     core = tube(C["bore"] / 2, 36.0, (0, ys1, 0), (0, ys0, 0)).fuse(
         tube(C["bore"] / 2, C["collar_d"] / 2, (0, ys1 - C["collar_len"], 0), (0, ys1, 0)))
     P.append(Part("slipring_rotor", core, "spine", "motor_black", mass=0.20, kind="cots",

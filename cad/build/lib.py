@@ -334,6 +334,7 @@ class Joint:
     grade: str = "A2-70"
     L: float | None = None          # forced length (else chosen)
     max_engage: float | None = None # thread depth limit of a bought part's tapped hole (mm)
+    precut: tuple = ()              # clamped members whose clearance (e.g. an adjustment slot) is already machined
     tool_len: float = 80.0          # straight tool access needed above the head (mm)
     step: str = ""                  # assembly step that installs it
     # filled in by apply()
@@ -359,7 +360,9 @@ def apply_joints(parts: dict, joints: list[Joint]) -> list[Part]:
         ivs = []
         for m in mem:
             iv = _member_interval(m.shape, seat, n)
-            if not iv:
+            if not iv and m.name in j.precut:
+                iv = []
+            elif not iv:
                 raise RuntimeError(f"joint {j.name}: axis misses member {m.name}")
             ivs.append(iv)
         # extent of the clamped stack
@@ -376,11 +379,13 @@ def apply_joints(parts: dict, joints: list[Joint]) -> list[Part]:
         if thread_m is not None and not [a for a, b in ivs[-1] if b > 0]:
             raise RuntimeError(f"joint {j.name}: thread member {thread_m.name} lies behind the seat {ivs[-1]}")
         t_enter_thread = min(a for a, b in ivs[-1] if b > 0) if thread_m is not None else None
-        t_exit_stack = max(b for iv in ivs for a, b in iv)
+        t_exit_stack = max(b for iv in ivs for a, b in iv) if any(ivs) else 0.0
         washer_t = WASHER[d][2] if j.washer else 0.0
         head_seat = seat - n * washer_t
         # clearance holes through clamped members (whole span of each member along the axis, generous)
         for m, iv in zip(clamped, ivs[:len(clamped)]):
+            if not iv:
+                continue
             t0 = min(a for a, b in iv) - 1.0
             t1 = max(b for a, b in iv) + 1.0
             cuts.setdefault(m.name, []).append(cyl(CLEAR[d] / 2, seat + n * t0, seat + n * t1))
@@ -430,8 +435,8 @@ def apply_joints(parts: dict, joints: list[Joint]) -> list[Part]:
         elif j.end == "pem":
             # self-clinching nut (PEM CLS / CLSS) pressed flush into the last (sheet) member
             last = mem[-1]
-            t_in = min(a for a, b in ivs[-1] if b > 0)
-            t_out = max(b for a, b in ivs[-1])
+            first = min((iv for iv in ivs[-1] if iv[1] > 0), key=lambda iv: iv[0])     # the wall the screw meets first
+            t_in, t_out = first
             grip = t_in
             hold = 7.4 if d >= 4 else 5.4                     # PEM shank / thread length is the sheet thickness
             Ls = [L for L in LEN[j.head] if L >= t_out + 0.5 and L <= t_out + 4.0]
