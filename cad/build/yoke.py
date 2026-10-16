@@ -320,7 +320,7 @@ def build_yoke():
     tab = tab.cut(box(-C["tab"]["slot_w"] / 2, C["tab"]["slot_w"] / 2, ys0 - 10, ys0 + 1, C["tab"]["slot_r"] - 5.0, C["tab"]["r_end"] + 1))
     P.append(Part("slipring_housing", hsg.fuse(tab), "yoke", "motor_black", mass=0.25, kind="cots",
                   spec=dict(pn=C["pn"], source=C["source"], note="stator housing driven by the hanger pin through its tab slot")))
-    pin = dowel("slipring_pin", 8.0, 21.0, (0.0, -H0, C["tab"]["slot_r"]), (0, -1, 0), "yoke", ["hanger_R"])
+    pin = dowel("slipring_pin", 8.0, 20.0, (0.0, -H0, C["tab"]["slot_r"]), (0, -1, 0), "yoke", ["hanger_R"])
     P.append(pin)
     cut_dowel_holes({p.name: p for p in P}, pin)
     return P, J, []

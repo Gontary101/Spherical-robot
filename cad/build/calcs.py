@@ -121,7 +121,7 @@ def main():
     # ---------------------------------------------------------------- drive motors thermal
     row("drive", "D6374 rms current (p rms tyre torque)", al["drive"]["tau_rms"] / 24 / 0.9 / Kt, "A", 40.0)
     # ---------------------------------------------------------------- tungsten / module fixings (5 g any direction)
-    for nm, m, nb, d in (("tungsten block (3.5 kg) on 4 x M8 12.9", 3.5, 4, 8), ("battery module (1.3 kg) on 4 x M5", 1.3, 4, 5)):
+    for nm, m, nb, d in (("tungsten block (3.5 kg) on 4 x M8 10.9", 3.5, 4, 8), ("battery module (1.3 kg) on 4 x M5", 1.3, 4, 5)):
         Fs = m * G * 5 / nb
         As = math.pi / 4 * (d * 0.85) ** 2
         row("fixings", f"{nm}: shear per bolt at 5 g", Fs / As, "MPa", 200.0, note="bolts clamp: friction alone carries it at proper preload")

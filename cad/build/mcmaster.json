@@ -1,0 +1,272 @@
+{
+  "ISO 4762 SHCS M2x4 A2": {
+    "mcmaster": "91292A004",
+    "description": "18-8 Stainless Steel Socket Head Screw, M2 x 0.4, 4 mm long (Clearpath table links McMaster 18-8 stainless socket head screw category; 91292A family is ISO 4762/DIN 912 per McMaster 91292A112 RoHS sheet)",
+    "verified": true,
+    "source": "https://github.com/clearpathrobotics/cpr-documentation/blob/main/docs_robots/common/parts/fasteners/screw_socket_head.mdx ; also https://github.com (camera-module.md 'M2 x 4 SHCS SS 91292A004')"
+  },
+  "ISO 4762 SHCS M2x10 A2": {
+    "mcmaster": "91292A833",
+    "description": "18-8 Stainless Steel Socket Head Screw, M2 x 0.4, 10 mm long (Clearpath table links McMaster 18-8 stainless socket head screw category; 91292A family is ISO 4762/DIN 912 per McMaster 91292A112 RoHS sheet)",
+    "verified": true,
+    "source": "https://github.com/clearpathrobotics/cpr-documentation/blob/main/docs_robots/common/parts/fasteners/screw_socket_head.mdx ; also behemoth source_guide.md 'M2x10 SHCS ISO 4762 / DIN 912' -> 91292A833"
+  },
+  "ISO 4762 SHCS M3x4 A2": {
+    "mcmaster": "91292A109",
+    "description": "18-8 Stainless Steel Socket Head Screw, M3 x 0.5, 4 mm long (Clearpath table links McMaster 18-8 stainless socket head screw category; 91292A family is ISO 4762/DIN 912 per McMaster 91292A112 RoHS sheet)",
+    "verified": true,
+    "source": "https://github.com/clearpathrobotics/cpr-documentation/blob/main/docs_robots/common/parts/fasteners/screw_socket_head.mdx"
+  },
+  "ISO 4762 SHCS M3x6 A2": {
+    "mcmaster": "91292A111",
+    "description": "18-8 Stainless Steel Socket Head Screw, M3 x 0.5, 6 mm long (Clearpath table links McMaster 18-8 stainless socket head screw category; 91292A family is ISO 4762/DIN 912 per McMaster 91292A112 RoHS sheet)",
+    "verified": true,
+    "source": "https://github.com/clearpathrobotics/cpr-documentation/blob/main/docs_robots/common/parts/fasteners/screw_socket_head.mdx ; also Lightweight XY Joints Readme '18-8 Stainless Steel Socket Head Screw - M3 x 0.5 mm Thread, 6 mm Long (91292A111)'"
+  },
+  "ISO 4762 SHCS M3x10 A2": {
+    "mcmaster": "91292A113",
+    "description": "18-8 Stainless Steel Socket Head Screw, M3 x 0.5, 10 mm long (Clearpath table links McMaster 18-8 stainless socket head screw category; 91292A family is ISO 4762/DIN 912 per McMaster 91292A112 RoHS sheet)",
+    "verified": true,
+    "source": "https://github.com/clearpathrobotics/cpr-documentation/blob/main/docs_robots/common/parts/fasteners/screw_socket_head.mdx ; also Bravo Plate Cold Block BOM.csv '18-8 Stainless Steel Socket Head Screw, M3 x 0.5 mm Thread, 10 mm Long' -> 91292A113"
+  },
+  "ISO 4762 SHCS M3x20 A2": {
+    "mcmaster": "91292A123",
+    "description": "18-8 Stainless Steel Socket Head Screw, M3 x 0.5, 20 mm long (Clearpath table links McMaster 18-8 stainless socket head screw category; 91292A family is ISO 4762/DIN 912 per McMaster 91292A112 RoHS sheet)",
+    "verified": true,
+    "source": "https://github.com/clearpathrobotics/cpr-documentation/blob/main/docs_robots/common/parts/fasteners/screw_socket_head.mdx"
+  },
+  "ISO 4762 SHCS M4x6 A2": {
+    "mcmaster": "91292A107",
+    "description": "18-8 Stainless Steel Socket Head Screw, M4 x 0.7, 6 mm long (Clearpath table links McMaster 18-8 stainless socket head screw category; 91292A family is ISO 4762/DIN 912 per McMaster 91292A112 RoHS sheet)",
+    "verified": true,
+    "source": "https://github.com/clearpathrobotics/cpr-documentation/blob/main/docs_robots/common/parts/fasteners/screw_socket_head.mdx"
+  },
+  "ISO 4762 SHCS M4x10 A2": {
+    "mcmaster": "91292A116",
+    "description": "18-8 Stainless Steel Socket Head Screw, M4 x 0.7, 10 mm long (Clearpath table links McMaster 18-8 stainless socket head screw category; 91292A family is ISO 4762/DIN 912 per McMaster 91292A112 RoHS sheet)",
+    "verified": true,
+    "source": "https://github.com/clearpathrobotics/cpr-documentation/blob/main/docs_robots/common/parts/fasteners/screw_socket_head.mdx"
+  },
+  "ISO 4762 SHCS M4x12 A2": {
+    "mcmaster": "91292A117",
+    "description": "18-8 Stainless Steel Socket Head Screw, M4 x 0.7, 12 mm long (Clearpath table links McMaster 18-8 stainless socket head screw category; 91292A family is ISO 4762/DIN 912 per McMaster 91292A112 RoHS sheet)",
+    "verified": true,
+    "source": "https://github.com/clearpathrobotics/cpr-documentation/blob/main/docs_robots/common/parts/fasteners/screw_socket_head.mdx"
+  },
+  "ISO 4762 SHCS M4x14 A2": {
+    "mcmaster": "91292A038",
+    "description": "18-8 Stainless Steel Socket Head Screw, M4 x 0.7, 14 mm long (Clearpath table links McMaster 18-8 stainless socket head screw category; 91292A family is ISO 4762/DIN 912 per McMaster 91292A112 RoHS sheet)",
+    "verified": true,
+    "source": "https://github.com/clearpathrobotics/cpr-documentation/blob/main/docs_robots/common/parts/fasteners/screw_socket_head.mdx"
+  },
+  "ISO 4762 SHCS M4x16 A2": {
+    "mcmaster": "91292A118",
+    "description": "18-8 Stainless Steel Socket Head Screw, M4 x 0.7, 16 mm long (Clearpath table links McMaster 18-8 stainless socket head screw category; 91292A family is ISO 4762/DIN 912 per McMaster 91292A112 RoHS sheet)",
+    "verified": true,
+    "source": "https://github.com/clearpathrobotics/cpr-documentation/blob/main/docs_robots/common/parts/fasteners/screw_socket_head.mdx"
+  },
+  "ISO 4762 SHCS M4x25 A2": {
+    "mcmaster": "91292A122",
+    "description": "18-8 Stainless Steel Socket Head Screw, M4 x 0.7, 25 mm long (Clearpath table links McMaster 18-8 stainless socket head screw category; 91292A family is ISO 4762/DIN 912 per McMaster 91292A112 RoHS sheet)",
+    "verified": true,
+    "source": "https://github.com/clearpathrobotics/cpr-documentation/blob/main/docs_robots/common/parts/fasteners/screw_socket_head.mdx"
+  },
+  "ISO 4762 SHCS M5x8 A2": {
+    "mcmaster": "91292A191",
+    "description": "18-8 Stainless Steel Socket Head Screw, M5 x 0.8, 8 mm long (Clearpath table links McMaster 18-8 stainless socket head screw category; 91292A family is ISO 4762/DIN 912 per McMaster 91292A112 RoHS sheet)",
+    "verified": true,
+    "source": "https://github.com/clearpathrobotics/cpr-documentation/blob/main/docs_robots/common/parts/fasteners/screw_socket_head.mdx"
+  },
+  "ISO 4762 SHCS M5x16 A2": {
+    "mcmaster": "91292A126",
+    "description": "18-8 Stainless Steel Socket Head Screw, M5 x 0.8, 16 mm long (Clearpath table links McMaster 18-8 stainless socket head screw category; 91292A family is ISO 4762/DIN 912 per McMaster 91292A112 RoHS sheet)",
+    "verified": true,
+    "source": "https://github.com/clearpathrobotics/cpr-documentation/blob/main/docs_robots/common/parts/fasteners/screw_socket_head.mdx"
+  },
+  "ISO 4762 SHCS M5x20 A2": {
+    "mcmaster": "91292A128",
+    "description": "18-8 Stainless Steel Socket Head Screw, M5 x 0.8, 20 mm long (Clearpath table links McMaster 18-8 stainless socket head screw category; 91292A family is ISO 4762/DIN 912 per McMaster 91292A112 RoHS sheet)",
+    "verified": true,
+    "source": "https://github.com/clearpathrobotics/cpr-documentation/blob/main/docs_robots/common/parts/fasteners/screw_socket_head.mdx"
+  },
+  "ISO 4762 SHCS M5x22 A2": {
+    "mcmaster": "91292A060",
+    "description": "18-8 Stainless Steel Socket Head Screw, M5 x 0.8, 22 mm long (Clearpath table links McMaster 18-8 stainless socket head screw category; 91292A family is ISO 4762/DIN 912 per McMaster 91292A112 RoHS sheet)",
+    "verified": true,
+    "source": "https://github.com/clearpathrobotics/cpr-documentation/blob/main/docs_robots/common/parts/fasteners/screw_socket_head.mdx"
+  },
+  "ISO 7380 button head M4x10 A2": {
+    "mcmaster": "92095A190",
+    "description": "18-8 Stainless Steel Button Head Hex Drive Screw, M4 x 0.7, 10 mm long (Clearpath table links McMaster 'metric-18-8-stainless-steel-button-head-hex-drive-screws'; 92095A212 also labelled ISO 7380 in a third-party BOM)",
+    "verified": true,
+    "source": "https://github.com/clearpathrobotics/cpr-documentation/blob/main/docs_robots/common/parts/fasteners/screw_round_head.mdx"
+  },
+  "ISO 7380 button head M4x12 A2": {
+    "mcmaster": "92095A192",
+    "description": "18-8 Stainless Steel Button Head Hex Drive Screw, M4 x 0.7, 12 mm long (Clearpath table links McMaster 'metric-18-8-stainless-steel-button-head-hex-drive-screws'; 92095A212 also labelled ISO 7380 in a third-party BOM)",
+    "verified": true,
+    "source": "https://github.com/clearpathrobotics/cpr-documentation/blob/main/docs_robots/common/parts/fasteners/screw_round_head.mdx"
+  },
+  "ISO 7380 button head M5x16 A2": {
+    "mcmaster": "92095A212",
+    "description": "18-8 Stainless Steel Button Head Hex Drive Screw, M5 x 0.8, 16 mm long (Clearpath table links McMaster 'metric-18-8-stainless-steel-button-head-hex-drive-screws'; 92095A212 also labelled ISO 7380 in a third-party BOM)",
+    "verified": true,
+    "source": "https://github.com/clearpathrobotics/cpr-documentation/blob/main/docs_robots/common/parts/fasteners/screw_round_head.mdx"
+  },
+  "ISO 10642 flat head M3x16 A2": {
+    "mcmaster": "92125A134",
+    "description": "18-8 Stainless Steel Hex-Drive Flat Head Screw, M3 x 0.5 mm Thread Size, 16 mm Long (McMaster family is 90-deg countersink; third parties label it DIN 7991, ISO 10642 not explicitly stated)",
+    "verified": true,
+    "source": "https://github.com/clearpathrobotics/cpr-documentation/blob/main/docs_robots/common/parts/fasteners/screw_flat_head.mdx ; Bravo Plate Cold Block BOM.csv quotes the full description"
+  },
+  "ISO 10642 flat head M5x16 A2": {
+    "mcmaster": "92125A212",
+    "description": "18-8 Stainless Steel Hex-Drive Flat Head Screw, M5 x 0.8, 16 mm long (labelled DIN 7991 in a third-party BOM)",
+    "verified": true,
+    "source": "https://github.com/clearpathrobotics/cpr-documentation/blob/main/docs_robots/common/parts/fasteners/screw_flat_head.mdx"
+  },
+  "ISO 10642 flat head M8x14 alloy 12.9": {
+    "mcmaster": "91294A (series)",
+    "description": "Black-Oxide Alloy Steel Hex Drive Flat Head Screw, metric. Third-party cross-refs show 91294A280 = M8x12 and 91294A289 = M8x40, listed as class 10.9 (not 12.9). No source for an M8x14 number found",
+    "verified": false,
+    "source": "https://www.olander.com/items/.8C12FHCA"
+  },
+  "ISO 7040 / DIN 985 nylon-insert locknut M8 A2": {
+    "mcmaster": "93625A300",
+    "description": "18-8 Stainless Steel Nylon-Insert Locknut (McMaster page title for 93625A300); listed as 'M8 Nylon Locking Nut' in a third-party BOM. Standard (DIN 985 vs high profile) is not stated in either source. Note 93625A114 = M8 HIGH-profile 18-8 locknut (13 mm wide, 9.5 mm high), the wrong part for DIN 985",
+    "verified": true,
+    "source": "https://www.mcmaster.com/products/93625A300/ ; https://github.com (Design Files/Pedal Arm/README.md 'M8 Nylon Locking Nut 93625A300')"
+  },
+  "ISO 7089 / DIN 125 washer M4 A2": {
+    "mcmaster": "93475A230",
+    "description": "18-8 Stainless Steel Washer (McMaster STEP filename '93475A230_18-8 Stainless Steel Washer'); third-party BOM: 'Washer M4, General Purpose, 4.3 mm ID, 9 mm OD'",
+    "verified": true,
+    "source": "https://github.com (STEP '93475A230_18-8 Stainless Steel Washer.STEP'; quiver BOM.md FAST-027)"
+  },
+  "ISO 7089 / DIN 125 washer M8 A2": {
+    "mcmaster": "93475A270",
+    "description": "18-8 Stainless Steel Washer (McMaster STEP filename '93475A270_18-8 Stainless Steel Washer'); BOMs: 'M8 washer', 'M8 flat washer DIN 125, 8.4 mm ID x 16 mm OD, 18-8 stainless'",
+    "verified": true,
+    "source": "https://github.com (STEP '93475A270_18-8 Stainless Steel Washer.STEP'; autogenerated_inventory.csv 'M8 Washer ... 93475A270')"
+  },
+  "ISO 2338 m6 dowel pin 3 x 6 mm (18-8)": {
+    "mcmaster": "91585A345",
+    "description": "18-8 Stainless Steel Dowel Pin, 3 mm dia, 6 mm long, ISO 2338-m6, 0.002 to 0.008 mm dia. tolerance, pack of 50",
+    "verified": true,
+    "source": "https://www.mcmaster.com/products/pins/diameter~3-0000-mm/diameter~3-000-mm/diameter~3-mm"
+  },
+  "ISO 8734 dowel pin 3 x 6 mm (hardened alloy alt.)": {
+    "mcmaster": "91595A100",
+    "description": "High-Strength Alloy Steel Dowel Pin, 3 mm dia, 6 mm long, Rockwell C52, DIN 6325-m6 / ISO 8734, pack of 100",
+    "verified": true,
+    "source": "https://www.mcmaster.com/products/pins/diameter~3-0000-mm/diameter~3-000-mm/diameter~3-mm"
+  },
+  "ISO 2338 / ISO 8734 m6 dowel pin 8 x 20 mm": {
+    "mcmaster": "91585A (18-8, ISO 2338-m6) or 91595A (alloy, ISO 8734) series",
+    "description": "8 mm x 20 mm number not found in any page that could be read. 97049A124 is 8x20 18-8 but UNDERSIZED (h8), so do not use it for an m6 fit",
+    "verified": false,
+    "source": "https://www.mcmaster.com/products/pins/diameter~3-0000-mm/diameter~3-000-mm/diameter~3-mm (series headings)"
+  },
+  "DIN 471 external retaining ring, 12 mm shaft": {
+    "mcmaster": "98541A119",
+    "description": "Phosphate-Coated Carbon Steel External Retaining Ring, 12 mm shaft, 11.5 mm groove dia, 1 mm thick, DIN 471, pack of 100 (alts: zinc-plated 90154A273; 1.4122 stainless 90967A165)",
+    "verified": true,
+    "source": "https://www.mcmaster.com/products/98541A118/"
+  },
+  "DIN 472 internal retaining ring, 62 mm bore": {
+    "mcmaster": "98455A (series)",
+    "description": "McMaster 'Internal Retaining Ring' family (per McMaster STEP filenames, e.g. 98455A170 used for a 130 mm bore). No source found for the 62 mm number or a DIN 472 tie",
+    "verified": false,
+    "source": "https://github.com (STEP '98455A367_Internal Retaining Ring.STEP')"
+  },
+  "DIN 6799 E-ring, 7 mm groove (shaft 8-11 mm)": {
+    "mcmaster": "98543A115",
+    "description": "Phosphate-Coated Carbon Steel E-Style Retaining Ring, for 8-11 mm shaft, 7 mm groove dia, 0.9 mm thick, DIN 6799, pack of 100 (alts: zinc-plated 90768A107; 1.4122 stainless 98317A224)",
+    "verified": true,
+    "source": "https://www.mcmaster.com/products/e-style-snap-rings/"
+  },
+  "Self-clinching nut M4, 1.5 mm Al sheet": {
+    "mcmaster": "96439A650",
+    "description": "18-8 Stainless Steel Press-Fit Nut for Sheet Metal, M4, 1.4 mm min. panel thickness, PEM CLS-M4-2",
+    "verified": true,
+    "source": "https://www.mcmaster.com/products/press-fit-nuts/thread-size~m4"
+  },
+  "Self-clinching nut M5, 1.5 mm Al sheet": {
+    "mcmaster": "96439A680",
+    "description": "18-8 Stainless Steel Press-Fit Nut for Sheet Metal, M5, 1.4 mm min. panel thickness, PEM CLSS-M5-2",
+    "verified": true,
+    "source": "https://www.mcmaster.com/products/press-fit-nuts/thread-size~m5"
+  },
+  "Self-clinching nut M4, 3 mm sheet": {
+    "mcmaster": "96439A214",
+    "description": "18-8 Stainless Steel Press-Fit Nut for Sheet Metal, M4, 2.29 mm min. panel thickness (no PEM number listed; equivalent to the CLS-M4-3 size)",
+    "verified": true,
+    "source": "https://www.mcmaster.com/products/press-fit-nuts/thread-size~m4"
+  },
+  "Heat-set insert M2 (~4 mm)": {
+    "mcmaster": "94180A312",
+    "description": "Brass Tapered Heat-Set Insert for Plastic, M2 x 0.4, 4.8 mm installed length, ASTM B16 (nearest; shorter option 94180A307 = 2.9 mm)",
+    "verified": true,
+    "source": "https://www.mcmaster.com/products/threaded-inserts/specifications-met~astm-b16/"
+  },
+  "Heat-set insert M3 (~5.7 mm)": {
+    "mcmaster": "94180A333",
+    "description": "Brass Tapered Heat-Set Insert for Plastic, M3 x 0.5, 6.4 mm installed length (McMaster has no 5.7 mm length. Only 3.8 mm = 94180A331 or 6.4 mm)",
+    "verified": true,
+    "source": "https://www.mcmaster.com/products/threaded-inserts/specifications-met~astm-b16/"
+  },
+  "Heat-set insert M4 (~8 mm)": {
+    "mcmaster": "94180A353",
+    "description": "Brass Tapered Heat-Set Insert for Plastic, M4 x 0.7, 7.9 mm installed length (short option 94180A351 = 4.7 mm)",
+    "verified": true,
+    "source": "https://www.mcmaster.com/products/threaded-inserts/specifications-met~astm-b16/"
+  },
+  "Hex standoff M4 M-F 7 mm hex x 18 mm stainless": {
+    "mcmaster": "not found",
+    "description": "McMaster metric hex standoff filters list hex sizes 4.5/6/8/10... mm (and 6, 6.4, 7.9, 8 mm for M4). There is no 7 mm hex, so expect an 8 mm hex part. 93655A appears to be the ALUMINUM metric M-F family (third-party data), not stainless. No stainless M4x18 number found",
+    "verified": false,
+    "source": "https://www.mcmaster.com/products/male-female-threaded-hex-standoffs/ ; https://www.mcmaster.com/products/standoffs/thread-size~m4-1/"
+  },
+  "Hex standoff M3 M-F 6 mm brass": {
+    "mcmaster": "not found",
+    "description": "No brass metric male-female standoff number located",
+    "verified": false,
+    "source": "https://www.mcmaster.com/products/male-female-threaded-hex-standoffs/"
+  },
+  "ISO 4029 cup-point set screw M4x6": {
+    "mcmaster": "92015A (18-8 cup-point series) / 91390A (black-oxide alloy cup-point series)",
+    "description": "Series only. Third parties: 92015A106 = 18-8 cup-point M3x10, 92015A111 = M4x5 set screw, 91390A098 = alloy cup-point M3x4. No M4x6 number found",
+    "verified": false,
+    "source": "https://github.com (Lightweight XY Joints Readme '18-8 Stainless Steel Cup-Point Set Screw - M3 x 0.5 mm Thread, 10 mm Long (92015A106)')"
+  },
+  "ISO 4029 cup-point set screw M5x6": {
+    "mcmaster": "92015A / 91390A (series)",
+    "description": "Series only. No M5x6 number found",
+    "verified": false,
+    "source": "https://github.com (GF12 BOM: '91390A133 Alloy Steel Cup-Point Set Screw M6 x 1 mm Thread, 20 mm Long')"
+  },
+  "DIN 6885 A parallel key 3x3x14": {
+    "mcmaster": "96717A113",
+    "description": "Rounded Machine Key (round-ended = DIN 6885 form A), 1008-1045 carbon steel, 3 x 3 x 14 mm, undersized, DIN 6885, pack of 5 (square-end alt: 98870A706)",
+    "verified": true,
+    "source": "https://www.mcmaster.com/products/keys/width~3-mm"
+  },
+  "DIN 6885 A parallel key 4x4x16": {
+    "mcmaster": "96717A140",
+    "description": "Rounded Machine Key, 1045 carbon steel, 4 x 4 x 16 mm, undersized, DIN 6885, pack of 10 (316 SS alt: 2977N18; square-end alt: 98870A716)",
+    "verified": true,
+    "source": "https://www.mcmaster.com/products/keys/width~4-mm"
+  },
+  "Metric key stock 3 mm square": {
+    "mcmaster": "92288A715",
+    "description": "Machine Key Stock, 1008-1045 carbon steel, 3 x 3 mm, 305 mm long, undersized, DIN 6880",
+    "verified": true,
+    "source": "https://www.mcmaster.com/products/keys/width~3-mm"
+  },
+  "Metric key stock 4 mm square": {
+    "mcmaster": "92288A720",
+    "description": "Machine Key Stock, 1008-1045 carbon steel, 4 x 4 mm, 305 mm long, undersized, DIN 6880",
+    "verified": true,
+    "source": "https://www.mcmaster.com/products/keys/width~4-mm"
+  }
+}

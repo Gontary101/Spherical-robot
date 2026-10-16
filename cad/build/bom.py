@@ -39,6 +39,49 @@ def base_name(n):
     return b
 
 
+MC = json.load(open(os.path.join(HERE, "mcmaster.json")))
+EXTRA_HW = [   # hardware that is in the BOM but not modelled as solids
+    ("DIN 6885 A parallel key 3x3x14", 3, "P20 pulleys on the drive motors, level pinion"),
+    ("DIN 6885 A parallel key 4x4x16", 2, "P32 pulleys on the pinion shafts"),
+    ("ISO 4029 cup-point set screw M4x6", 3, "P20 pulleys, level pinion (Loctite 243)"),
+    ("ISO 4029 cup-point set screw M5x6", 2, "P32 pulleys (Loctite 243)"),
+]
+
+
+def mc_lookup(p):
+    """McMaster-Carr number for a fastener part (cad/build/mcmaster.json, each entry with its source)."""
+    t, d = p.get("type", ""), p.get("d")
+    key = None
+    if t == "screw":
+        L = p["L"]
+        if p["head"] == "SHCS":
+            key = f"ISO 4762 SHCS M{d:g}x{L:g} A2"
+        elif p["head"] == "BHCS":
+            key = f"ISO 7380 button head M{d:g}x{L:g} A2"
+        elif d == 8:
+            key = "ISO 10642 flat head M8x14 alloy 12.9"
+        else:
+            key = f"ISO 10642 flat head M{d:g}x{L:g} A2"
+    elif t == "nyloc nut":
+        key = f"ISO 7040 / DIN 985 nylon-insert locknut M{d:g} A2"
+    elif t == "washer":
+        key = f"ISO 7089 / DIN 125 washer M{d:g} A2"
+    elif t == "dowel pin":
+        key = "ISO 2338 m6 dowel pin 3 x 6 mm (18-8)" if d == 3 else "ISO 2338 / ISO 8734 m6 dowel pin 8 x 20 mm"
+    elif t == "retaining ring":
+        key = "DIN 471 external retaining ring, 12 mm shaft" if p.get("std") == "DIN 471" else "DIN 472 internal retaining ring, 62 mm bore"
+    elif t == "retaining washer":
+        key = "DIN 6799 E-ring, 7 mm groove (shaft 8-11 mm)"
+    elif t == "self-clinching nut":
+        key = "Self-clinching nut M4, 3 mm sheet" if "3.0 mm" in p.get("pn", "") else f"Self-clinching nut M{d:g}, 1.5 mm Al sheet"
+    elif t == "heat-set insert":
+        key = {2: "Heat-set insert M2 (~4 mm)", 3: "Heat-set insert M3 (~5.7 mm)", 4: "Heat-set insert M4 (~8 mm)"}.get(d)
+    e = MC.get(key) if key else None
+    if not e:
+        return ""
+    return e["mcmaster"].replace(" (series)", "") + ("" if e["verified"] else " (series - pick size)")
+
+
 def main():
     parts = json.load(open(os.path.join(OUT, "parts.json")))
     joints = {j["name"]: j for j in json.load(open(os.path.join(OUT, "joints.json")))}
@@ -73,6 +116,7 @@ def main():
                 key = p.get("pn", t or p["name"])
             fast[key]["qty"] += 1
             fast[key]["mass"] += p["mass"]
+            fast[key]["mc"] = mc_lookup(p)
     rows = []
     for k, e in custom.items():
         rows.append(["custom", k, e["qty"], e["material"], e["process"], e["finish"], round(e["mass"], 4), ", ".join(e["names"][:8])])
@@ -80,7 +124,11 @@ def main():
         rows.append(["bought", k, e["qty"], "", "verified" if e["verified"] else "CHECK hole pattern before machining", e["source"],
                      round(e["mass"], 4), ", ".join(e["names"][:8])])
     for k, e in sorted(fast.items()):
-        rows.append(["fastener", k, e["qty"], "", "" if e.get("torque") is None else f"{e['torque']} N m", "", round(e["mass"], 4), ""])
+        rows.append(["fastener", k, e["qty"], "", "" if e.get("torque") is None else f"{e['torque']} N m",
+                     f"McMaster {e['mc']}" if e.get("mc") else "", round(e["mass"], 4), ""])
+    for k, q, use in EXTRA_HW:
+        e = MC.get(k, {})
+        rows.append(["fastener", k, q, "", use, f"McMaster {e.get('mcmaster', '').replace(' (series)', '')}" + ("" if e.get("verified") else " (series - pick size)"), "", ""])
     for k, q, use in CONSUMABLES:
         rows.append(["consumable", k, q, "", use, "", "", ""])
     os.makedirs(OUT, exist_ok=True)

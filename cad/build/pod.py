@@ -233,10 +233,10 @@ def build_pod(side):
         a = math.radians(a_)
         cx, cz = SO_R * math.cos(a), SO_R * math.sin(a)
         from lib import _hex_prism
-        so = _hex_prism(7.0, SO_L, Vector(cx, Y(u1), cz), ny, Vector(1, 0, 0)).fuse(cyl(2.0, (cx, Y(u1 - 6.0), cz), (cx, Y(u1), cz)))
+        so = _hex_prism(8.0, SO_L, Vector(cx, Y(u1), cz), ny, Vector(1, 0, 0)).fuse(cyl(2.0, (cx, Y(u1 - 6.0), cz), (cx, Y(u1), cz)))
         T.append((f"shield_standoff_{s}{k}", f"pod_plate_{s}"))
         P.append(Part(f"shield_standoff_{s}{k}", so, "spine", "steel", rho="ss", kind="cots",
-                      spec=dict(pn="hex standoff M4 male-female, 7 AF x 18 mm, stainless (e.g. Wurth 971180445 class)")))
+                      spec=dict(pn="hex standoff M4 male-female, 8 mm hex x 18 mm, 18-8 stainless")))
         pp = P[[p.name for p in P].index(f"pod_plate_{s}")]
         pp.shape = pp.shape.cut(cyl(1.65, (cx, Y(u1 + 0.5), cz), (cx, Y(u1 - 7.5), cz)))       # M4 tapped, 7 deep
         seat_u = math.sqrt(R_SH ** 2 - (SO_R + 5.0) ** 2) - 0.2

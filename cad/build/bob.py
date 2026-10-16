@@ -2,7 +2,7 @@
 Bob (lean body: tungsten ballast swung sideways on a curved V-track, about the x axis at the axle centre).
 
     carriage plates 2 x 6061 6 mm sectors r 126..242, +-24 deg
-    tungsten        3 blocks W-Ni-Fe 95 % (18.0 g/cc, ASTM B777 class 3), r 222..246, x +-62, each M8 to both plates
+    tungsten        3 blocks W-Ni-Fe 95 % (18.0 g/cc, ASTM B777 class 3), r 222..246, x +-62, each 4 x M8 class 10.9 flat heads
     V-wheels        4 per side (DualVee W2): inner pair (r 138.9, +-20 deg, eccentric studs) on the track's inner edge,
                     outer pair (r 227.1, +-16 deg, studs threaded into the tungsten) on its outer edge; DIN 6799 E-clips
     lean actuator   CubeMars AK70-10 on the front plate's inner face (8 x M3 countersunk), 40T m1.5 pinion on its
@@ -58,7 +58,7 @@ def build_bob():
         for sx, sp in ((1, "F"), (-1, "B")):
             for i, ph in enumerate(phis):
                 J.append(Joint(f"tungsten_screw_{sp}{k}{i}", 8, at(239.0, ph, sx * x1), (-sx, 0, 0), [f"carriage_{sp}", f"tungsten_{k}"],
-                               head="FHCS", grade="12.9", step="bob_tungsten"))
+                               head="FHCS", grade="10.9", step="bob_tungsten"))
     # V-wheels on studs
     for sx, sp in ((1, "F"), (-1, "B")):
         for name, rc, phs, into in (("in", S.TRACK_R[0] - W2["vee"] / 2 - 0.42, (-20.0, 20.0), None),
