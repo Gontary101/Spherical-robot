@@ -253,8 +253,8 @@ CBORE = {2: (4.4, 2.3), 2.5: (5.0, 2.8), 3: (6.5, 3.4), 4: (8.0, 4.4), 5: (10.0,
 # heat-set inserts for thermoplastics (e.g. Ruthex RX-M3x5.7 / RX-M4x8.1): d -> (hole dia, length)
 INSERT = {2: (3.2, 4.0), 2.5: (3.6, 5.7), 3: (4.0, 5.7), 4: (5.6, 8.1), 5: (6.4, 9.5)}
 # standard stocked lengths
-LEN = {"SHCS": (6, 8, 10, 12, 14, 16, 18, 20, 22, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 80, 90, 100, 110, 120),
-       "BHCS": (6, 8, 10, 12, 14, 16, 20, 25, 30, 35, 40),
+LEN = {"SHCS": (4, 5, 6, 8, 10, 12, 14, 16, 18, 20, 22, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 80, 90, 100, 110, 120),
+       "BHCS": (4, 5, 6, 8, 10, 12, 14, 16, 20, 25, 30, 35, 40),
        "FHCS": (6, 8, 10, 12, 14, 16, 20, 25, 30, 35, 40)}
 STD = {"SHCS": "ISO 4762", "BHCS": "ISO 7380-1", "FHCS": "ISO 10642"}
 # minimum engagement by tapped-member material, in diameters
@@ -365,6 +365,8 @@ def apply_joints(parts: dict, joints: list[Joint]) -> list[Part]:
         # extent of the clamped stack
         if j.end in ("tap", "insert"):
             clamped, thread_m = mem[:-1], mem[-1]
+        elif j.end == "pem":
+            clamped, thread_m = mem[:-1], None
         else:
             clamped, thread_m = mem, None
         if len(mem) == 2 and mem[0] is mem[1]:
@@ -425,6 +427,22 @@ def apply_joints(parts: dict, joints: list[Joint]) -> list[Part]:
             new.append(Part(f"{j.name}_insert", ins, thread_m.body, "brass", mass=0.6e-3 if d <= 3 else 1.3e-3, kind="fastener",
                             spec=dict(type="heat-set insert", d=d, pn=f"brass heat-set insert M{d:g} x {ins_L}", joint=j.name)))
             j.info = dict(L=L, grip=round(grip, 2), engagement=round(min(L - grip, ins_L), 2), insert_in=thread_m.name)
+        elif j.end == "pem":
+            # self-clinching nut (PEM CLS / CLSS) pressed flush into the last (sheet) member
+            last = mem[-1]
+            t_in = min(a for a, b in ivs[-1] if b > 0)
+            t_out = max(b for a, b in ivs[-1])
+            grip = t_in
+            hold = 7.4 if d >= 4 else 5.4                     # PEM shank / thread length is the sheet thickness
+            Ls = [L for L in LEN[j.head] if L >= t_out + 0.5 and L <= t_out + 4.0]
+            if not Ls and not j.L:
+                raise RuntimeError(f"joint {j.name}: no length for PEM stack {t_out:.1f}")
+            L = j.L or Ls[0]
+            cuts.setdefault(last.name, []).append(cyl((d + 1.5) / 2, seat + n * (t_in - 0.5), seat + n * (t_out + 0.5)))
+            pem = tube(d / 2, (d + 1.5) / 2, seat + n * t_in, seat + n * t_out)
+            new.append(Part(f"{j.name}_pem", pem, last.body, "steel", mass=0.0015, kind="fastener",
+                            spec=dict(type="self-clinching nut", pn=f"PEM CLS-M{d:g}-1 (sheet {t_out - t_in:.1f} mm)", d=d, joint=j.name)))
+            j.info = dict(L=L, grip=round(grip, 2), engagement=round(t_out - t_in, 2), pem_in=last.name)
         elif j.end == "nut":
             nyl = NYLOC[d][1]
             nwt = WASHER[d][2]
