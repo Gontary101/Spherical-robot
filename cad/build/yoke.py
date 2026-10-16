@@ -172,6 +172,18 @@ def build_yoke():
         J.append(Joint(f"rack_screw{k}", 4, (x1, yy, zz), (-1, 0, 0),
                        ["arc_plate_F", f"rack_spacer_o{k}", "track_F", f"rack_spacer_i{k}", "lean_rack"], step="yoke_tracks"))
 
+    # ---------------------------------------------------------------- lean end stops (PU-faced), catch the carriage at ~42 deg
+    for sx, sa in ((1, "F"), (-1, "B")):
+        for sp in (1, -1):
+            nm = f"lean_stop_{sa}{'p' if sp > 0 else 'n'}"
+            blk = extrude_yz(sector_yz(172.0, 198.0, *sorted((sp * 66.5, sp * 71.0))), *sorted((sx * 63.0, sx * x0)))
+            P.append(Part(nm, blk, "yoke", "alu", rho="al", spec=dict(material="6061-T6", process="CNC",
+                          note="3 mm PU 90A pad bonded on the face toward the carriage")))
+            for k, rr in enumerate((178.0, 192.0)):
+                a = math.radians(sp * 69.0)
+                J.append(Joint(f"{nm}_screw{k}", 5, (sx * x1, rr * math.sin(a), -rr * math.cos(a)), (-sx, 0, 0), [f"arc_plate_{sa}", nm],
+                               step="yoke_tracks"))
+
     # ---------------------------------------------------------------- drive cassettes
     for sign, t, half in ((1, "F", "L"), (-1, "B", "R")):
         (px, pz), (mx, mz) = drive_geom(sign)

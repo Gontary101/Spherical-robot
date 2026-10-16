@@ -53,7 +53,7 @@ def build_spine():
     P, J = [], []
     # ---------------------------------------------------------------- axle + bearing spacer
     P.append(Part("axle", tube(S.AXLE_ID / 2, AX_R, (0, -S.AXLE_END, 0), (0, S.AXLE_END, 0)), "spine", "carbon", rho="cfrp",
-                  spec=dict(material="roll-wrapped CFRP tube 40 x 34, HM fibre, 0/90/+-45", process="cut to 624 mm, ends faced",
+                  spec=dict(material="roll-wrapped CFRP tube 40 x 30, high-modulus fibre (E_axial >= 150 GPa), mostly 0 deg + +-45", process="cut to 624 mm, ends faced",
                             note="cable slots 10 x 30 at y +-170 and +-296 (deburred, edge-sealed)")))
     P.append(Part("hub_spacer", tube(AX_R + 0.05, 23.0, (0, -S.HUB_BRG_Y[0], 0), (0, S.HUB_BRG_Y[0], 0)), "spine", "alu", rho="al",
                   spec=dict(material="6061-T6 tube", process="CNC turn, faces parallel 0.02", note="clamps the two inner races")))

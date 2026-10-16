@@ -91,26 +91,34 @@ def build_pod(side):
         rc = S.R_TRACK - W2["vee"] / 2 - WHEEL_GAP * math.sqrt(2)      # flanks 45 deg: radial offset -> flank gap
     else:
         rc = S.R_TRACK - ROLLER["od"] / 2 - WHEEL_GAP
+    stems = []
     for k in range(S.N_WHEELS):
         a = math.radians(k * 45.0)
         x, z = rc * math.cos(a), rc * math.sin(a)
-        ecc = k % 2 == 1
+        # eccentric studs: left = all 8 at 3.5 mm (turning a stud 90 deg retracts its wheel 3.5 mm so the pod slides
+        # past the V-track at assembly, then the same stud sets the preload); right = 1.0 mm on every other stud
+        e = 3.5 if side > 0 else (1.0 if k % 2 else 0.0)
+        ecc = e > 0
+        tx, tz = -math.sin(a), math.cos(a)
+        xs, zs = x - e * tx, z - e * tz                           # stem axis (seat axis = wheel centre)
+        stems.append((xs, zs))
+        r_sh = 9.5 if e > 1 else 7.0
         uw = S.U_TRACK
         width = W2["width"] if side > 0 else ROLLER["width"]
         seat_d = W2["bore"] if side > 0 else ROLLER["bore"]
         w0, w1 = uw - width / 2, uw + width / 2
         stud = fuse(cyl(seat_d / 2, (x, Y(w0 - 0.0), z), (x, Y(w1), z)),
-                    cyl(7.0, (x, Y(w1), z), (x, Y(u0), z)),
-                    cyl(4.0, (x, Y(u0), z), (x, Y(u1 + 1.6 + 8.0 + 2.5), z)))
+                    cyl(r_sh, (xs, Y(w1), zs), (xs, Y(u0), zs)),
+                    cyl(4.0, (xs, Y(u0), zs), (xs, Y(u1 + 1.6 + 8.0 + 2.5), zs)))
         P.append(Part(f"wheel_stud_{s}{k}", stud, "spine", "steel", rho="ss", kind="custom",
-                      spec=dict(material="303 stainless", process="CNC turn", type="eccentric 0.5 mm" if ecc else "concentric",
+                      spec=dict(material="303 stainless", process="CNC turn", type=f"eccentric {e} mm" if ecc else "concentric",
                                 note="seat g6, M8x1.25 stem, axial M5 tapped end for the wheel retainer")))
-        pp_hole = cyl(4.2, (x, Y(u0) - sg, z), (x, Y(u1) + sg, z))
+        pp_hole = cyl(4.02, (xs, Y(u0) - sg, zs), (xs, Y(u1) + sg, zs))                # 8 H7: the stud turns in it
         P[[p.name for p in P].index(f"pod_plate_{s}")].shape = P[[p.name for p in P].index(f"pod_plate_{s}")].shape.cut(pp_hole)
-        P.append(Part(f"stud_washer_{s}{k}", washer_solid(8, (x, Y(u1), z), ny), "spine", "steel", mass=0.0026, kind="fastener",
+        P.append(Part(f"stud_washer_{s}{k}", washer_solid(8, (xs, Y(u1), zs), ny), "spine", "steel", mass=0.0026, kind="fastener",
                       spec=dict(type="washer", std="ISO 7089", d=8)))
         T.append((f"wheel_stud_{s}{k}", f"stud_nut_{s}{k}"))
-        P.append(Part(f"stud_nut_{s}{k}", nut_solid(8, Vector(x, Y(u1), z) + ny * 1.6, ny), "spine", "steel", mass=0.0055,
+        P.append(Part(f"stud_nut_{s}{k}", nut_solid(8, Vector(xs, Y(u1), zs) + ny * 1.6, ny), "spine", "steel", mass=0.0055,
                       kind="fastener", spec=dict(type="nyloc nut", std="ISO 7040", d=8, torque_Nm=12.0)))
         if side > 0:
             P.append(Part(f"vwheel_{s}{k}", vwheel((x, Y(uw), z), sg), "spine", "steel", mass=W2["mass"], kind="cots",
@@ -178,11 +186,10 @@ def build_pod(side):
     for a_ in so_ang:
         a = math.radians(a_)
         cx, cz = SO_R * math.cos(a), SO_R * math.sin(a)
-        boss = cyl(7.0, (cx, Y(SO_U), cz), (cx, Y(SO_U + 12.0), cz)).intersect(sphere(R_SH - 1.0, (0, sg * S.D, 0)))
+        boss = cyl(7.0, (cx, Y(SO_U + 0.01), cz), (cx, Y(SO_U + 12.0), cz)).intersect(sphere(R_SH - 1.0, (0, sg * S.D, 0)))
         shield = solid(shield.fuse(boss))
     for k in range(S.N_WHEELS):                    # reliefs over the stud nuts at the shield base
-        a = math.radians(k * 45.0)
-        cx, cz = rc * math.cos(a), rc * math.sin(a)
+        cx, cz = stems[k]
         shield = solid(shield.cut(cyl(9.0, (cx, Y(u0), cz), (cx, Y(u1 + 14.0), cz))))
     # cameras square to the shell (an oblique window would vignette a 120 deg lens or put the board into the wall);
     # placed between the wheel studs, as far outboard-forward / -rearward / -down as the cap allows

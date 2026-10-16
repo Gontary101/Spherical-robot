@@ -47,7 +47,7 @@ U_POD_PLATE = (240.0, 248.0)   # pod plate (local u), 8 mm 6061
 N_WHEELS = 8
 
 # ------------------------------------------------------------------ spine
-AXLE_OD, AXLE_ID = 40.0, 34.0  # roll-wrapped CFRP tube, 3 mm wall
+AXLE_OD, AXLE_ID = 40.0, 30.0  # roll-wrapped high-modulus CFRP tube, 5 mm wall (E_axial >= 150 GPa): gear-mesh stiffness, calcs.py
 AXLE_END = 312.0               # |y| of each axle end (inside the pod hub)
 BAY_Y = (176.0, 262.0)         # |y| span of the spine electronics bays (below the axle)
 
