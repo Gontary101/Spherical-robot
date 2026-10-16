@@ -50,7 +50,7 @@ def roller(c):
 def build_pod(side):
     s = "L" if side > 0 else "R"
     sg = side
-    P, J = [], []
+    P, J, T = [], [], []
     ex = Vector(1, 0, 0)
     ny = Vector(0, sg, 0)                      # outward along the axle
 
@@ -109,6 +109,7 @@ def build_pod(side):
         P[[p.name for p in P].index(f"pod_plate_{s}")].shape = P[[p.name for p in P].index(f"pod_plate_{s}")].shape.cut(pp_hole)
         P.append(Part(f"stud_washer_{s}{k}", washer_solid(8, (x, Y(u1), z), ny), "spine", "steel", mass=0.0026, kind="fastener",
                       spec=dict(type="washer", std="ISO 7089", d=8)))
+        T.append((f"wheel_stud_{s}{k}", f"stud_nut_{s}{k}"))
         P.append(Part(f"stud_nut_{s}{k}", nut_solid(8, Vector(x, Y(u1), z) + ny * 1.6, ny), "spine", "steel", mass=0.0055,
                       kind="fastener", spec=dict(type="nyloc nut", std="ISO 7040", d=8, torque_Nm=12.0)))
         if side > 0:
@@ -226,6 +227,7 @@ def build_pod(side):
         cx, cz = SO_R * math.cos(a), SO_R * math.sin(a)
         from lib import _hex_prism
         so = _hex_prism(7.0, SO_L, Vector(cx, Y(u1), cz), ny, Vector(1, 0, 0)).fuse(cyl(2.0, (cx, Y(u1 - 6.0), cz), (cx, Y(u1), cz)))
+        T.append((f"shield_standoff_{s}{k}", f"pod_plate_{s}"))
         P.append(Part(f"shield_standoff_{s}{k}", so, "spine", "steel", rho="ss", kind="cots",
                       spec=dict(pn="hex standoff M4 male-female, 7 AF x 18 mm, stainless (e.g. Wurth 971180445 class)")))
         pp = P[[p.name for p in P].index(f"pod_plate_{s}")]
@@ -233,7 +235,7 @@ def build_pod(side):
         seat_u = math.sqrt(R_SH ** 2 - (SO_R + 5.0) ** 2) - 0.2
         J.append(Joint(f"shield_screw_{s}{k}", 4, (cx, Y(seat_u), cz), -ny, [f"pod_shield_{s}", f"shield_standoff_{s}{k}"],
                        head="BHCS", cbore=True, max_engage=6.0, step=f"pod_{s}_shield"))
-    return P, J
+    return P, J, T
 
 
 def np_lin(a, b, n):

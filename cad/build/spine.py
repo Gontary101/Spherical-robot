@@ -188,4 +188,4 @@ def build_spine():
                        ["gnss_plate", f"bay_clamp_L{k}"], step="spine_gnss"))
         J.append(Joint(f"gnss_plate_screw{k + 2}", 4, (-30.0, 173.0 if k == 0 else 271.0, 35.0), (0, 0, -1),
                        ["gnss_plate", f"bay_clamp_L{k}"], step="spine_gnss"))
-    return P, J
+    return P, J, []

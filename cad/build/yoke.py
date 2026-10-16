@@ -311,4 +311,4 @@ def build_yoke():
     pin = dowel("slipring_pin", 8.0, 21.0, (0.0, -H0, C["tab"]["slot_r"]), (0, -1, 0), "yoke", ["hanger_R"])
     P.append(pin)
     cut_dowel_holes({p.name: p for p in P}, pin)
-    return P, J
+    return P, J, []
