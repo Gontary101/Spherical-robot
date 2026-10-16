@@ -205,6 +205,18 @@ def main():
         if p.kind != "custom":
             continue
         groups.setdefault(base_name(p.name), []).append(p)
+    if "--meshes" in sys.argv:                      # per-part STL + manifest for render/render_build.py
+        md = os.path.join(REL, "mesh")
+        os.makedirs(md, exist_ok=True)
+        man = []
+        for p in parts:
+            fn = os.path.join(md, f"{p.name}.stl")
+            p.shape.exportStl(fn, tolerance=0.08 if p.kind == "fastener" else 0.15, angularTolerance=0.3)
+            man.append(dict(name=p.name, body=p.body, render=p.render, kind=p.kind, file=f"{p.name}.stl"))
+        json.dump(man, open(os.path.join(md, "manifest.json"), "w"), indent=0)
+        print(f"{len(man)} meshes -> {md}", flush=True)
+        if "--meshes-only" in sys.argv:
+            return
     if "--no-step" not in sys.argv and not only:
         from render_colors import RGB
         asm = cq.Assembly(name="GYRA_Mk21_build")

@@ -142,7 +142,7 @@ def build_spine():
         # tray: 1.5 mm 5052, end flanges onto the clamp tabs
         ya, yb = 179.0, 265.0
         t = 1.5
-        z1 = BAY["z1"] if side < 0 else -92.5        # left bay deeper: GNSS receiver under the Jetson
+        z1 = BAY["z1"]
         outer = box(-BAY["x"], BAY["x"], ya, yb, z1, BAY["z0"])
         inner = box(-BAY["x"] + t, BAY["x"] - t, ya + t, yb - t, z1 + t, BAY["z0"] + 1)
         tray = outer.cut(inner)
@@ -159,17 +159,14 @@ def build_spine():
         floor_z = z1 + t
         if side > 0:
             Cc = S.COTS["compute"]
-            SOH = 25.0                                                      # Jetson standoffs; receiver underneath
+            SOH = 6.0                                                       # Jetson standoffs
             jet = box(-Cc["board"][0] / 2, Cc["board"][0] / 2, 182.0, 182.0 + Cc["board"][1], floor_z + SOH, floor_z + SOH + 30.0)
             P.append(Part("compute", jet, "spine", "pcb", mass=Cc["mass"], kind="cots",
                           spec=dict(pn=Cc["pn"], note=Cc["note"], verified=Cc["verified"])))
             for k, (xx, yy) in enumerate(((44.0, 186.0), (-44.0, 186.0), (44.0, 258.0), (-44.0, 258.0))):
                 so = cyl(2.5, (xx, yy, floor_z), (xx, yy, floor_z + SOH))
-                P.append(Part(f"compute_standoff{k}", so, "spine", "brass", mass=0.004, kind="cots",
-                              spec=dict(pn="M3 x 25 brass standoff, male-female")))
-            Cr = S.COTS["gnss_receiver"]
-            rx0, ry0 = -Cr["board"][0] / 2, 200.0
-            P.append(board_on_spacers(P, J, "gnss_receiver", Cr, rx0, ry0, floor_z, "bay_tray_L", "spine_bay_L_sub"))
+                P.append(Part(f"compute_standoff{k}", so, "spine", "brass", mass=0.002, kind="cots",
+                              spec=dict(pn="M3 x 6 brass standoff, male-female")))
         else:
             Cs = S.COTS["controller"]
             hs = box(-35.0, 35.0, -(186.0 + 70.0), -186.0, floor_z, floor_z + 4.0)
@@ -223,6 +220,18 @@ def build_spine():
     for k, yy in enumerate((222.0 - 34.0, 222.0 + 34.0)):
         J.append(Joint(f"gnss_antenna_screw{k}", 4, (0.0, yy, 35.0 + Cg["flange_t"]), (0, 0, -1), ["gnss_antenna", "gnss_plate"],
                        end="pem", head="BHCS", step="spine_gnss_sub"))
+    # ZED-F9P receiver hangs under the plate, components up, in the 12 mm between the axle (r 20) and the plate:
+    # 4 x M3 from below through the board and 8.4 mm spacers into flush PEM nuts (the antenna sits over them)
+    Cr = S.COTS["gnss_receiver"]
+    bx, by = Cr["board"]
+    x0r, y0r, zb = -bx / 2, 200.0, 22.0
+    env = box(x0r, x0r + bx, y0r, y0r + by, zb, zb + 1.6).fuse(box(x0r + 4.0, x0r + bx - 4.0, y0r + 4.0, y0r + by - 4.0, zb + 1.6, 31.0))
+    for k, (xx, yy) in enumerate(((x0r + 3.3, y0r + 3.3), (x0r + bx - 3.3, y0r + 3.3), (x0r + 3.3, y0r + by - 3.3), (x0r + bx - 3.3, y0r + by - 3.3))):
+        P.append(Part(f"gnss_receiver_spacer{k}", cyl(3.0, (xx, yy, zb + 1.6), (xx, yy, 32.0)), "spine", "nylon", mass=0.0004, kind="cots",
+                      spec=dict(pn="nylon spacer 6 x 3.2 x 8.4 mm (cut from 6 x 3.2 tube)")))
+        J.append(Joint(f"gnss_receiver_screw{k}", 3, (xx, yy, zb), (0, 0, 1), ["gnss_receiver", f"gnss_receiver_spacer{k}", "gnss_plate"],
+                       end="pem", step="spine_gnss_sub"))
+    P.append(Part("gnss_receiver", env, "spine", "pcb", mass=Cr["mass"], kind="cots", spec=dict(pn=Cr["pn"], note=Cr["note"], verified=Cr["verified"])))
     for k, yy in enumerate((188.0, 256.0)):
         J.append(Joint(f"gnss_plate_screw{k}", 4, (30.0, 173.0 if k == 0 else 271.0, 35.0), (0, 0, -1),
                        ["gnss_plate", f"bay_clamp_L{k}"], step="spine_gnss"))

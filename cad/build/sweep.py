@@ -229,7 +229,9 @@ def pairs_for(parts, ok, lean_deg, log=print, pitch_deg=180.0, only=None):
             for run in runs:
                 Ls = [L for k in run for L in cells[k % 36]]
                 lb = (max(-lean_deg, min(Ls) - step), min(lean_deg, max(Ls) + step))
-                pb = (run[0] * 10 - 180.0, (run[-1] + 1) * 10 - 180.0)
+                pb = (max(-pitch_deg, run[0] * 10 - 180.0), min(pitch_deg, (run[-1] + 1) * 10 - 180.0))
+                if pb[0] >= pb[1]:
+                    continue
                 add(mi, si, ("x", "y"), [(R(lb[0]), R(lb[1])), (R(pb[0]), R(pb[1]))], [rx, ry_max])
     n2 = sum(1 for t in tasks if len(t[2]) == 2)
     log(f"   {len(tasks)} candidate pair-intervals after envelope + angular pruning ({n2} two-axis)")
