@@ -151,11 +151,12 @@ def _sweep_one(parts, ok, pose):
 
 
 def motion_sweep_parallel(parts, ok, poses, n_proc=4):
-    import multiprocessing as mp
-    _G["parts"], _G["ok"] = parts, ok
+    """Sequential: OCCT shapes do not survive a forked worker pool reliably (the workers hang), and a pose takes
+    only seconds once the pitch-invariant tyre pairs are skipped."""
     res = []
-    with mp.get_context("fork").Pool(n_proc) as pool:
-        for pose, hits in pool.imap_unordered(_pose_worker, poses):
+    for pose in poses:
+        hits = _sweep_one(parts, ok, pose)
+        if True:
             pt, ln, sl, sr = pose
             res.append(dict(pitch=pt, lean=ln, spin_l=sl, spin_r=sr, hits=hits))
             print(f"    pose pitch {pt:5.0f} lean {ln:4.0f} spin {sl:4.1f}/{sr:4.1f}: {'CLEAR' if not hits else hits[:4]}", flush=True)
