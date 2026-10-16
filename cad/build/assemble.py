@@ -37,11 +37,17 @@ MESH = {frozenset(p) for p in (("pinion_shaft_F", "ring_gear_L"), ("pinion_shaft
 def build_all(verbose=True):
     t0 = time.time()
     parts, joints, threads, bonds = [], [], [], []
+    jsub = {}
     for fn, args in ((build_tyre_half, (1,)), (build_tyre_half, (-1,)), (build_pod, (1,)), (build_pod, (-1,)),
                      (build_spine, ()), (build_yoke, ()), (build_bob, ())):
         out = fn(*args)
         P, J = out[0], out[1]
         extra = out[2] if len(out) > 2 else []
+        sub = fn.__name__.replace("build_", "") + ("" if not args else ("_L" if args[0] > 0 else "_R"))
+        for p in P:
+            p.spec.setdefault("sub", sub)
+        for j in J:
+            jsub[j.name] = sub
         parts += P
         joints += J
         if fn is build_tyre_half:
@@ -56,6 +62,9 @@ def build_all(verbose=True):
         raise RuntimeError(f"duplicate part names: {sorted(dup)}")
     D = {p.name: p for p in parts}
     fasteners = apply_joints(D, joints)
+    for f in fasteners:
+        jn = f.spec.get("joint")
+        f.spec["sub"] = jsub.get(jn, "?")
     parts += fasteners
     if verbose:
         print(f"  joints applied: {len(joints)} joints, {len(fasteners)} fastener parts ({time.time() - t0:.0f} s)", flush=True)

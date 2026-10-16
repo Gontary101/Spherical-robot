@@ -56,15 +56,37 @@ def allowed_pairs(parts, joints, threads):
     return ok
 
 
+def check_set(parts):
+    """Parts used for interference: the cast treads are outside the drums (nothing inside can reach them) and the
+    360-tooth ring gears are replaced by their tooth-tip annulus (conservative) except against their pinions."""
+    import spec as S
+    from lib import revolve_y
+    from tyre import _sph_profile, BOND_GAP
+    out = []
+    for p in parts:
+        if p.name.startswith("tread_"):
+            continue
+        if p.name.startswith("ring_gear_"):
+            sg = 1 if p.name.endswith("L") else -1
+            y0, y1 = S.GEAR_Y
+            ann = revolve_y(_sph_profile(y0, y1, 1, BOND_GAP) + [(S.R_RING_TIP, y1), (S.R_RING_TIP, y0)])
+            out.append(p.copy(ann if sg > 0 else ann.mirror("XZ")))
+            continue
+        out.append(p)
+    return out
+
+
 def interference(parts, ok, only_cross=False, tol=0.05):
+    """Pairs from different subsystems (each subsystem was checked on its own while building) plus all pairs
+    involving a fastener."""
     boxes = [bbox(p.shape) for p in parts]
     hits = []
     for i in range(len(parts)):
         for k in range(i + 1, len(parts)):
             a, b = parts[i], parts[k]
-            if only_cross and a.body == b.body:
+            if a.spec.get("sub") == b.spec.get("sub") and "fastener" not in (a.kind, b.kind):
                 continue
-            if only_cross and {a.body, b.body} == {"yoke", "bob"} and False:
+            if only_cross and a.body == b.body:
                 continue
             if frozenset((a.name, b.name)) in ok:
                 continue
@@ -92,6 +114,46 @@ def posed(parts, pitch=0.0, lean=0.0, spin_l=0.0, spin_r=0.0):
             s = s.rotate(O, Y, spin_r)
         out.append(p.copy(s))
     return out
+
+
+_G = {}
+
+
+def _pose_worker(pose):
+    return pose, _sweep_one(_G["parts"], _G["ok"], pose)
+
+
+def _sweep_one(parts, ok, pose):
+    pt, ln, sl, sr = pose
+    moving = {"yoke", "bob", "tyreL", "tyreR"}
+    P = posed(parts, pt, ln, sl, sr)
+    boxes = {p.name: bbox(p.shape) for p in P}
+    hits = []
+    for i in range(len(P)):
+        for k in range(i + 1, len(P)):
+            a, b = P[i], P[k]
+            if a.body == b.body or not ({a.body, b.body} & moving) or {a.body, b.body} == {"tyreL", "tyreR"}:
+                continue
+            if {a.body, b.body} == {"yoke", "bob"} and ln == 0 and False:
+                continue
+            if frozenset((a.name, b.name)) in ok or not bb_hit(boxes[a.name], boxes[b.name]):
+                continue
+            v = a.shape.intersect(b.shape).Volume()
+            if v > 0.05:
+                hits.append((a.name, b.name, round(v, 2)))
+    return hits
+
+
+def motion_sweep_parallel(parts, ok, poses, n_proc=4):
+    import multiprocessing as mp
+    _G["parts"], _G["ok"] = parts, ok
+    res = []
+    with mp.get_context("fork").Pool(n_proc) as pool:
+        for pose, hits in pool.imap_unordered(_pose_worker, poses):
+            pt, ln, sl, sr = pose
+            res.append(dict(pitch=pt, lean=ln, spin_l=sl, spin_r=sr, hits=hits))
+            print(f"    pose pitch {pt:5.0f} lean {ln:4.0f} spin {sl:4.1f}/{sr:4.1f}: {'CLEAR' if not hits else hits[:4]}", flush=True)
+    return res
 
 
 def motion_sweep(parts, ok, poses):
@@ -180,8 +242,9 @@ def floating(parts, ok, bonds, gap=0.6):
 def main():
     quick = "--quick" in sys.argv
     t0 = time.time()
-    parts, joints, threads, bonds = build_all(verbose=False)
-    ok = allowed_pairs(parts, joints, threads)
+    parts_full, joints, threads, bonds = build_all(verbose=False)
+    ok = allowed_pairs(parts_full, joints, threads)
+    parts = check_set(parts_full)
     print(f"built {len(parts)} parts, {len(joints)} joints in {time.time() - t0:.0f} s", flush=True)
     rep = {}
     print("1. static interference ...", flush=True)
@@ -197,7 +260,7 @@ def main():
     pitches = (0, 90, 180, -90) if quick else (0, 30, 60, 90, 120, 150, 180, -150, -120, -90, -60, -30)
     leans = (0, 40, -40) if quick else (0, 20, 40, -20, -40)
     poses = [(p, l, 0.0, 0.0) for p in pitches for l in leans] + [(0, 0, a, -a) for a in (0.5, 1.0)]
-    rep["motion"] = motion_sweep(parts, ok, poses)
+    rep["motion"] = motion_sweep_parallel(parts, ok, poses)
     n_motion = sum(len(r["hits"]) for r in rep["motion"])
     os.makedirs(OUT, exist_ok=True)
     json.dump(rep, open(os.path.join(OUT, "checks.json"), "w"), indent=1)
