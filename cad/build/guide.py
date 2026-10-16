@@ -91,5 +91,25 @@ def main():
     print(f"... {len(md)} lines -> out/assembly_steps.md")
 
 
+def cots_table():
+    """Bought parts (non-fastener COTS) with quantity from the model and datasheet source -> out/cots.md"""
+    import sys
+    sys.path.insert(0, HERE)
+    import spec as S
+    P = json.load(open(os.path.join(OUT, "parts.json")))
+    q = collections.Counter(p.get("pn") for p in P if p.get("kind") == "cots" and p.get("pn"))
+    src = {c["pn"]: c for c in S.COTS.values()}
+    md = ["| qty | part | source / status |", "|---|---|---|"]
+    for pn, n in sorted(q.items(), key=lambda t: -t[1]):
+        c = src.get(pn, {})
+        st = c.get("source", "")
+        if c and not c.get("verified", True):
+            st = (st + "; " if st else "") + "**verify before machining:** " + c.get("note", "")
+        md.append(f"| {n} | {pn} | {st} |")
+    open(os.path.join(OUT, "cots.md"), "w").write("\n".join(md) + "\n")
+    print(f"{len(q)} bought part types -> out/cots.md")
+
+
 if __name__ == "__main__":
+    cots_table()
     main()

@@ -78,7 +78,8 @@ def mc_lookup(p):
         key = {2: "Heat-set insert M2 (~4 mm)", 3: "Heat-set insert M3 (~5.7 mm)", 4: "Heat-set insert M4 (~8 mm)"}.get(d)
     e = MC.get(key) if key else None
     if not e:
-        return ""
+        series = {"SHCS": "91292A", "BHCS": "92095A", "FHCS": "92125A"}.get(p.get("head")) if t == "screw" else None
+        return f"{series} (series - pick M{d:g} x {p['L']:g})" if series else ""
     return e["mcmaster"].replace(" (series)", "") + ("" if e["verified"] else " (series - pick size)")
 
 

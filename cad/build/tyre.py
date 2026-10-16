@@ -4,7 +4,8 @@ Tyre halves. Each half is one rotating body (tyreL / tyreR):
     drum        GFRP (E-glass / epoxy), 3.0 mm, vacuum-infused in a two-piece female mould split on the crown plane
     tread       PU 70 Shore A, cast in place on the drum in a closed mould (tread base + lugs in one pour)
     ring_gear   7075-T6 one-piece internal gear m1.5 z360 (gear shaping or wire EDM), hard-anodised, its back turned
-                to the drum's inner sphere and bonded (3M DP490, 0.3 mm bond line, 21.5 mm band)
+                to the drum's inner sphere; co-bonded: located in the mould on the crown-plane spigot and infused with
+                the drum (its OD 278-282 cannot pass the 276.5 mm seam opening afterwards), DP490 fillet as a second bond
     rim         6061-T6 ring bonded into the drum's outer edge; left: 90 deg V-track for the locating V-wheels,
                 right: cylindrical land for the floating crowned track rollers
 

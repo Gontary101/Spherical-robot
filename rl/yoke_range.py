@@ -25,19 +25,21 @@ def run(args):
     pol = make_policy("v2", ts_path)
     sc = dict(NOMINAL)
     sc.update(SCENARIOS[name])
-    P, L = [], []
+    P, L, W = [], [], []
     for ep in range(n_ep):
         env = Loco2Env(seed=seed0 + ep, scenario=sc)
         oa, oc = env.reset()
         m, d = env.m, env.d
         qy, qb = m.joint("yoke").qposadr[0], m.joint("bob").qposadr[0]
+        vy = m.joint("yoke").dofadr[0]
         while True:
             (oa, oc), r, done, info = env.step(pol(oa))
             P.append(float(d.qpos[qy]))
             L.append(float(d.qpos[qb]))
+            W.append(float(d.qvel[vy]))
             if done:
                 break
-    return name, np.degrees(np.asarray(P)), np.degrees(np.asarray(L))
+    return name, np.degrees(np.asarray(P)), np.degrees(np.asarray(L)), np.asarray(W)
 
 
 def main():
@@ -47,17 +49,22 @@ def main():
     ap.add_argument("--out", default=os.path.join(ROOT, "cad/build/out/yoke_range.json"))
     a = ap.parse_args()
     jobs = [(n, a.policy, a.episodes, 3000) for n in SCENARIOS]
-    with mp.get_context("spawn").Pool(min(len(jobs), os.cpu_count())) as pool:
+    with mp.get_context("spawn").Pool(int(os.environ.get("PROCS", min(len(jobs), os.cpu_count())))) as pool:
         res = pool.map(run, jobs)
     out = {}
-    allP = np.concatenate([p for _, p, _ in res])
-    allL = np.concatenate([l for _, _, l in res])
-    for name, p, l in res + [("ALL", allP, allL)]:
+    allP = np.concatenate([r[1] for r in res])
+    allL = np.concatenate([r[2] for r in res])
+    allW = np.concatenate([r[3] for r in res])
+    for name, p, l, w in res + [("ALL", allP, allL, allW)]:
         ap_ = np.abs(p)
+        hi = ap_ > 90.0
         out[name] = dict(pitch_p99=float(np.percentile(ap_, 99)), pitch_max=float(ap_.max()),
-                         lean_p99=float(np.percentile(np.abs(l), 99)), lean_max=float(np.abs(l).max()))
+                         lean_p99=float(np.percentile(np.abs(l), 99)), lean_max=float(np.abs(l).max()),
+                         rate_max_above_90deg=float(np.abs(w[hi]).max()) if hi.any() else 0.0,
+                         outward_rate_max_above_90deg=float(np.max(np.sign(p[hi]) * w[hi])) if hi.any() else 0.0)
         print(f"{name:28s} |yoke-spine| p99 {out[name]['pitch_p99']:6.1f} max {out[name]['pitch_max']:6.1f} deg   "
-              f"|lean| p99 {out[name]['lean_p99']:5.1f} max {out[name]['lean_max']:5.1f} deg")
+              f"|lean| p99 {out[name]['lean_p99']:5.1f} max {out[name]['lean_max']:5.1f} deg   "
+              f"outward rate above 90 deg max {out[name]['outward_rate_max_above_90deg']:5.2f} rad/s")
     json.dump(out, open(a.out, "w"), indent=1)
 
 

@@ -131,12 +131,13 @@ COTS = {
                     note="the S1s are mounted on the hangers / bay, away from the motors, so their on-board encoder cannot see the motor;"
                          " RS485 to the S1's ISO/RS485 port, 5 V from the S1"),
     "gnss_receiver": dict(pn="SparkFun GPS-RTK2 Board - ZED-F9P (GPS-15136)", board=(43.5, 43.2), height=10.0, mass=0.015, verified=False,
-                          note="UART2 to the Jetson 40-pin header (UART1 /dev/ttyTHS0), SMA to the ANN-MB1 cable; mounting-hole"
-                               " positions from SparkFun's board file before punching the mezzanine",
+                          note="I2C (Qwiic) to the J401 40-pin header (I2C1, pins 3/5), SMA to the ANN-MB1 cable; mounting-hole"
+                               " positions from SparkFun's board file before punching the tray",
                           source="sparkfun.com GPS-15136 (43.5 x 43.2 mm)"),
     "usb_hub": dict(pn="Waveshare 12694 USB HUB HAT (4 x USB 2.0, 65 x 30 mm, d3.0 holes)", board=(65.0, 30.0), height=16.0, mass=0.02,
-                    verified=False, note="4 pod cameras; the other 2 cameras + IMU go straight to the J401's USB-A ports;"
-                                         " hole pattern assumed 58 x 23 (Pi Zero) - check the Waveshare drawing",
+                    verified=False, note="left-pod cameras L0-L2 + a USB-GbE adapter (ASIX AX88179 class) for the right Mid-360; cameras R0-R2"
+                                         " go straight to the J401's other USB-A ports; hole pattern assumed 58 x 23"
+                                         " (Pi Zero) - check the Waveshare drawing",
                     source="waveshare.com/usb-hub-hat.htm"),
     "imu": dict(pn="MicroStrain 3DM-CV7-AHRS", size=(38.0, 24.0, 8.6), mass=0.0083, verified=False,
                 note="hole positions from the MicroStrain drawing before machining", source="MicroStrain product page"),

@@ -113,8 +113,8 @@ def build_yoke():
     # ---------------------------------------------------------------- yoke pitch stops (left hanger)
     for k, sx in enumerate((1, -1)):
         cx, cz = sx * PS_X, PS_Z
-        P.append(Part(f"pitch_striker{k}", cyl(6.0, (cx, H1, cz), (cx, 65.0, cz)), "yoke", "alu", rho="al",
-                      spec=dict(material="6061-T6 d12", process="turned 30 long, M6 tapped 14 deep",
+        P.append(Part(f"pitch_striker{k}", cyl(6.0, (cx, H1, cz), (cx, 65.0, cz)), "yoke", "steel", rho="steel",
+                      spec=dict(material="C45 (1045) steel d12, zinc plated", process="turned 30 long, M6 tapped 14 deep",
                                 note=f"meets the level-bracket arm flank at {S.PITCH_STOP:.0f} deg yoke-to-spine pitch")))
         P.append(Part(f"pitch_bumper{k}", tube(6.0, 10.0, (cx, 55.0, cz), (cx, 65.0, cz)), "yoke", "rubber", mass=0.002, kind="cots",
                       spec=dict(pn="PU 90A tube 20 x 12, cut 10 long, bonded on (Loctite 406)")))

@@ -125,6 +125,39 @@ def main():
         Fs = m * G * 5 / nb
         As = math.pi / 4 * (d * 0.85) ** 2
         row("fixings", f"{nm}: shear per bolt at 5 g", Fs / As, "MPa", 200.0, note="bolts clamp: friction alone carries it at proper preload")
+    # ---------------------------------------------------------------- yoke pitch stops (sim: rl/yoke_range.py)
+    yr_path = os.path.join(OUT, "yoke_range.json")
+    if os.path.exists(yr_path):
+        yr = json.load(open(yr_path))["ALL"]
+        I_pend = 0.0
+        for b in ("yoke", "bob"):
+            c = B[b]["com_mm"]
+            I_pend += B[b]["I_com_kgm2"][1][1] + B[b]["mass"] * ((c[0] / 1000) ** 2 + (c[2] / 1000) ** 2)
+        row("pitch stop", "yoke-to-spine angle used by the deployed control (max, 16 scenarios)", yr["pitch_max"], "deg",
+            S.PITCH_STOP - 1.0, note=f"stop contact at {S.PITCH_STOP} deg; first collision without the stop at 104.4 deg")
+        c = B["spine"]["com_mm"]
+        I_sp = B["spine"]["I_com_kgm2"][1][1] + B["spine"]["mass"] * ((c[0] / 1000) ** 2 + (c[2] / 1000) ** 2)
+        I_red = I_pend * I_sp / (I_pend + I_sp)        # the spine is free on the axle (held only by the level drive)
+        k_b, d_b, r_s, lev = 600.0, 1.3, 95.0, 25.0          # bumper N/mm (PU 90A, 4 mm wall, ~48 mm2 patch), travel mm, radius, lever
+        E_cap = 0.5 * k_b * d_b ** 2 / 1000
+        w_cap = math.sqrt(2 * E_cap / I_red)
+        w_sim = yr.get("outward_rate_max_above_90deg", 0.0)
+        row("pitch stop", "inertia about the axle: pendulum / spine / reduced (what the bumper sees)", I_red, "kg m2", None, ok=None,
+            note=f"pendulum {I_pend:.2f}, spine {I_sp:.3f}: on contact the spine is carried along")
+        row("pitch stop", "relative arrival rate the bumper absorbs within its 1.3 mm (0.8 deg) travel", w_cap, "rad/s", None, ok=w_cap > w_sim,
+            note=f"capacity {E_cap:.2f} J; the control's fastest outward yoke rate above 90 deg is {w_sim:.2f} rad/s")
+        F = k_b * d_b
+        row("pitch stop", "striker bending at full bumper travel (d12 C45 steel)", F * lev / (math.pi * 12 ** 3 / 32), "MPa", 300.0,
+            note=f"{F:.0f} N at {lev:.0f} mm; arm flank bearing {F / (8 * 6):.0f} MPa (6061)")
+        T_cl = 2 * 0.2 * (math.pi / 2) * 4500.0 * 0.040       # 2 x M5 A2-70 at 4.5 N m (~4.5 kN each), mu 0.2 on the CFRP, d 40
+        row("pitch stop", "level-bracket clamp slip torque vs stop torque at full bumper travel", F * r_s / 1000, "N m", round(T_cl, 1),
+            note="2 x M5 split clamp on the 40 mm CFRP axle, friction 0.2")
+        l_pend = -sum(B[b]["mass"] * B[b]["com_mm"][2] for b in ("yoke", "bob")) / m_pend / 1000      # CoM below the axle, m
+        T_fault = 2 * 82.0                                   # both tyres at the motor torque limit (N m at the tyres = on the yoke)
+        E_fault = T_fault * math.radians(S.PITCH_STOP - 60) - m_pend * G * l_pend * (math.cos(math.radians(60)) - math.cos(math.radians(S.PITCH_STOP)))
+        E_fault *= I_sp / (I_pend + I_sp)               # share left as relative energy at the stop
+        row("pitch stop", "fault: both drive motors at their torque limit from 60 deg (relative energy at the stop)", E_fault, "J", None, ok=None,
+            note="far beyond any end stop: guarded by the drive S1s' CAN watchdog (idle on lost heartbeat), the +-100 deg software limit and the e-stop relay")
     # ---------------------------------------------------------------- energy
     wh = 12 * 3.6 * 10
     km = wh * 0.85 / al["wh_per_km"]

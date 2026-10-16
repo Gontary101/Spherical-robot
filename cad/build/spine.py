@@ -89,7 +89,7 @@ def build_spine():
     br.shape = br.shape.fuse(arm)
     br.spec.update(note="split clamp locates the left inner race; arm carries the levelling motor")
     P.append(br)
-    J += clamp_joints("level_bracket", y_cl, ym - 8.0, 30.0, -1, step="spine_level")
+    J += clamp_joints("level_bracket", y_cl, ym, 30.0, -1, step="spine_level")              # 2 x M5: also carries the pitch-stop torque
     mot = d6374("level_motor", (0, ym, zc), (0, 1, 0), "spine", xref=(1, 0, 0))
     P.append(mot)
     for k, hp in enumerate(d6374_holes((0, ym, zc), (0, 1, 0), (1, 0, 0), pcd=44.0)):

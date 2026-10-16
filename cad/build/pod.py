@@ -122,10 +122,10 @@ def build_pod(side):
                       kind="fastener", spec=dict(type="nyloc nut", std="ISO 7040", d=8, torque_Nm=12.0)))
         if side > 0:
             P.append(Part(f"vwheel_{s}{k}", vwheel((x, Y(uw), z), sg), "spine", "steel", mass=W2["mass"], kind="cots",
-                          spec=dict(pn="Bishop-Wisecarver DualVee W2 (W2X)", note="steel, shielded")))
+                          spec=dict(pn=S.COTS["vee_wheel"]["pn"], note="steel, shielded")))
         else:
             P.append(Part(f"roller_{s}{k}", roller((x, Y(uw), z)), "spine", "steel", mass=ROLLER["mass"], kind="cots",
-                          spec=dict(pn="INA LR201-2RSR crowned track roller 12x35x10")))
+                          spec=dict(pn=S.COTS["track_roller"]["pn"])))
         ret = cyl(7.5, (x, Y(w0 - 2.0), z), (x, Y(w0), z))        # the joint drills its clearance hole
         P.append(Part(f"wheel_retainer_{s}{k}", ret, "spine", "steel", rho="ss", kind="custom",
                       spec=dict(material="303 stainless", process="turned washer 15 x 2 (clamps the inner race)")))
