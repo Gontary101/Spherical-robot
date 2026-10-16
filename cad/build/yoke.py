@@ -61,7 +61,7 @@ def build_yoke():
               ("h", [(0, 0, 36), (-114, -62, 18)]), ("h", [(-114, -62, 18), (-114, -205, 18)]),
               ("h", [(0, 0, 30), (0, 73, 12)]),                                                   # top lobe (slip-ring pin on R)
               ("h", [(-55, -49, 4), (7, -49, 4), (-55, -111, 4), (7, -111, 4)]),                  # ODrive S1 land (clear of the bob)
-              ("h", [(-58, -118, 4), (-6, -118, 4), (-58, -208, 4), (-6, -208, 4)])]              # power-box land
+              ("h", [(-50, -118, 4), (2, -118, 4), (-50, -208, 4), (2, -208, 4)])]                # power-box land (x > -51: bob studs sweep inboard of the rear carriage to x -53)
     def hanger_pieces(sign):
         px, pz = (pxF, pzF) if sign > 0 else (pxB, pzB)
         so = SO_F if sign > 0 else SO_B
@@ -301,14 +301,14 @@ def build_yoke():
         for k, (xx, zz) in enumerate(((-54.0, -50.0), (6.0, -50.0), (-54.0, -110.0), (6.0, -110.0))):
             J.append(Joint(f"drive_controller_screw_{n}{k}", 4, (xx, yi - sy * 4.0, zz), (0, sy, 0), [f"drive_controller_{n}", f"hanger_{s}"],
                            step=f"yoke_hanger_{s}_sub"))
-    pb = box(-58.0, -6.0, -26.0, 26.0, -205.0, -125.0).cut(box(-56.5, -7.5, -24.5, 24.5, -203.5, -126.5))
+    pb = box(-50.0, 2.0, -26.0, 26.0, -205.0, -125.0).cut(box(-48.5, 0.5, -24.5, 24.5, -203.5, -126.5))
     P.append(Part("power_box", pb, "yoke", "alu_dark", rho="al",
                   spec=dict(material="5052-H32 1.5 mm", process="laser cut + bent, PEM nuts",
                             note="12S BMS (<= 80 x 50 x 15), 40 A MIDI fuse, XT90-S anti-spark, CAN hub, e-stop relay")))
-    P.append(Part("power_box_parts", box(-54.0, -10.0, -12.0, 12.0, -203.5, -140.0), "yoke", "pcb", mass=0.20, kind="cots",
+    P.append(Part("power_box_parts", box(-46.0, -2.0, -12.0, 12.0, -203.5, -140.0), "yoke", "pcb", mass=0.20, kind="cots",
                   spec=dict(pn="BMS 12S 40 A + MIDI fuse + XT90-S + relay (wired subassembly)", verified=False)))
     for sy, s in ((1, "L"), (-1, "R")):
-        for k, (xx, zz) in enumerate(((-50.0, -140.0), (-14.0, -140.0), (-50.0, -190.0), (-14.0, -190.0))):
+        for k, (xx, zz) in enumerate(((-42.0, -140.0), (-6.0, -140.0), (-42.0, -190.0), (-6.0, -190.0))):
             J.append(Joint(f"power_box_screw_{s}{k}", 4, (xx, sy * H1, zz), (0, -sy, 0), [f"hanger_{s}", "power_box"], end="pem",
                            head="BHCS", step="yoke_frame"))
 

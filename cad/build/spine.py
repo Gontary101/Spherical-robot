@@ -62,8 +62,10 @@ def build_spine():
     y_in = S.HUB_BRG_Y[1]                                    # 37: bracket face against the left inner race
     ym = S.LEVEL_MOTOR_Y                                    # 66: motor face
     zc = S.LEVEL_GEAR["m"] * (S.LEVEL_GEAR["z"] + S.LEVEL_GEAR["pinion"]) / 2      # 82.5 centre distance
-    br = split_clamp("level_bracket", y_in + 2.5, ym, 30.0, "spine", lug_side=-1)
-    br.shape = br.shape.fuse(tube(AX_R + 0.02, 23.5, (0, y_in, 0), (0, y_in + 2.5, 0)))      # inner-race land (clears the DIN 472 ring)
+    # the clamp starts at y 46: the hub-cartridge screw heads (r 36.5..43.5, y 39.5..43.5) turn with the yoke
+    y_cl = y_in + 9.0
+    br = split_clamp("level_bracket", y_cl, ym, 30.0, "spine", lug_side=-1)
+    br.shape = br.shape.fuse(tube(AX_R + 0.02, 23.5, (0, y_in, 0), (0, y_cl, 0)))      # inner-race land, inside the screw-head ring
     from lib import hull2d, extrude_xz, circle_pts
     arm = extrude_xz(hull2d(circle_pts(0, 0, 30) + circle_pts(0, zc, 30)), ym - 8.0, ym)
     arm = arm.cut(cyl(AX_R + 0.02, (0, ym - 9, 0), (0, ym + 1, 0))).cut(box(-1.0, 1.0, ym - 9, ym + 1, -45, -5))
@@ -71,7 +73,7 @@ def build_spine():
     br.shape = br.shape.fuse(arm)
     br.spec.update(note="split clamp locates the left inner race; arm carries the levelling motor")
     P.append(br)
-    J += clamp_joints("level_bracket", y_in + 2.5, ym - 8.0, 30.0, -1, step="spine_level")
+    J += clamp_joints("level_bracket", y_cl, ym - 8.0, 30.0, -1, step="spine_level")
     mot = d6374("level_motor", (0, ym, zc), (0, 1, 0), "spine", xref=(1, 0, 0))
     P.append(mot)
     for k, hp in enumerate(d6374_holes((0, ym, zc), (0, 1, 0), (1, 0, 0), pcd=44.0)):

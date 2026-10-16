@@ -6,7 +6,8 @@ Verification of the build CAD from its final geometry.
 1. static interference: every pair of parts (bounding-box pruned). Allowed overlaps are only the ones a fastener is
    designed to make: a screw / insert / PEM nut in the member it threads into, declared thread pairs (studs, standoffs,
    nuts), and gear meshes.
-2. motion sweep: yoke pitch over 360 deg x bob lean +-40 deg x tyre spin, all moving-body pairs.
+2. motion: continuous clearance proof over the whole range of motion (sweep.py): yoke pitch 360 deg, bob lean to the
+   stops, tyre spin; every pair of parts that move relative to each other.
 3. joints: thread engagement >= rule (steel 1.0 d, 7075 1.25 d, 6061 1.5 d, vendor thread depth for bought parts),
    no screw longer than its tapped hole, screw head free.
 4. floating parts: every part touches (or is bonded / threaded / meshed to) another part of the same body.
@@ -263,17 +264,18 @@ def main():
     print("3. floating parts ...", flush=True)
     rep["floating"] = floating(parts, ok, bonds)
     print(f"   {len(rep['floating'])} {rep['floating'][:20]}", flush=True)
-    print("4. motion sweep ...", flush=True)
-    pitches = (0, 90, 180, -90) if quick else (0, 30, 60, 90, 120, 150, 180, -150, -120, -90, -60, -30)
-    leans = (0, 40, -40) if quick else (0, 20, 40, -20, -40)
-    poses = [(p, l, 0.0, 0.0) for p in pitches for l in leans] + [(0, 0, a, -a) for a in (0.5, 1.0)]
-    rep["motion"] = motion_sweep_parallel(parts, ok, poses)
-    n_motion = sum(len(r["hits"]) for r in rep["motion"])
+    print("4. continuous motion clearance (pitch 360 deg, lean +-41.5 deg to the stops, tyre spin) ...", flush=True)
+    import sweep
+    rep["motion"] = sweep.run(parts, ok, lean_deg=41.5, procs=int(os.environ.get("GYRA_PROCS", "4")),
+                              log=lambda m: print(m, flush=True))
+    n_motion = len(rep["motion"]["hits"])
+    print(f"   {n_motion} hits, {len(rep['motion']['touches'])} touches over {rep['motion']['n_pairs']} pairs "
+          f"({rep['motion']['n_eval']} exact distance evaluations)", flush=True)
     os.makedirs(OUT, exist_ok=True)
     json.dump(rep, open(os.path.join(OUT, "checks.json"), "w"), indent=1)
     fails = len(rep["static"]) + len(rep["joints"]) + len(rep["floating"]) + n_motion
     print(f"SUMMARY: static {len(rep['static'])}, joints {len(rep['joints'])}, floating {len(rep['floating'])}, "
-          f"motion {n_motion} over {len(poses)} poses  ({time.time() - t0:.0f} s)")
+          f"motion {n_motion} (continuous)  ({time.time() - t0:.0f} s)")
     sys.exit(1 if fails else 0)
 
 
