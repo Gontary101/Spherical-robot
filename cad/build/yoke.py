@@ -191,6 +191,7 @@ def build_yoke():
         for sp in (1, -1):
             nm = f"lean_stop_{sa}{'p' if sp > 0 else 'n'}"
             blk = extrude_yz(sector_yz(172.0, 198.0, *sorted((sp * 66.5, sp * 71.0))), *sorted((sx * 63.0, sx * x0)))
+            blk = blk.cut(cyl(92.0, (0, -400, 0), (0, 400, 0)))      # stays > r 92 from the axle: the bay trays reach r 89.6
             P.append(Part(nm, blk, "yoke", "alu", rho="al", spec=dict(material="6061-T6", process="CNC",
                           note="3 mm PU 90A pad bonded on the face toward the carriage")))
             for k, rr in enumerate((178.0, 192.0)):
