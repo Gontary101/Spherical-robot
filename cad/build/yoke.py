@@ -60,7 +60,7 @@ def build_yoke():
     common = [("c", 0.0, 0.0, 64.0), ("h", [(0, 0, 36), (114, -62, 18)]), ("h", [(114, -62, 18), (114, -205, 18)]),
               ("h", [(0, 0, 36), (-114, -62, 18)]), ("h", [(-114, -62, 18), (-114, -205, 18)]),
               ("h", [(0, 0, 30), (0, 73, 12)]),                                                   # top lobe (slip-ring pin on R)
-              ("h", [(-62, -50, 4), (0, -50, 4), (-62, -118, 4), (0, -118, 4)]),                  # ODrive S1 land
+              ("h", [(-55, -49, 4), (7, -49, 4), (-55, -111, 4), (7, -111, 4)]),                  # ODrive S1 land (clear of the bob)
               ("h", [(-58, -118, 4), (-6, -118, 4), (-58, -208, 4), (-6, -208, 4)])]              # power-box land
     def hanger_pieces(sign):
         px, pz = (pxF, pzF) if sign > 0 else (pxB, pzB)
@@ -294,18 +294,18 @@ def build_yoke():
     Cs = S.COTS["controller"]
     for sy, s, n in ((1, "L", "F"), (-1, "R", "B")):
         yi = sy * H0
-        hs = box(-66.0, 4.0, *sorted((yi, yi - sy * 4.0)), -122.0, -52.0)
-        brd = box(-64.0, 2.0, *sorted((yi - sy * 4.0, yi - sy * 14.0)), -112.0, -62.0)
+        hs = box(-59.0, 11.0, *sorted((yi, yi - sy * 4.0)), -115.0, -45.0)
+        brd = box(-57.0, 9.0, *sorted((yi - sy * 4.0, yi - sy * 14.0)), -105.0, -55.0)
         P.append(Part(f"drive_controller_{n}", hs.fuse(brd), "yoke", "pcb", mass=Cs["mass"], kind="cots",
                       spec=dict(pn=Cs["pn"], note=Cs["note"] + f"; drives the {n} motor")))
-        for k, (xx, zz) in enumerate(((-61.0, -57.0), (-1.0, -57.0), (-61.0, -117.0), (-1.0, -117.0))):
+        for k, (xx, zz) in enumerate(((-54.0, -50.0), (6.0, -50.0), (-54.0, -110.0), (6.0, -110.0))):
             J.append(Joint(f"drive_controller_screw_{n}{k}", 4, (xx, yi - sy * 4.0, zz), (0, sy, 0), [f"drive_controller_{n}", f"hanger_{s}"],
                            step=f"yoke_hanger_{s}_sub"))
     pb = box(-58.0, -6.0, -26.0, 26.0, -205.0, -125.0).cut(box(-56.5, -7.5, -24.5, 24.5, -203.5, -126.5))
     P.append(Part("power_box", pb, "yoke", "alu_dark", rho="al",
                   spec=dict(material="5052-H32 1.5 mm", process="laser cut + bent, PEM nuts",
                             note="12S BMS (<= 80 x 50 x 15), 40 A MIDI fuse, XT90-S anti-spark, CAN hub, e-stop relay")))
-    P.append(Part("power_box_parts", box(-54.0, -10.0, -12.0, 12.0, -195.0, -135.0), "yoke", "pcb", mass=0.20, kind="cots",
+    P.append(Part("power_box_parts", box(-54.0, -10.0, -12.0, 12.0, -203.5, -140.0), "yoke", "pcb", mass=0.20, kind="cots",
                   spec=dict(pn="BMS 12S 40 A + MIDI fuse + XT90-S + relay (wired subassembly)", verified=False)))
     for sy, s in ((1, "L"), (-1, "R")):
         for k, (xx, zz) in enumerate(((-50.0, -140.0), (-14.0, -140.0), (-50.0, -190.0), (-14.0, -190.0))):
@@ -323,4 +323,5 @@ def build_yoke():
     pin = dowel("slipring_pin", 8.0, 20.0, (0.0, -H0, C["tab"]["slot_r"]), (0, -1, 0), "yoke", ["hanger_R"])
     P.append(pin)
     cut_dowel_holes({p.name: p for p in P}, pin)
-    return P, J, []
+    # the housing rides on the slip ring's own bearings (rotor on the spine); the pin only stops it turning
+    return P, J, [("slipring_housing", "slipring_pin"), ("slipring_housing", "slipring_rotor")]

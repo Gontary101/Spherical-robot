@@ -181,7 +181,7 @@ def build_pod(side):
     shield = solid(shell.intersect(slab_y(*sorted((Y(u_sh0), Y(R_SH + 5))))))
     shield = solid(shield.cut(cyl(52.0, (0, Y(u_sh0) - sg, 0), (0, Y(R_SH + 10), 0))))   # LiDAR aperture (FOV to -6 deg)
     # 4 standoff lands (flat bosses) inside the shell at r 120
-    SO_R, SO_U, SO_L = 120.0, u1 + 18.0, 18.0
+    SO_R, SO_U, SO_L = 116.0, u1 + 18.0, 18.0
     so_ang = [45.0 + 90.0 * k for k in range(4)]
     for a_ in so_ang:
         a = math.radians(a_)

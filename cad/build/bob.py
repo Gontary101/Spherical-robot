@@ -110,6 +110,6 @@ def build_bob():
     P.append(Part("lean_pinion", pin, "bob", "steel", rho="steel", spec=dict(material="42CrMo4 QT", process="hob + turn",
                   gear=f"m{S.MODULE} z{pz} face {rx1 - rx0}", note="pilot d20 H7 onto the AK70-10 output, 6 x M3")))
     for k, hp in enumerate(ring_pts(at(ra, 0, rx1), Vector(-1, 0, 0), 12.5, 6, 0.0, xref=(0, 1, 0))):
-        J.append(Joint(f"lean_pinion_screw{k}", 3, tuple(hp), (-1, 0, 0), ["lean_pinion", "lean_actuator"], cbore=False,
+        J.append(Joint(f"lean_pinion_screw{k}", 3, tuple(hp - Vector(3.4, 0, 0)), (-1, 0, 0), ["lean_pinion", "lean_actuator"], cbore=True,
                        max_engage=6.5, step="bob_actuator"))
     return P, J, T

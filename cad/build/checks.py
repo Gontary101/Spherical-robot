@@ -134,7 +134,13 @@ def _sweep_one(parts, ok, pose):
             a, b = P[i], P[k]
             if a.body == b.body or not ({a.body, b.body} & moving) or {a.body, b.body} == {"tyreL", "tyreR"}:
                 continue
-            if {a.body, b.body} == {"yoke", "bob"} and ln == 0 and False:
+            bodies = {a.body, b.body}
+            tyre = bodies & {"tyreL", "tyreR"}
+            # tyre parts used here are bodies of revolution about y (drum, rim, ring-gear tip annulus): the yoke's
+            # pitch and the tyre's spin cannot change those pairs, so they are tested once per lean angle
+            if tyre and bodies & {"yoke", "bob"} and (pt != 0 or sl != 0 or sr != 0):
+                continue
+            if tyre and "spine" in bodies and (pt != 0 or ln != 0 or sl != 0 or sr != 0):
                 continue
             if frozenset((a.name, b.name)) in ok or not bb_hit(boxes[a.name], boxes[b.name]):
                 continue
