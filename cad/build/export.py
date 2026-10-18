@@ -49,7 +49,9 @@ def hlr_edges(shape, view_dir, up):
     """Visible and hidden 2-D polylines of `shape` seen along -view_dir with `up` vertical."""
     algo = HLRBRep_Algo()
     algo.Add(shape.wrapped)
-    ax = gp_Ax2(gp_Pnt(0, 0, 0), gp_Dir(*view_dir), gp_Dir(*up))
+    n, u = cq.Vector(*view_dir).normalized(), cq.Vector(*up)
+    vx = u.cross(n)                                   # screen x, so that screen y = n x vx = up
+    ax = gp_Ax2(gp_Pnt(0, 0, 0), gp_Dir(n.x, n.y, n.z), gp_Dir(vx.x, vx.y, vx.z))
     algo.Projector(HLRAlgo_Projector(ax))
     algo.Update()
     algo.Hide()

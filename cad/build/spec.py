@@ -142,5 +142,6 @@ COTS = {
     "imu": dict(pn="MicroStrain 3DM-CV7-AHRS", size=(38.0, 24.0, 8.6), mass=0.0083, verified=False,
                 note="hole positions from the MicroStrain drawing before machining", source="MicroStrain product page"),
     "dcdc": dict(pn="RECOM RPA60-4812SFW (18-75 V in, 12 V 60 W, 2 x 1 in brick)", size=(50.8, 25.4, 10.2), mass=0.04,
-                 verified=False, source="RECOM RPA60 datasheet"),
+                 verified=False, source="RECOM RPA60 datasheet",
+                 note="baseplate M3 thread positions (2 used here) from the RECOM drawing before drilling the tray wall"),
 }

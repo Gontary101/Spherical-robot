@@ -33,6 +33,10 @@ CONSUMABLES = [
 
 def base_name(n):
     """Drawing name: strip side / index suffixes (_L, _R, _F, _B, digits)."""
+    if n.endswith("_enc_bracket"):
+        return "drive_enc_bracket" if n.startswith("drive_motor") else "level_enc_bracket"
+    if re.match(r"pitch_striker\d$", n):
+        return "pitch_striker"
     b = n
     for _ in range(3):
         b = re.sub(r"_(L|R|F|B|A|FL|FR|BL|BR|Fp|Fn|Bp|Bn|o|i|p|n|Fin|Fout|Bin|Bout)?\d*$", "", b)

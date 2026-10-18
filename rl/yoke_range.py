@@ -18,6 +18,7 @@ from eval_robust import NOMINAL, SCENARIOS, make_policy  # noqa: E402
 from loco2_env import Loco2Env  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+CAD = os.environ.get("GYRA_CAD")          # e.g. "build/out": mass properties of the build CAD instead of the concept
 
 
 def run(args):
@@ -27,7 +28,7 @@ def run(args):
     sc.update(SCENARIOS[name])
     P, L, W = [], [], []
     for ep in range(n_ep):
-        env = Loco2Env(seed=seed0 + ep, scenario=sc)
+        env = Loco2Env(seed=seed0 + ep, scenario=sc, hw=dict(cad=CAD) if CAD else None)
         oa, oc = env.reset()
         m, d = env.m, env.d
         qy, qb = m.joint("yoke").qposadr[0], m.joint("bob").qposadr[0]

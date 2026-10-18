@@ -88,9 +88,9 @@ def scene_setup():
     sc.world = w
     w.use_nodes = True
     bg = w.node_tree.nodes["Background"]
-    bg.inputs["Color"].default_value = (0.93, 0.94, 0.96, 1.0)
-    bg.inputs["Strength"].default_value = 0.65
-    for nm, loc, energy, size in (("key", (1.2, -1.4, 1.6), 900, 1.2), ("fill", (-1.5, -0.6, 0.6), 300, 1.5), ("rim", (0.2, 1.6, 1.0), 450, 1.0)):
+    bg.inputs["Color"].default_value = (0.80, 0.82, 0.85, 1.0)
+    bg.inputs["Strength"].default_value = 0.25
+    for nm, loc, energy, size in (("key", (1.2, -1.4, 1.6), 140, 1.2), ("fill", (-1.5, -0.6, 0.6), 45, 1.5), ("rim", (0.2, 1.6, 1.0), 80, 1.0)):
         ld = bpy.data.lights.new(nm, "AREA")
         ld.energy, ld.size = energy, size
         lo = bpy.data.objects.new(nm, ld)
@@ -104,7 +104,7 @@ def scene_setup():
     fl.name = "floor"
     m = bpy.data.materials.new("floor")
     m.use_nodes = True
-    m.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (0.9, 0.9, 0.92, 1)
+    m.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (0.55, 0.56, 0.58, 1)
     m.node_tree.nodes["Principled BSDF"].inputs["Roughness"].default_value = 0.6
     fl.data.materials.append(m)
     return sc

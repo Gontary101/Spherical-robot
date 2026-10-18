@@ -126,7 +126,9 @@ def main():
         As = math.pi / 4 * (d * 0.85) ** 2
         row("fixings", f"{nm}: shear per bolt at 5 g", Fs / As, "MPa", 200.0, note="bolts clamp: friction alone carries it at proper preload")
     # ---------------------------------------------------------------- yoke pitch stops (sim: rl/yoke_range.py)
-    yr_path = os.path.join(OUT, "yoke_range.json")
+    yr_path = os.path.join(OUT, "yoke_range_build.json")         # measured on the build masses (GYRA_CAD=build/out)
+    if not os.path.exists(yr_path):
+        yr_path = os.path.join(OUT, "yoke_range.json")
     if os.path.exists(yr_path):
         yr = json.load(open(yr_path))["ALL"]
         I_pend = 0.0
