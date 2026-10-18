@@ -125,6 +125,9 @@ def build_yoke():
     # the inner tips swing past the level motor (spine, y 58..157, r <= 114 from the axle) near full pitch: keep them
     # > r 118 from the axle over that y band
     arc = arc.cut(cyl(118.0, (0, 56.0, 0), (0, 162.0, 0))).cut(cyl(118.0, (0, -162.0, 0), (0, -56.0, 0)))
+    # 1 mm relief on the inner face along the path of the bob's outer wheel-stud ends + E-clips (r 220..234, +-57.5 deg),
+    # which otherwise pass the face at 0.24 mm at full lean
+    arc = arc.cut(extrude_yz(sector_yz(219.0, 235.5, -59.0, 59.0), x0 - 0.01, x0 + 1.0))
     for a_ in (20.0, -20.0, 45.0, -45.0):                    # lightening, clear of spacers, rack screws and brackets
         a = math.radians(a_)
         c = (166.0 * math.sin(a), -166.0 * math.cos(a))

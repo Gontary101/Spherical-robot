@@ -132,6 +132,7 @@ def main():
                + [(f"{w}_{s}{k}", f"wheel_stud_{s}{k}") for s, w0 in (("L", "vwheel"), ("R", "roller")) for k in range(8)
                   for w in (w0, "stud_washer")]
                + [(f"lidar_dowel_{s}{k}", f"lidar_riser_{s}") for s in "LR" for k in range(2)]
+               + [(f"cam_window_{s}{k}", f"pod_shield_{s}") for s in "LR" for k in range(3)]
                + [(f"light_ring_{s}", f"pod_plate_{s}") for s in "LR"] + [(f"led_pcb_{s}", f"light_ring_{s}") for s in "LR"])
 
     def grp(name):
