@@ -1,0 +1,12 @@
+{
+ "static": [],
+ "joints": [],
+ "floating": [],
+ "motion": {
+  "hits": [],
+  "touches": [],
+  "n_pairs": 578,
+  "n_eval": 12762,
+  "seconds": 427
+ }
+}

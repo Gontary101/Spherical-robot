@@ -1,0 +1,138 @@
+{
+ "flat, 3 m/s": {
+  "pitch_p99": 70.08179745075525,
+  "pitch_max": 73.47236072581538,
+  "lean_p99": 39.58407298638717,
+  "lean_max": 39.72979044662872,
+  "rate_max_above_90deg": 0.0,
+  "outward_rate_max_above_90deg": 0.0
+ },
+ "flat, 8 m/s": {
+  "pitch_p99": 90.22594114697101,
+  "pitch_max": 94.73276547184132,
+  "lean_p99": 39.64213528592956,
+  "lean_max": 39.92140931971465,
+  "rate_max_above_90deg": 0.9870601832966808,
+  "outward_rate_max_above_90deg": 0.9139021147471774
+ },
+ "hills": {
+  "pitch_p99": 64.84047215733693,
+  "pitch_max": 72.6998568463556,
+  "lean_p99": 39.68256219578246,
+  "lean_max": 39.83119551022284,
+  "rate_max_above_90deg": 0.0,
+  "outward_rate_max_above_90deg": 0.0
+ },
+ "rough + potholes": {
+  "pitch_p99": 80.34245436026694,
+  "pitch_max": 88.52833084408101,
+  "lean_p99": 39.44749919552179,
+  "lean_max": 39.987609833006914,
+  "rate_max_above_90deg": 0.0,
+  "outward_rate_max_above_90deg": 0.0
+ },
+ "curbs / steps 6 cm": {
+  "pitch_p99": 60.30647846859667,
+  "pitch_max": 64.27156065179713,
+  "lean_p99": 39.449120766758185,
+  "lean_max": 39.68090090615985,
+  "rate_max_above_90deg": 0.0,
+  "outward_rate_max_above_90deg": 0.0
+ },
+ "ramps to 15 deg": {
+  "pitch_p99": 72.62025385682614,
+  "pitch_max": 76.66424982609159,
+  "lean_p99": 39.27393243765724,
+  "lean_max": 39.466190030692594,
+  "rate_max_above_90deg": 0.0,
+  "outward_rate_max_above_90deg": 0.0
+ },
+ "12 deg incline": {
+  "pitch_p99": 98.35064535165581,
+  "pitch_max": 99.46415434300057,
+  "lean_p99": 40.023242873073535,
+  "lean_max": 40.081303588061715,
+  "rate_max_above_90deg": 1.8090002947241286,
+  "outward_rate_max_above_90deg": 1.8090002947241286
+ },
+ "ice (mu 0.3)": {
+  "pitch_p99": 70.5357014068003,
+  "pitch_max": 72.24804937517912,
+  "lean_p99": 39.592442672157226,
+  "lean_max": 39.70241452322986,
+  "rate_max_above_90deg": 0.0,
+  "outward_rate_max_above_90deg": 0.0
+ },
+ "asphalt -> ice at 8 s": {
+  "pitch_p99": 70.42585588602284,
+  "pitch_max": 72.30759116563895,
+  "lean_p99": 39.60925992239826,
+  "lean_max": 39.694514353030534,
+  "rate_max_above_90deg": 0.0,
+  "outward_rate_max_above_90deg": 0.0
+ },
+ "pushes to 350 N": {
+  "pitch_p99": 85.75113713907142,
+  "pitch_max": 95.06914747555057,
+  "lean_p99": 39.481250798009086,
+  "lean_max": 39.855267350518176,
+  "rate_max_above_90deg": 2.2334275685186724,
+  "outward_rate_max_above_90deg": 2.2334275685186724
+ },
+ "wind 40 N + gusts": {
+  "pitch_p99": 85.0446372103972,
+  "pitch_max": 87.38438350730652,
+  "lean_p99": 39.41012142451283,
+  "lean_max": 39.54502544762993,
+  "rate_max_above_90deg": 0.0,
+  "outward_rate_max_above_90deg": 0.0
+ },
+ "payload 10 kg off-centre": {
+  "pitch_p99": 87.95729556179712,
+  "pitch_max": 92.2079972334726,
+  "lean_p99": 39.865095830924524,
+  "lean_max": 39.93523206010619,
+  "rate_max_above_90deg": 0.5997798549277624,
+  "outward_rate_max_above_90deg": 0.5997798549277624
+ },
+ "weak motors (70 %)": {
+  "pitch_p99": 70.08847779526026,
+  "pitch_max": 73.47182726296984,
+  "lean_p99": 39.583777175412244,
+  "lean_max": 39.728174860869046,
+  "rate_max_above_90deg": 0.0,
+  "outward_rate_max_above_90deg": 0.0
+ },
+ "40 ms latency": {
+  "pitch_p99": 72.46782378060409,
+  "pitch_max": 74.31105161222847,
+  "lean_p99": 39.576460536706605,
+  "lean_max": 39.752188195176586,
+  "rate_max_above_90deg": 0.0,
+  "outward_rate_max_above_90deg": 0.0
+ },
+ "IMU bias + misalignment": {
+  "pitch_p99": 72.33083799369979,
+  "pitch_max": 76.41210543025939,
+  "lean_p99": 39.637063943369505,
+  "lean_max": 39.84640263919022,
+  "rate_max_above_90deg": 0.0,
+  "outward_rate_max_above_90deg": 0.0
+ },
+ "everything at once": {
+  "pitch_p99": 89.13849375818856,
+  "pitch_max": 95.05647768868951,
+  "lean_p99": 39.563899908597584,
+  "lean_max": 39.79207157566855,
+  "rate_max_above_90deg": 0.969446749998588,
+  "outward_rate_max_above_90deg": 0.7956980652839951
+ },
+ "ALL": {
+  "pitch_p99": 87.7718641044904,
+  "pitch_max": 99.46415434300057,
+  "lean_p99": 39.66117018485597,
+  "lean_max": 40.081303588061715,
+  "rate_max_above_90deg": 2.2334275685186724,
+  "outward_rate_max_above_90deg": 2.2334275685186724
+ }
+}

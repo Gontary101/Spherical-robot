@@ -130,7 +130,8 @@ quantity, torque and McMaster number, with the source of each number in `cad/bui
 
 ## 4. Making the custom parts
 
-The release package (`python cad/build/export.py`, then `cad/build/out/release/`) contains:
+A copy of the release package is committed in **[`cad/build/release/`](../cad/build/release/)**: drawings, DXF, STL, BOM, calcs, step table,
+check reports and the STEP files as zips. Regenerate it with `python cad/build/export.py && cad/build/package_release.sh`. It contains:
 
 - `gyra_mk21_build.step`: the full assembly with every part named;
 - `parts/<drawing>.step`: one per drawing, the geometry master;
