@@ -34,6 +34,14 @@ through a pole forest, doorways, a boulder garden and fast open stretches. How i
 [docs/09_rl_perfection_plan.md](docs/09_rl_perfection_plan.md#film). To render it at 1080p or 4K
 with final-quality settings, see [docs/10_render_film_tutorial.md](docs/10_render_film_tutorial.md).
 
+**Build it:** [docs/11_build.md](docs/11_build.md). The build CAD (`cad/build/`) has 659 parts,
+including every screw, nut, insert and holder. It uses real bought parts with datasheet dimensions and
+McMaster hardware numbers. Machine checks find 0 interferences, 0 collisions anywhere in the range of
+motion, and a verified assembly sequence. The guide includes a BOM, drawings with hole tables, a torque
+table per step, wiring and commissioning.
+
+![build](media/build_cassette.png)
+
 ![GYRA Mk2](media/mk2_cutaway_annotated.png)
 
 Mk2 drops the CMGs. The tyre becomes **two independently driven halves whose crowns

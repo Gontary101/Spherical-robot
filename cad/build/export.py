@@ -114,7 +114,7 @@ def drawing_sheet(pdf, name, part, qty, joints_by_member):
     lines = [f"DRAWING  {name}", f"qty per robot: {qty}" + ("  (R-hand part = this one mirrored about XZ)" if qty > 1 else ""),
              f"material: {sp.get('material', '')}", f"process: {sp.get('process', '')}", f"finish: {sp.get('finish', '')}",
              f"mass: {mp['mass'] * 1000:.1f} g  overall: {bb.xlen:.1f} x {bb.ylen:.1f} x {bb.zlen:.1f} mm (x, y, z)",
-             f"note: {sp.get('note', sp.get('fit', sp.get('gear', '')))}"[:80],
+             f"note: {sp.get('note', sp.get('fit', sp.get('gear', '')))}"[:400],
              "general tolerances ISO 2768-mK, edges broken 0.3 x 45, units mm",
              "geometry master: parts/" + name + ".step",
              f"view origin = bounding-box centre = robot ({c0.x:.2f}, {c0.y:.2f}, {c0.z:.2f})"]
