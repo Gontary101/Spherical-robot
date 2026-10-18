@@ -55,7 +55,7 @@ BAY_Y = (176.0, 262.0)         # |y| span of the spine electronics bays (below t
 HANGER_Y = (27.0, 35.0)        # |y| of the two hanger plates (8 mm 6061)
 HUB_BRG_Y = (25.0, 37.0)       # |y| of the 6908-2RS hub bearings (in cartridges bolted to the hangers)
 ARC_X = (89.0, 95.0)           # |x| of the two arc plates (6 mm 6061)
-ARC_R = (140.0, 238.0)         # arc plate radii (about the x axis)
+ARC_R = (147.0, 238.0)         # arc plate radii (about the x axis); inner edge clear of the bob's inner wheel studs + E-clips (r <= 145.9)
 ARC_HALF = 72.0                # arc plate half-angle (deg, from straight down); lean stops at +-68
 TRACK_R = (152.0, 214.0)       # bob V-track ring segments (both edges are 90 deg tracks)
 TRACK_X = 82.0                 # |x| of the track mid-plane (wheel plane); wheels end 1.4 mm short of the arc plate

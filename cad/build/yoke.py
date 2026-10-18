@@ -127,7 +127,7 @@ def build_yoke():
     arc = arc.cut(cyl(118.0, (0, 56.0, 0), (0, 162.0, 0))).cut(cyl(118.0, (0, -162.0, 0), (0, -56.0, 0)))
     for a_ in (20.0, -20.0, 45.0, -45.0):                    # lightening, clear of spacers, rack screws and brackets
         a = math.radians(a_)
-        c = (160.0 * math.sin(a), -160.0 * math.cos(a))
+        c = (166.0 * math.sin(a), -166.0 * math.cos(a))
         arc = arc.cut(cq.Solid.makeCylinder(14.0, 20.0, Vector(x0 - 5, c[0], c[1]), Vector(1, 0, 0)))
     P.append(Part("arc_plate_F", arc, "yoke", "alu", rho="al", spec=dict(material="6061-T6 plate 6 mm", process="waterjet + CNC")))
     P.append(Part("arc_plate_B", mirror_x(arc), "yoke", "alu", rho="al", spec=dict(material="6061-T6 plate 6 mm", process="waterjet + CNC")))
