@@ -269,6 +269,7 @@ def main():
     import spec as S
     ok_m = ok | {frozenset((f"pitch_bumper{k}", "level_bracket")) for k in (0, 1)}          # the designed stop contact
     ok_m |= {frozenset(("hub_bearing_L", "level_bracket")), frozenset(("hub_bearing_R", "slip_sleeve"))}   # lands on the inner races
+    ok_m |= {frozenset((f"hub_bearing_{s}", o)) for s in "LR" for o in ("axle", "hub_spacer")}                # bore on the axle, spacer on the race
     rep["motion"] = sweep.run(parts, ok_m, lean_deg=41.5, procs=int(os.environ.get("GYRA_PROCS", "4")),
                               pitch_deg=S.PITCH_STOP + 0.8, log=lambda m: print(m, flush=True))
     n_motion = len(rep["motion"]["hits"])

@@ -109,8 +109,8 @@ def main():
         lim = S.COTS["lean_actuator"]["rated_Nm"] if case == "rms" else S.COTS["lean_actuator"]["peak_Nm"]
         row("lean drive", f"AK70-10 output torque, {case}", Ta, "N m", lim)
     Ft = al["lean"]["tau_max"] / (S.RACK_R / 1000)
-    row("lean drive", "pinion root bending at peak", Ft / (7.5 * S.MODULE * LEWIS_Y[40]), "MPa", 300.0)
-    row("lean drive", "rack root bending at peak", Ft / (7.5 * S.MODULE * LEWIS_Y["internal"]), "MPa", 150.0)
+    row("lean drive", "pinion root bending at peak", Ft / (6.9 * S.MODULE * LEWIS_Y[40]), "MPa", 300.0)
+    row("lean drive", "rack root bending at peak", Ft / (6.9 * S.MODULE * LEWIS_Y["internal"]), "MPa", 150.0)
     w_out = al["lean"]["w_max"] * ratio * 60 / (2 * math.pi)
     row("lean drive", "AK70-10 speed at max lean rate", w_out, "rpm", S.COTS["lean_actuator"]["rated_rpm_48V"])
     # ---------------------------------------------------------------- levelling (D6374 + 14/96)

@@ -13,7 +13,7 @@ For each candidate pair (pruned by swept-envelope overlap) the motion box is bis
 minimum distance d between the posed solids is computed (BRepExtrema); no point of the moving part can move further than
 sum(rho_i * halfwidth_i) from its centre-pose position anywhere in the box (rho_i = the part's largest distance from
 axis i), so d > that bound certifies the whole box clear. Otherwise the box is split until it is certified, or a pose
-with real overlap (> 0.05 mm3) is found (a HIT), or the box is narrower than MIN_W while the parts are within 0.05 mm
+with real overlap (> 0.05 mm3) is found (a HIT), or the box is narrower than MIN_W while the parts are within TOL_D (0.3 mm running clearance)
 (a TOUCH, reported).
 """
 from __future__ import annotations
@@ -29,7 +29,7 @@ O = Vector(0, 0, 0)
 AX = {"x": Vector(1, 0, 0), "y": Vector(0, 1, 0)}
 MIN_W = math.radians(0.05)
 TOL_V = 0.05
-TOL_D = 0.05
+TOL_D = 0.3          # required running clearance between parts in relative motion (mm)
 
 
 def _bb(s):

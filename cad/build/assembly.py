@@ -128,7 +128,11 @@ def main():
                links=[("level_pinion", "level_motor"), ("slipring_rotor", "slip_sleeve"), ("slipring_housing", "slip_sleeve"),
                       ("compute", "compute_standoff0"), ("compute_standoff0", "bay_tray_L"),
                       ("compute_standoff1", "bay_tray_L"), ("compute_standoff2", "bay_tray_L"), ("compute_standoff3", "bay_tray_L")]
-               + [(f"wheel_stud_{s}{k}", f"pod_plate_{s}") for s in "LR" for k in range(8)])
+               + [(f"wheel_stud_{s}{k}", f"pod_plate_{s}") for s in "LR" for k in range(8)]
+               + [(f"{w}_{s}{k}", f"wheel_stud_{s}{k}") for s, w0 in (("L", "vwheel"), ("R", "roller")) for k in range(8)
+                  for w in (w0, "stud_washer")]
+               + [(f"lidar_dowel_{s}{k}", f"lidar_riser_{s}") for s in "LR" for k in range(2)]
+               + [(f"light_ring_{s}", f"pod_plate_{s}") for s in "LR"] + [(f"led_pcb_{s}", f"light_ring_{s}") for s in "LR"])
 
     def grp(name):
         return next(g for g in G if name in {p.name for p in g})

@@ -102,7 +102,7 @@ def build_bob():
     rx0, rx1 = S.RACK_X
     from gyra_cad import gear_y
     pz = S.LEAN_PINION_Z
-    g = gear_y(pz, S.MODULE, 0.0, rx1 - rx0, 0.0, 0.0, bore=0.0)                 # along +y at the origin
+    g = gear_y(pz, S.MODULE, 0.0, rx1 - rx0 - 0.6, 0.0, 0.0, bore=0.0)           # along +y; face 6.9, 0.6 clear of the rack spacers
     g = g.rotate(Vector(0, 0, 0), Vector(0, 0, 1), -90)                           # axis -> +x
     g = g.translate(at(ra, 0, rx0))
     hub = cyl(19.5, at(ra, 0, x0 + 2.05), at(ra, 0, rx0))

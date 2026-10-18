@@ -224,13 +224,13 @@ def build_spine():
     # 4 x M3 from below through the board and 8.4 mm spacers into flush PEM nuts (the antenna sits over them)
     Cr = S.COTS["gnss_receiver"]
     bx, by = Cr["board"]
-    x0r, y0r, zb = -bx / 2, 200.0, 22.0
-    env = box(x0r, x0r + bx, y0r, y0r + by, zb, zb + 1.6).fuse(box(x0r + 4.0, x0r + bx - 4.0, y0r + 4.0, y0r + by - 4.0, zb + 1.6, 31.0))
+    x0r, y0r, zb = -bx / 2, 200.0, 22.5
+    env = box(x0r, x0r + bx, y0r, y0r + by, zb, zb + 1.6).fuse(box(x0r + 6.5, x0r + bx - 6.5, y0r + 6.5, y0r + by - 6.5, zb + 1.6, 31.0))
     for k, (xx, yy) in enumerate(((x0r + 3.3, y0r + 3.3), (x0r + bx - 3.3, y0r + 3.3), (x0r + 3.3, y0r + by - 3.3), (x0r + bx - 3.3, y0r + by - 3.3))):
         P.append(Part(f"gnss_receiver_spacer{k}", cyl(3.0, (xx, yy, zb + 1.6), (xx, yy, 32.0)), "spine", "nylon", mass=0.0004, kind="cots",
-                      spec=dict(pn="nylon spacer 6 x 3.2 x 8.4 mm (cut from 6 x 3.2 tube)")))
+                      spec=dict(pn="nylon spacer 6 x 3.2 x 7.9 mm (cut from 6 x 3.2 tube)")))
         J.append(Joint(f"gnss_receiver_screw{k}", 3, (xx, yy, zb), (0, 0, 1), ["gnss_receiver", f"gnss_receiver_spacer{k}", "gnss_plate"],
-                       end="pem", step="spine_gnss_sub"))
+                       end="pem", L=12, step="spine_gnss_sub"))          # blind: tip 0.5 below the plate top (antenna above)
     P.append(Part("gnss_receiver", env, "spine", "pcb", mass=Cr["mass"], kind="cots", spec=dict(pn=Cr["pn"], note=Cr["note"], verified=Cr["verified"])))
     for k, yy in enumerate((188.0, 256.0)):
         J.append(Joint(f"gnss_plate_screw{k}", 4, (30.0, 173.0 if k == 0 else 271.0, 35.0), (0, 0, -1),

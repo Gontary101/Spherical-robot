@@ -122,6 +122,9 @@ def build_yoke():
     # ---------------------------------------------------------------- arc plates + brackets
     x0, x1 = S.ARC_X
     arc = extrude_yz(sector_yz(S.ARC_R[0], S.ARC_R[1], -S.ARC_HALF, S.ARC_HALF), x0, x1)
+    # the inner tips swing past the level motor (spine, y 58..157, r <= 114 from the axle) near full pitch: keep them
+    # > r 118 from the axle over that y band
+    arc = arc.cut(cyl(118.0, (0, 56.0, 0), (0, 162.0, 0))).cut(cyl(118.0, (0, -162.0, 0), (0, -56.0, 0)))
     for a_ in (20.0, -20.0, 45.0, -45.0):                    # lightening, clear of spacers, rack screws and brackets
         a = math.radians(a_)
         c = (160.0 * math.sin(a), -160.0 * math.cos(a))
