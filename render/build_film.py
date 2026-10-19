@@ -422,7 +422,7 @@ class Assembly:
         ev("drumL", 0.6, 2.4, N("drum_L", "ring_gear_L"), "fade")
         ev("rimL", 2.8, 5.6, N("rim_L"), "slide", off=(0, -0.33, 0))
         ev("treadL", 6.2, 8.0, N("tread_L"), "fade")
-        ev("tyreR", 8.4, 10.6, N("drum_R", "ring_gear_R", "rim_R", "tread_R"), "fade")
+        ev("tyreR", 7.8, 9.6, N("drum_R", "ring_gear_R", "rim_R", "tread_R"), "fade")
         # B bob (on the bench at its run-on pose)
         ev("carriage", 11.9, 13.8, N("carriage_B"), "slide", off=(-0.10, 0, 0))
         ev("carriage2", 11.9, 13.8, N("carriage_F"), "slide", off=(0.10, 0, 0))
