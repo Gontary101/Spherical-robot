@@ -138,7 +138,7 @@ def setup_render(sc, res, samples):
 
 MAT_SPEC = {  # base colour from render_colors, metallic, roughness, coat
     "alu": (1.0, 0.27, 0.0), "alu_dark": (0.85, 0.36, 0.0), "steel": (1.0, 0.22, 0.0), "brass": (1.0, 0.25, 0.0),
-    "rubber": (0.0, 0.78, 0.0), "gfrp": (0.0, 0.42, 0.2), "carbon": (0.0, 0.25, 0.8), "lead": (0.75, 0.42, 0.0),
+    "rubber": (0.0, 0.78, 0.0), "gfrp": (0.0, 0.42, 0.2), "carbon": (0.0, 0.25, 0.8), "lead": (0.85, 0.36, 0.0),
     "battery": (0.0, 0.35, 0.3), "nylon": (0.0, 0.55, 0.0), "nylon_light": (0.0, 0.5, 0.0), "lidar_white": (0.0, 0.32, 0.3),
     "glass": (0.0, 0.04, 1.0), "motor_black": (0.4, 0.38, 0.2), "pcb": (0.0, 0.42, 0.4),
 }
@@ -237,8 +237,8 @@ def studio(sc):
     m = bpy.data.materials.new("floor")
     m.use_nodes = True
     b = m.node_tree.nodes["Principled BSDF"]
-    b.inputs["Base Color"].default_value = (0.035, 0.045, 0.075, 1)
-    b.inputs["Roughness"].default_value = 0.33
+    b.inputs["Base Color"].default_value = (0.022, 0.03, 0.052, 1)
+    b.inputs["Roughness"].default_value = 0.42
     fl.data.materials.append(m)
 
     def area(name, loc, energy, size, color=(1, 1, 1)):
@@ -424,8 +424,8 @@ class Assembly:
         ev("treadL", 6.2, 8.0, N("tread_L"), "fade")
         ev("tyreR", 8.4, 10.6, N("drum_R", "ring_gear_R", "rim_R", "tread_R"), "fade")
         # B bob (on the bench at its run-on pose)
-        ev("carriage", 12.6, 14.4, N("carriage_B"), "slide", off=(-0.10, 0, 0))
-        ev("carriage2", 12.6, 14.4, N("carriage_F"), "slide", off=(0.10, 0, 0))
+        ev("carriage", 11.9, 13.8, N("carriage_B"), "slide", off=(-0.10, 0, 0))
+        ev("carriage2", 11.9, 13.8, N("carriage_F"), "slide", off=(0.10, 0, 0))
         ev("tungsten", 14.6, 17.6, N("tungsten_[0-2]"), "slide", off=(0, 0, -0.16), stagger=0.4)
         ev("actuator", 20.0, 22.2, N("lean_actuator"), "slide", off=(-0.12, 0, 0))
         ev("pinion", 22.4, 23.8, N("lean_pinion"), "slide", off=(0.08, 0, 0))
@@ -770,7 +770,7 @@ class Film:
         A.state(t, S)
         S["off"]["hub_spacer"] = S["off"].get("hub_spacer", Vector()) + S["bench"]
         # tyres hidden between their build (A) and their fitting (I)
-        hide_ty = ramp(t, 11.0, 12.0) * (1 - (1.0 if t >= 82.0 else 0.0))
+        hide_ty = ramp(t, 10.7, 11.5) * (1 - (1.0 if t >= 82.0 else 0.0))
         for n in names_like(R.P, r"(drum|ring_gear|rim|tread)_[LR]"):
             if 11.0 <= t < 82.0:
                 S["alpha"][n] = S["alpha"].get(n, 1.0) * (1 - hide_ty)
@@ -802,7 +802,7 @@ class Film:
         keys = [(0.0, sp((0, 0.16, 0)), -62, 20, 1.6, 50), (5.6, sp((0, 0.16, 0)), -40, 24, 1.45, 50),
                 (8.0, sp((0, 0.17, 0)), 40, 16, 1.6, 50), (10.8, sp((0, 0, 0)), 40, 14, 2.1, 50),
                 (12.0, bob_bench, 35, 22, 1.0, 50), (19.0, bob_bench, 60, 18, 0.85, 55), (27.0, bob_bench, 20, 26, 0.9, 55),
-                (29.0, yk((0, 0, -0.08)), 35, 20, 1.45, 50), (36.0, yk((0, 0, -0.08)), 65, 16, 1.35, 50),
+                (29.0, yk((0, 0.06, -0.02)), 35, 20, 1.85, 50), (36.0, yk((0, 0.06, -0.03)), 62, 16, 1.8, 50),
                 (40.0, yk((0, 0, -0.10)), 15, 6, 1.35, 50), (44.5, yk((0, 0, -0.10)), 30, 12, 1.25, 50),
                 (46.5, yk((gF["mx"] * MM, 0.12, gF["mz"] * MM)), 50, 10, 0.78, 50),
                 (53.5, yk((gF["mx"] * MM, 0.10, gF["mz"] * MM)), 32, 18, 0.72, 50),
