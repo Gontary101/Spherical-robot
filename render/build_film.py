@@ -402,11 +402,12 @@ class Robot:
     def world_centre(self, names):
         pts = []
         for n in names:
+            n, pt = (n, None) if isinstance(n, str) else n       # (part, point in the rest robot frame, m)
             ob = self.o.get(n)
             if ob is None or ob.hide_render:
                 continue
             mw = ob.matrix_world
-            pts += [mw @ Vector(c) for c in ob.bound_box]
+            pts += [mw @ Vector(c) for c in ob.bound_box] if pt is None else [mw @ Vector(pt)]
         if not pts:
             return None
         return sum(pts, Vector()) / len(pts)
@@ -624,6 +625,9 @@ class Assembly:
                     S["alpha"][n] = 1.0
                     if x < 1:
                         S["wipe"][n] = max(ease_io(clamp(x)), 0.001)
+                    # lifted 1.8 mm off the drum while partly transparent (its bonded face is coincident with the
+                    # drum's), settled once opaque
+                    S["scale"][n] = 1 + 0.006 * (1 - ease_io(clamp((x - 1) / 0.15)))
                     S["off"][n] = Vector()
                 else:
                     off = Vector(e.get("off", (0, 0, 0)))
@@ -701,7 +705,7 @@ class Film:
     # ---------------------------------------------------------------- state
     def blank(self):
         return dict(root=Vector(), yaw=0.0, lift=0.0, pitch=0.0, lean=0.0, spin={"L": 0.0, "R": 0.0}, bench=Vector(),
-                    bob_rot=0.0, off={}, alpha={}, ghost={}, wipe={}, hl={}, screws={}, labels=[], caption=None,
+                    bob_rot=0.0, off={}, alpha={}, ghost={}, wipe={}, scale={}, hl={}, screws={}, labels=[], caption=None,
                     title=None, cards=[], readouts=[], fov=0.0)
 
     def state(self, f):
@@ -947,16 +951,15 @@ class Film:
         for n, e in self.R.P.items():
             if keep.match(n):
                 continue
-            c = self.R.rest_c[n]
-            near = e["kind"] == "fastener" and 0.02 < c.y < 0.07 and abs(c.x) < 0.25 and abs(c.z) < 0.25
-            if not near:
+            if not re.match(r"(level_bracket_clamp|hub_cartridge_screw_L|level_gear_screw|pitch_striker_screw|hub_circlip_L)", n):
                 S["alpha"][n] = 0.0
         for n in ("pitch_bumper0", "pitch_bumper1", "pitch_striker0", "pitch_striker1"):
             S["hl"][n] = 0.5
         S["root"] = Vector((0, 0, 0))
-        S["cam"] = cam_keys(t, [(0, (0.03, 0.05, -0.04), 74, 14, 0.82, 50), (dur, (0.03, 0.05, -0.04), 98, 10, 0.72, 50)])
-        self.label(S, "hg", "Yoke hanger", "pitches with the pendulum", ["hanger_L"], "amber", win(t, 1.0, dur - 0.4, 0.4))
-        self.label(S, "lb", "Level bracket", "carries the spine: stays level", ["level_bracket"], "green", win(t, 1.6, dur - 0.4, 0.4))
+        S["cam"] = cam_keys(t, [(0, (0.04, 0.05, -0.05), 76, 12, 1.12, 50), (dur, (0.04, 0.05, -0.05), 98, 9, 1.0, 50)])
+        self.label(S, "hg", "Yoke hanger", "pitches with the pendulum", [("hanger_L", (0.121, 0.031, -0.17))], "amber",
+                   win(t, 1.0, dur - 0.4, 0.4))
+        self.label(S, "lb", "Level bracket", "carries the spine: stays level", [("level_bracket", (0.018, 0.066, 0.06))], "green", win(t, 1.6, dur - 0.4, 0.4))
         self.label(S, "st", "Pitch stop", "PU-sleeved striker meets the level-bracket arm", ["pitch_bumper0"], "coral",
                    win(t, 2.6, dur - 0.4, 0.4))
         S["readouts"].append(dict(text=f"yoke {math.degrees(p):5.1f} deg", a=win(t, 0.4, dur - 0.3, 0.3), pos="tr", mono=True))
@@ -1147,6 +1150,8 @@ def apply(R, S, sc, cam, floor, lights):
         ob.color = (hl.get(n, 0.0), ghost.get(n, 0.0), S.get("wipe", {}).get(n, 0.0), a)
         o = off.get(n)
         M = Matrix.Translation(o) if o is not None else Matrix.Identity(4)
+        if n in S.get("scale", {}):                     # about the tyre centre (robot origin)
+            M = M @ Matrix.Scale(S["scale"][n], 4)
         sp_ = S.get("spin_screw", {}).get(n)
         ob.matrix_basis = M
     for n, (axis, seat, th) in S.get("screws", {}).items():
