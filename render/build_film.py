@@ -669,9 +669,12 @@ class Film:
     # shells
     SHELLS = r"(drum|tread)_[LR]"
 
-    def ghost_shells(self, S, g, pods=False):
+    def ghost_shells(self, S, g, pods=False, rims=False):
         for n in names_like(self.R.P, self.SHELLS):
             S["ghost"][n] = g
+        if rims:
+            for n in names_like(self.R.P, r"(rim|ring_gear)_[LR]"):
+                S["ghost"][n] = g
         if pods:
             for n in names_like(self.R.P, r"pod_shield_[LR]", r"cam_window_[LR]\d", r"light_ring_[LR]"):
                 S["ghost"][n] = g
@@ -810,7 +813,8 @@ class Film:
                 (62.0, yk((0, 0, -0.10)), -20, 14, 1.5, 50),
                 (64.5, sp((0, 0.2, -0.05)), 28, 14, 1.75, 45), (69.5, sp((0, 0.0, -0.04)), 40, 15, 1.45, 45),
                 (73.5, sp((0, 0, 0)), 55, 22, 1.4, 45), (80.0, sp((0, 0, 0)), 70, 20, 1.45, 45),
-                (82.0, sp((0, 0.05, 0)), 65, 14, 2.2, 45), (89.0, sp((0.12, 0.1, -0.08)), 35, 6, 1.2, 50),
+                (82.0, sp((0, 0.0, 0)), 18, 14, 2.5, 45), (86.5, sp((0.05, 0.05, -0.04)), 22, 10, 1.9, 45),
+                (89.0, sp((0.12, 0.1, -0.08)), 35, 6, 1.2, 50),
                 (91.5, sp((0, 0, 0)), 50, 12, 2.2, 45), (98.5, sp((0, 0, 0)), 75, 14, 2.4, 45),
                 (dur, (0, 0, -0.04), 50, 12, 2.3, 50)]
         S["cam"] = cam_keys(t, keys)
@@ -880,7 +884,7 @@ class Film:
         x = -0.4 + 0.5 * acc * t * t if t < 8 else -0.4 + 0.5 * acc * 64 + acc * 8 * (t - 8)
         x = min(x, 1.4)
         self.roll(S, x, pitch=p)
-        self.ghost_shells(S, 1.0, pods=True)
+        self.ghost_shells(S, 1.0, pods=True, rims=True)
         self.hide_pod(S, "L")
         S["cam"] = cam_keys(t, [(0, (x, 0.05, -0.07), 80, 8, 1.7, 45), (dur, (x, 0.05, -0.07), 86, 10, 1.7, 45)])
         S["cam_track_x"] = True
@@ -895,7 +899,7 @@ class Film:
         p = math.radians(ps) * (ease_io(t / 3.0) if t < 4.5 else 1 - ease_io((t - 4.5) / 3.0))
         p = min(p, math.radians(ps))
         S["pitch"] = -p
-        self.ghost_shells(S, 1.0, pods=True)
+        self.ghost_shells(S, 1.0, pods=True, rims=True)
         self.hide_pod(S, "L")
         S["root"] = Vector((0, 0, 0))
         S["cam"] = cam_keys(t, [(0, (0.03, 0.05, 0.05), 30, 24, 0.62, 50), (dur, (0.035, 0.05, 0.07), 22, 28, 0.5, 55)])
