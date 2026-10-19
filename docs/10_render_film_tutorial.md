@@ -202,7 +202,8 @@ Options for `build_film.py`:
 | option | default | effect |
 |---|---|---|
 | `--samples N` | 8 | samples per pixel (denoised); 32 is clean, 64 for the x-ray shots to be spotless |
-| `--every-frame` | off | render all 6144 frames instead of ~3720 (the rest are synthesised from optical flow) |
+| `--every-frame` | off | render all 6144 frames instead of ~4800 (the rest are synthesised from optical flow) |
+| `--motion-px P` | 24 | in-between frames are rendered, not synthesised, wherever the picture moves more than P pixels between the rendered neighbours (fast camera moves, parts flying in); lower = more frames, fewer flow artefacts |
 | `--res WxH` | 1920x1080 | `3840x2160` for 4K (pass the same `--res` to the compositor) |
 | `--worker k/n` | 0/1 | split the frames over n processes or machines (copy the PNGs into one folder) |
 | `--only seg,...` | all | render some segments only, e.g. `--only explode,assembly` |
@@ -210,4 +211,4 @@ Options for `build_film.py`:
 | `--preview` | off | 2 samples, every 4th frame: checks the whole film in a few hours on a CPU |
 
 Without a GPU, `render/render_build_film.sh <dir> 2 2` runs two CPU workers then the composition; on a
-4-core CPU at 8 samples that is about 45 hours.
+4-core CPU at 8 samples that is about two days.

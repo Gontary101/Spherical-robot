@@ -113,6 +113,10 @@ def args():
     ap.add_argument("--preview", action="store_true", help="every 4th frame, low resolution checks")
     ap.add_argument("--json-only", action="store_true")
     ap.add_argument("--every-frame", action="store_true", help="render every frame (no in-between synthesis)")
+    ap.add_argument("--motion-px", type=float, default=24.0,
+                    help="in step-2 segments, also render the in-between frames where the picture moves more than this "
+                         "(pixels at 1920 wide, between the rendered neighbours): optical flow tears at fast silhouettes")
+    ap.add_argument("--motion-stats", action="store_true", help="print how many frames --motion-px adds, then exit")
     ap.add_argument("--only", default="", help="comma list of segment names")
     ap.add_argument("--frames", default="", help="explicit frame list a,b,c")
     return ap.parse_args(argv)
@@ -1212,6 +1216,35 @@ def apply(R, S, sc, cam, floor, lights):
     S["_tgt"] = tgt
 
 
+def screen_motion(A, B):
+    """Approximate largest image motion between two states, in pixels at 1920 wide: camera rotation and travel, and
+    the moving bodies (yoke, bob, tyres, robot, parts on their offsets) seen from the camera distance."""
+    la, ta, lens = A["cam"]
+    lb, tb, _ = B["cam"]
+    la, ta, lb, tb = Vector(la), Vector(ta), Vector(lb), Vector(tb)
+    d = max((ta - la).length, 0.05)
+    rot = (ta - la).angle(tb - lb, 0.0)
+    trav = (lb - la).length / d
+    body = 0.0
+    for key, r in (("yaw", 0.3), ("pitch", 0.3), ("lean", 0.25), ("bob_rot", 0.25)):
+        va, vb = A.get(key, 0.0) or 0.0, B.get(key, 0.0) or 0.0
+        if key == "bob_rot":
+            va, vb = math.radians(va), math.radians(vb)
+        body = max(body, abs(vb - va) * r)
+    for side in "LR":
+        body = max(body, abs(B["spin"][side] - A["spin"][side]) * 0.3)
+    for key in ("root", "bench"):
+        if key in A and key in B:
+            body = max(body, (Vector(B[key]) - Vector(A[key])).length)
+    body = max(body, abs(B.get("lift", 0.0) - A.get("lift", 0.0)))
+    oa, ob = A["off"], B["off"]
+    for n in set(oa) | set(ob):
+        if A["alpha"].get(n, 1.0) > 0 and B["alpha"].get(n, 1.0) > 0:
+            body = max(body, (ob.get(n, Vector()) - oa.get(n, Vector())).length)
+    ang = max(rot, trav) + body / d                     # an orbit both turns and travels: count it once
+    return ang * lens / 18.0 * 960.0
+
+
 def anchors(R, S, sc, cam):
     W, H = sc.render.resolution_x, sc.render.resolution_y
     out = []
@@ -1264,6 +1297,35 @@ def main():
         rel = f - s["f0"]
         render_it = (rel % step == 0) or (rel == s["n"] - 1)
         todo.append((f, render_it))
+    # in-betweens that optical flow can't make cleanly (fast camera or parts) are rendered too
+    if not a.preview and not a.every_frame and not a.frames:
+        st = {}
+
+        def S_(f):
+            if f not in st:
+                st[f] = F.state(f)
+            return st[f]
+        added = 0
+        for j, (f, render_it) in enumerate(todo):
+            if render_it or f - 1 < 0 or f + 1 >= F.nframes:
+                continue
+            if F.seg_of(f - 1) is not F.seg_of(f + 1):
+                continue
+            if screen_motion(S_(f - 1), S_(f + 1)) > a.motion_px:
+                todo[j] = (f, True)
+                added += 1
+        st.clear()
+        nr = sum(1 for _, r in todo if r)
+        print(f"motion: {added} in-between frames rendered (> {a.motion_px:.0f} px), {nr} frames to render in all", flush=True)
+        if a.motion_stats:
+            per = {}
+            for f, r in todo:
+                nm = F.seg_of(f)["name"]
+                per.setdefault(nm, [0, 0])
+                per[nm][0] += r
+                per[nm][1] += 1
+            print(per, flush=True)
+            return
     i = 0
     for f, render_it in todo:
         S = F.state(f)
