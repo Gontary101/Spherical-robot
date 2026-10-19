@@ -2,7 +2,8 @@
 The GYRA Mk2.1 build film: Blender (Cycles) frames of the build CAD (cad/build), every part and fastener.
 
     python render/film_data.py                                    # meshes + data from the CAD (once)
-    blender -b -P render/build_film.py -- --out <dir> [--res 1920x1080 --samples 8 --worker 0/2 --preview]
+    blender -b -P render/build_film.py -- --out <dir> [--res 1920x1080 --samples 8 --worker 0/2 --preview --every-frame]
+    (GYRA_DEVICE=OPTIX|CUDA|HIP|METAL|ONEAPI in the environment renders on the GPU; docs/10_render_film_tutorial.md, 7.)
     python render/compose_build_film.py --frames <dir> --out media/gyra_mk21_build_film.mp4
 
 Story (24 fps): title, reveal of the five bodies, exploded view, the full assembly sequence in the verified order
@@ -111,6 +112,7 @@ def args():
     ap.add_argument("--worker", default="0/1")
     ap.add_argument("--preview", action="store_true", help="every 4th frame, low resolution checks")
     ap.add_argument("--json-only", action="store_true")
+    ap.add_argument("--every-frame", action="store_true", help="render every frame (no in-between synthesis)")
     ap.add_argument("--only", default="", help="comma list of segment names")
     ap.add_argument("--frames", default="", help="explicit frame list a,b,c")
     return ap.parse_args(argv)
@@ -119,6 +121,17 @@ def args():
 def setup_render(sc, res, samples):
     sc.render.engine = "CYCLES"
     sc.cycles.device = "CPU"
+    gpu = os.environ.get("GYRA_DEVICE", "").upper()       # OPTIX / CUDA / HIP / METAL / ONEAPI: render on the GPU
+    if gpu:
+        cp = bpy.context.preferences.addons["cycles"].preferences
+        cp.compute_device_type = gpu
+        cp.get_devices()
+        for dev in cp.devices:
+            dev.use = dev.type != "CPU"
+        if any(dev.use for dev in cp.devices):
+            sc.cycles.device = "GPU"
+        else:
+            print(f"GYRA_DEVICE={gpu}: no such GPU found, rendering on the CPU", flush=True)
     W, H = (int(v) for v in res.split("x"))
     sc.render.resolution_x, sc.render.resolution_y = W, H
     sc.render.resolution_percentage = 100
@@ -1247,7 +1260,7 @@ def main():
         s = F.seg_of(f)
         if only and s["name"] not in only:
             continue
-        step = 4 if a.preview else s["step"]
+        step = 4 if a.preview else 1 if a.every_frame else s["step"]
         rel = f - s["f0"]
         render_it = (rel % step == 0) or (rel == s["n"] - 1)
         todo.append((f, render_it))

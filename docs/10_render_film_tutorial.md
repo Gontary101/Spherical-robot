@@ -170,3 +170,44 @@ ffmpeg -ss 300 -i gyra_mk21_film_4k.mp4 -frames:v 1 check_300s.png    # a missio
 Fonts: the overlays use Poppins in upright weights only (Light, Regular, Medium, SemiBold, Bold),
 licensed under the OFL in `render/fonts/`. Greek symbols in the explainer equations fall back to
 DejaVu Sans, also upright.
+
+## 7. The Mk2.1 build film (assembly, exploded views, how it works)
+
+`media/gyra_mk21_build_film.mp4` (4 min 16 s) is rendered by `render/build_film.py` from the build CAD
+(`cad/build`). The meshes are generated from the CAD once, so this film also needs CadQuery.
+
+```bash
+git clone https://github.com/Gontary101/Spherical-robot.git
+cd Spherical-robot
+git checkout claude/pensive-bohr-u0sl8n
+pip install cadquery numpy pillow opencv-python
+
+# 1) meshes + part data from the build CAD (a few minutes) -> cad/build/out/film/
+python render/film_data.py
+
+# 2) frames on the GPU (resumable: rerun the same command after an interruption)
+export GYRA_DEVICE=OPTIX          # NVIDIA RTX; CUDA for older NVIDIA, HIP for AMD, METAL for Apple Silicon
+blender -b -P render/build_film.py -- --out render/out_final --res 1920x1080 --samples 32
+
+# 3) overlay data for the in-between frames, then labels, captions and encoding (needs ffmpeg on PATH)
+blender -b -P render/build_film.py -- --out render/out_final --res 1920x1080 --json-only
+python render/compose_build_film.py --frames render/out_final --out media/gyra_mk21_build_film.mp4
+```
+
+Windows (PowerShell): set the GPU with `$env:GYRA_DEVICE="OPTIX"` and call Blender by its full path,
+`& "C:\Program Files\Blender Foundation\Blender 4.2\blender.exe" -b -P render/build_film.py -- ...`.
+
+Options for `build_film.py`:
+
+| option | default | effect |
+|---|---|---|
+| `--samples N` | 8 | samples per pixel (denoised); 32 is clean, 64 for the x-ray shots to be spotless |
+| `--every-frame` | off | render all 6144 frames instead of ~3720 (the rest are synthesised from optical flow) |
+| `--res WxH` | 1920x1080 | `3840x2160` for 4K (pass the same `--res` to the compositor) |
+| `--worker k/n` | 0/1 | split the frames over n processes or machines (copy the PNGs into one folder) |
+| `--only seg,...` | all | render some segments only, e.g. `--only explode,assembly` |
+| `--frames a,b,...` | all | render single frames, for checks |
+| `--preview` | off | 2 samples, every 4th frame: checks the whole film in a few hours on a CPU |
+
+Without a GPU, `render/render_build_film.sh <dir> 2 2` runs two CPU workers then the composition; on a
+4-core CPU at 8 samples that is about 45 hours.
