@@ -31,6 +31,7 @@ from render_colors import RGB  # noqa: E402
 
 FPS = 24
 MM = 0.001
+FLOOR_SPEC = 0.35                                    # floor sheen (Principled specular level)
 R_TYRE = 0.300
 
 # accent colours (also used by the composer, by name)
@@ -256,12 +257,13 @@ def studio(sc):
     m.use_nodes = True
     b = m.node_tree.nodes["Principled BSDF"]
     b.inputs["Base Color"].default_value = (0.022, 0.03, 0.052, 1)
-    b.inputs["Roughness"].default_value = 0.42
+    b.inputs["Roughness"].default_value = 0.5
+    b.inputs["Specular IOR Level"].default_value = FLOOR_SPEC
     # the floor dissolves into the world with distance from the camera: no hard horizon line
     nt = m.node_tree
     cd = nt.nodes.new("ShaderNodeCameraData")
     mr = nt.nodes.new("ShaderNodeMapRange")
-    mr.inputs["From Min"].default_value, mr.inputs["From Max"].default_value = 3.5, 9.0
+    mr.inputs["From Min"].default_value, mr.inputs["From Max"].default_value = 5.0, 14.0
     mx = nt.nodes.new("ShaderNodeMixShader")
     tr = nt.nodes.new("ShaderNodeBsdfTransparent")
     mo = nt.nodes["Material Output"]
@@ -286,6 +288,7 @@ def studio(sc):
     def area(name, loc, energy, size, color=(1, 1, 1)):
         ld = bpy.data.lights.new(name, "AREA")
         ld.energy, ld.size, ld.color = energy, size, color
+        ld.shape = "DISK"                                     # soft round reflections, no straight edges on the floor
         lo = bpy.data.objects.new(name, ld)
         sc.collection.objects.link(lo)
         lo.location = loc
@@ -301,6 +304,21 @@ def studio(sc):
     sc.collection.objects.link(rig)
     for lo in L:
         lo.parent = rig
+    # a one-sided area light leaves the floor behind its plane dark: a straight edge across the floor a few metres
+    # out. Only the key (whose plane meets the floor beyond the fade) lights the floor.
+    nf = bpy.data.collections.new("not_floor")
+    nf.objects.link(fl)
+    for lo in L[1:]:
+        lo.light_linking.receiver_collection = nf
+    for co in nf.collection_objects:
+        co.light_linking.link_state = "EXCLUDE"
+    # a soft pool on the floor from straight above (horizontal plane: no edge), lighting the floor only
+    pool = area("pool", (0.0, 0.0, 3.2), 520, 4.0)
+    pool.rotation_euler = (0, 0, 0)
+    pool.parent = rig
+    of = bpy.data.collections.new("only_floor")
+    of.objects.link(fl)
+    pool.light_linking.receiver_collection = of
     return fl, rig
 
 
@@ -801,8 +819,12 @@ class Film:
         S["lift"] = 0.32 * ease_io(clamp(t / 3.0)) * (1 - ease_io((t - 14.5) / 3.5))
         self.explode_offsets(S, x)
         z = S["lift"]
-        S["cam"] = cam_keys(t, [(0, (0, 0, -0.06), 58, 19, 2.3, 48), (6, (0, 0, 0.14), 112, 18, 3.25, 42),
-                                (12, (0, 0, 0.14), 150, 22, 3.3, 42), (dur, (0, 0, -0.02), 205, 15, 2.6, 48)])
+        # targets relative to the lifted robot: the camera rises with it
+        loc, tgt, lens = cam_keys(t, [(0, (0, 0, -0.06), 58, 19, 2.3, 48), (6, (0, 0, -0.18), 112, 18, 3.25, 42),
+                                      (12, (0, 0, -0.18), 150, 22, 3.3, 42), (dur, (0, 0, -0.02), 205, 15, 2.6, 48)])
+        S["cam"] = (tuple(c + d for c, d in zip(loc, (0, 0, z))), tuple(c + d for c, d in zip(tgt, (0, 0, z))), lens)
+        # the floor's sheen eases off while the robot is lifted (the key light's reflection is no longer covered)
+        S["floor_spec"] = FLOOR_SPEC * (1 - 0.85 * z / 0.32)
         A = [("tyre", "Tyre half (x2)", "drum + ring gear + rim, bonded; PU tread", ["drum_L"], "cyan"),
              ("pod", "Sensor pod (x2)", "8 V-wheels or rollers carry the tyre", ["pod_plate_L"], "cyan"),
              ("yoke", "Yoke", "2 drive cassettes, level gear, 432 Wh battery", ["hanger_L"], "amber"),
@@ -1113,6 +1135,10 @@ def make_fov(R):
 # ====================================================================================================== apply + render
 def apply(R, S, sc, cam, floor, lights):
     root = R.root
+    fb = floor.active_material.node_tree.nodes["Principled BSDF"].inputs["Specular IOR Level"]
+    fs = S.get("floor_spec", FLOOR_SPEC)
+    if abs(fb.default_value - fs) > 1e-6:
+        fb.default_value = fs
     z = S.get("lift", 0.0)
     root.location = S["root"] + Vector((0, 0, z))
     root.rotation_euler = (0, 0, S.get("yaw", 0.0))
