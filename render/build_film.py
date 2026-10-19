@@ -239,6 +239,19 @@ def studio(sc):
     b = m.node_tree.nodes["Principled BSDF"]
     b.inputs["Base Color"].default_value = (0.022, 0.03, 0.052, 1)
     b.inputs["Roughness"].default_value = 0.42
+    # the floor dissolves into the world with distance from the camera: no hard horizon line
+    nt = m.node_tree
+    cd = nt.nodes.new("ShaderNodeCameraData")
+    mr = nt.nodes.new("ShaderNodeMapRange")
+    mr.inputs["From Min"].default_value, mr.inputs["From Max"].default_value = 3.5, 9.0
+    mx = nt.nodes.new("ShaderNodeMixShader")
+    tr = nt.nodes.new("ShaderNodeBsdfTransparent")
+    mo = nt.nodes["Material Output"]
+    nt.links.new(cd.outputs["View Distance"], mr.inputs["Value"])
+    nt.links.new(mr.outputs["Result"], mx.inputs["Fac"])
+    nt.links.new(b.outputs[0], mx.inputs[1])
+    nt.links.new(tr.outputs[0], mx.inputs[2])
+    nt.links.new(mx.outputs[0], mo.inputs["Surface"])
     fl.data.materials.append(m)
 
     def area(name, loc, energy, size, color=(1, 1, 1)):
@@ -574,8 +587,9 @@ class Assembly:
                     S["alpha"][n] = 0.0
                     continue
                 p = ease_io(clamp(x))
-                if e["motion"] == "fade":
-                    S["alpha"][n] = ease(clamp(x / 0.8))
+                if e["motion"] == "fade":                # x-ray shell first, then solid
+                    S["alpha"][n] = ease(clamp(x / 0.3))
+                    S["ghost"][n] = 1 - ease_io(clamp((x - 0.3) / 0.7))
                     S["off"][n] = Vector()
                 else:
                     off = Vector(e.get("off", (0, 0, 0)))
@@ -670,14 +684,10 @@ class Film:
     SHELLS = r"(drum|tread)_[LR]"
 
     def ghost_shells(self, S, g, pods=False, rims=False):
-        for n in names_like(self.R.P, self.SHELLS):
-            S["ghost"][n] = g
-        if rims:
-            for n in names_like(self.R.P, r"(rim|ring_gear)_[LR]"):
-                S["ghost"][n] = g
-        if pods:
-            for n in names_like(self.R.P, r"pod_shield_[LR]", r"cam_window_[LR]\d", r"light_ring_[LR]"):
-                S["ghost"][n] = g
+        pats = [self.SHELLS] + ([r"(rim|ring_gear)_[LR]"] if rims else []) \
+            + ([r"pod_shield_[LR]", r"cam_window_[LR]\d", r"light_ring_[LR]"] if pods else [])
+        for n in names_like(self.R.P, *pats):
+            S["ghost"][n] = max(S["ghost"].get(n, 0.0), g)
 
     POD_L = r"(pod_hub|pod_plate|wheel_stud|stud_washer|stud_nut|vwheel|wheel_retainer|lidar_riser|lidar|lidar_dowel|light_ring|led_pcb|pod_shield|cam_window|camera|cam_holder|shield_standoff)_L\d*"
 
@@ -900,14 +910,16 @@ class Film:
         p = min(p, math.radians(ps))
         S["pitch"] = -p
         self.hide_pod(S, "L")
-        keep = re.compile(r"(hanger_L|pitch_striker\d|pitch_bumper\d|level_bracket|axle|hub_cartridge_L|hub_bearing_L)$")
+        for n in names_like(self.R.P, r"(drum|ring_gear|rim|tread)_[LR]"):
+            S["alpha"][n] = 0.0
+        keep = re.compile(r"(hanger_L|pitch_striker\d|pitch_bumper\d|level_bracket|level_gear|axle|hub_cartridge_L|hub_bearing_L)$")
         for n, e in self.R.P.items():
             if not keep.match(n) and S["alpha"].get(n, 1.0) > 0:
-                S["ghost"][n] = 0.9
+                S["ghost"][n] = 0.85
         for n in ("pitch_bumper0", "pitch_bumper1", "pitch_striker0", "pitch_striker1"):
             S["hl"][n] = 0.5
         S["root"] = Vector((0, 0, 0))
-        S["cam"] = cam_keys(t, [(0, (0.025, 0.055, 0.06), 62, 16, 0.62, 50), (dur, (0.03, 0.055, 0.08), 72, 14, 0.46, 50)])
+        S["cam"] = cam_keys(t, [(0, (0.0, 0.05, -0.03), 72, 12, 0.62, 50), (dur, (0.0, 0.05, -0.04), 96, 8, 0.52, 50)])
         self.label(S, "st", "Pitch stop", "PU-sleeved striker meets the level-bracket arm", ["pitch_bumper1", "pitch_bumper0"], "coral",
                    win(t, 2.6, dur - 0.4, 0.4))
         S["readouts"].append(dict(text=f"yoke {math.degrees(p):5.1f} deg", a=win(t, 0.4, dur - 0.3, 0.3), pos="tr", mono=True))
