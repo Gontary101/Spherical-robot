@@ -899,10 +899,15 @@ class Film:
         p = math.radians(ps) * (ease_io(t / 3.0) if t < 4.5 else 1 - ease_io((t - 4.5) / 3.0))
         p = min(p, math.radians(ps))
         S["pitch"] = -p
-        self.ghost_shells(S, 1.0, pods=True, rims=True)
         self.hide_pod(S, "L")
+        keep = re.compile(r"(hanger_L|pitch_striker\d|pitch_bumper\d|level_bracket|axle|hub_cartridge_L|hub_bearing_L)$")
+        for n, e in self.R.P.items():
+            if not keep.match(n) and S["alpha"].get(n, 1.0) > 0:
+                S["ghost"][n] = 0.9
+        for n in ("pitch_bumper0", "pitch_bumper1", "pitch_striker0", "pitch_striker1"):
+            S["hl"][n] = 0.5
         S["root"] = Vector((0, 0, 0))
-        S["cam"] = cam_keys(t, [(0, (0.03, 0.05, 0.05), 30, 24, 0.62, 50), (dur, (0.035, 0.05, 0.07), 22, 28, 0.5, 55)])
+        S["cam"] = cam_keys(t, [(0, (0.025, 0.055, 0.06), 62, 16, 0.62, 50), (dur, (0.03, 0.055, 0.08), 72, 14, 0.46, 50)])
         self.label(S, "st", "Pitch stop", "PU-sleeved striker meets the level-bracket arm", ["pitch_bumper1", "pitch_bumper0"], "coral",
                    win(t, 2.6, dur - 0.4, 0.4))
         S["readouts"].append(dict(text=f"yoke {math.degrees(p):5.1f} deg", a=win(t, 0.4, dur - 0.3, 0.3), pos="tr", mono=True))
@@ -941,10 +946,10 @@ class Film:
         S["spin"] = {"L": th, "R": th}
         self.ghost_shells(S, 1.0, pods=True)
         S["lift"] = 0.0
-        if t < 7.0:
-            S["cam"] = cam_keys(t, [(0, (0, 0.32, 0.02), 55, 18, 1.15, 45), (7.0, (0, 0.30, 0.0), 75, 12, 0.95, 50)])
+        if t < 7.0:                                           # the inner face: wheels riding on the rim
+            S["cam"] = cam_keys(t, [(0, (0, 0.27, -0.01), 22, 20, 1.0, 45), (7.0, (0, 0.26, -0.02), 36, 16, 0.82, 50)])
         else:
-            S["cam"] = cam_keys(t - 7.0, [(0, (0, -0.32, 0.02), -55, 18, 1.15, 45), (7.0, (0, -0.30, 0.0), -75, 12, 0.95, 50)])
+            S["cam"] = cam_keys(t - 7.0, [(0, (0, -0.27, -0.01), -22, 20, 1.0, 45), (7.0, (0, -0.26, -0.02), -36, 16, 0.82, 50)])
         S["fov"] = win(t, 1.0, 6.6, 0.6)
         A = [(0.8, 6.6, "li", "Livox Mid-360", "360 x 59 deg LiDAR", ["lidar_L"], "cyan"),
              (1.6, 6.6, "cm", "3 cameras per pod", "global shutter, square to the shell", ["camera_L0"], "cyan"),
