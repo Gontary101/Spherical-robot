@@ -146,7 +146,8 @@ MAT_SPEC = {  # base colour from render_colors, metallic, roughness, coat
 
 def make_material(key):
     """Principled BSDF of the part's material, wrapped so that the object's colour property drives:
-    R = highlight (amber emission), G = ghost (x-ray shell), A = opacity (fade in / out)."""
+    R = highlight (amber emission), G = ghost (x-ray shell), B = wipe (part revealed along its y, 0 = off),
+    A = opacity (fade in / out)."""
     m = bpy.data.materials.new(f"m_{key}")
     m.use_nodes = True
     nt = m.node_tree
@@ -214,10 +215,27 @@ def make_material(key):
     nt.links.new(sep.outputs["Green"], gmix.inputs["Fac"])
     nt.links.new(add.outputs[0], gmix.inputs[1])
     nt.links.new(ghost.outputs[0], gmix.inputs[2])
+    # wipe: visible where generated y < 1.12 B - 0.12 (soft edge), only when B > 0
+    tc = nt.nodes.new("ShaderNodeTexCoord")
+    sxyz = nt.nodes.new("ShaderNodeSeparateXYZ")
+    nt.links.new(tc.outputs["Generated"], sxyz.inputs[0])
+
+    def op(kind, a, b, clamp_=False):
+        nd = nt.nodes.new("ShaderNodeMath")
+        nd.operation = kind
+        nd.use_clamp = clamp_
+        for i, v in enumerate((a, b)):
+            if isinstance(v, (int, float)):
+                nd.inputs[i].default_value = v
+            else:
+                nt.links.new(v, nd.inputs[i])
+        return nd.outputs[0]
+    w = op("SUBTRACT", op("MULTIPLY", sep.outputs["Blue"], 9.3333), op("MULTIPLY", sxyz.outputs["Y"], 8.3333), True)
+    wipe = op("SUBTRACT", 1.0, op("MULTIPLY", op("GREATER_THAN", sep.outputs["Blue"], 0.0005), op("SUBTRACT", 1.0, w)))
     # opacity
     amix = nt.nodes.new("ShaderNodeMixShader")
     tr2 = nt.nodes.new("ShaderNodeBsdfTransparent")
-    nt.links.new(info.outputs["Alpha"], amix.inputs["Fac"])
+    nt.links.new(op("MULTIPLY", info.outputs["Alpha"], wipe), amix.inputs["Fac"])
     nt.links.new(tr2.outputs[0], amix.inputs[1])
     nt.links.new(gmix.outputs[0], amix.inputs[2])
     nt.links.new(amix.outputs[0], out.inputs["Surface"])
@@ -249,7 +267,18 @@ def studio(sc):
     mo = nt.nodes["Material Output"]
     nt.links.new(cd.outputs["View Distance"], mr.inputs["Value"])
     nt.links.new(mr.outputs["Result"], mx.inputs["Fac"])
-    nt.links.new(b.outputs[0], mx.inputs[1])
+    lwf = nt.nodes.new("ShaderNodeLayerWeight")
+    lwf.inputs["Blend"].default_value = 0.5
+    mrf = nt.nodes.new("ShaderNodeMapRange")
+    mrf.inputs["From Min"].default_value, mrf.inputs["From Max"].default_value = 0.55, 0.8
+    df = nt.nodes.new("ShaderNodeBsdfDiffuse")
+    df.inputs["Color"].default_value = (0.022, 0.03, 0.052, 1)
+    mxd = nt.nodes.new("ShaderNodeMixShader")
+    nt.links.new(lwf.outputs["Facing"], mrf.inputs["Value"])
+    nt.links.new(mrf.outputs["Result"], mxd.inputs["Fac"])
+    nt.links.new(b.outputs[0], mxd.inputs[1])
+    nt.links.new(df.outputs[0], mxd.inputs[2])
+    nt.links.new(mxd.outputs[0], mx.inputs[1])
     nt.links.new(tr.outputs[0], mx.inputs[2])
     nt.links.new(mx.outputs[0], mo.inputs["Surface"])
     fl.data.materials.append(m)
@@ -434,8 +463,8 @@ class Assembly:
         # A tyre halves
         ev("drumL", 0.6, 2.4, N("drum_L", "ring_gear_L"), "fade")
         ev("rimL", 2.8, 5.6, N("rim_L"), "slide", off=(0, -0.33, 0))
-        ev("treadL", 6.2, 8.0, N("tread_L"), "fade")
-        ev("tyreR", 7.8, 9.6, N("drum_R", "ring_gear_R", "rim_R", "tread_R"), "fade")
+        ev("treadL", 6.2, 8.0, N("tread_L"), "wipe")
+        ev("tyreR", 7.8, 9.6, N("drum_R", "ring_gear_R", "rim_R", "tread_R"), "slide", off=(0, -0.45, 0))
         # B bob (on the bench at its run-on pose)
         ev("carriage", 11.9, 13.8, N("carriage_B"), "slide", off=(-0.10, 0, 0))
         ev("carriage2", 11.9, 13.8, N("carriage_F"), "slide", off=(0.10, 0, 0))
@@ -591,6 +620,11 @@ class Assembly:
                     S["alpha"][n] = ease(clamp(x / 0.3))
                     S["ghost"][n] = 1 - ease_io(clamp((x - 0.3) / 0.7))
                     S["off"][n] = Vector()
+                elif e["motion"] == "wipe":              # cast on: revealed across the part
+                    S["alpha"][n] = 1.0
+                    if x < 1:
+                        S["wipe"][n] = max(ease_io(clamp(x)), 0.001)
+                    S["off"][n] = Vector()
                 else:
                     off = Vector(e.get("off", (0, 0, 0)))
                     if "side_x" in e:
@@ -667,7 +701,7 @@ class Film:
     # ---------------------------------------------------------------- state
     def blank(self):
         return dict(root=Vector(), yaw=0.0, lift=0.0, pitch=0.0, lean=0.0, spin={"L": 0.0, "R": 0.0}, bench=Vector(),
-                    bob_rot=0.0, off={}, alpha={}, ghost={}, hl={}, screws={}, labels=[], caption=None,
+                    bob_rot=0.0, off={}, alpha={}, ghost={}, wipe={}, hl={}, screws={}, labels=[], caption=None,
                     title=None, cards=[], readouts=[], fov=0.0)
 
     def state(self, f):
@@ -909,18 +943,21 @@ class Film:
         p = math.radians(ps) * (ease_io(t / 3.0) if t < 4.5 else 1 - ease_io((t - 4.5) / 3.0))
         p = min(p, math.radians(ps))
         S["pitch"] = -p
-        self.hide_pod(S, "L")
-        for n in names_like(self.R.P, r"(drum|ring_gear|rim|tread)_[LR]"):
-            S["alpha"][n] = 0.0
-        keep = re.compile(r"(hanger_L|pitch_striker\d|pitch_bumper\d|level_bracket|level_gear|axle|hub_cartridge_L|hub_bearing_L)$")
+        keep = re.compile(r"(hanger_L|pitch_striker\d|pitch_bumper\d|level_bracket|level_gear|hub_cartridge_L|hub_bearing_L)$")
         for n, e in self.R.P.items():
-            if not keep.match(n) and S["alpha"].get(n, 1.0) > 0:
-                S["ghost"][n] = 0.85
+            if keep.match(n):
+                continue
+            c = self.R.rest_c[n]
+            near = e["kind"] == "fastener" and 0.02 < c.y < 0.07 and abs(c.x) < 0.25 and abs(c.z) < 0.25
+            if not near:
+                S["alpha"][n] = 0.0
         for n in ("pitch_bumper0", "pitch_bumper1", "pitch_striker0", "pitch_striker1"):
             S["hl"][n] = 0.5
         S["root"] = Vector((0, 0, 0))
-        S["cam"] = cam_keys(t, [(0, (0.0, 0.05, -0.03), 72, 12, 0.62, 50), (dur, (0.0, 0.05, -0.04), 96, 8, 0.52, 50)])
-        self.label(S, "st", "Pitch stop", "PU-sleeved striker meets the level-bracket arm", ["pitch_bumper1", "pitch_bumper0"], "coral",
+        S["cam"] = cam_keys(t, [(0, (0.03, 0.05, -0.04), 74, 14, 0.82, 50), (dur, (0.03, 0.05, -0.04), 98, 10, 0.72, 50)])
+        self.label(S, "hg", "Yoke hanger", "pitches with the pendulum", ["hanger_L"], "amber", win(t, 1.0, dur - 0.4, 0.4))
+        self.label(S, "lb", "Level bracket", "carries the spine: stays level", ["level_bracket"], "green", win(t, 1.6, dur - 0.4, 0.4))
+        self.label(S, "st", "Pitch stop", "PU-sleeved striker meets the level-bracket arm", ["pitch_bumper0"], "coral",
                    win(t, 2.6, dur - 0.4, 0.4))
         S["readouts"].append(dict(text=f"yoke {math.degrees(p):5.1f} deg", a=win(t, 0.4, dur - 0.3, 0.3), pos="tr", mono=True))
         S["caption"] = dict(kicker="HOW IT WORKS", title=f"Stops at +-{ps:.1f} deg", sub="the deployed control uses at most 99.5 deg; first collision beyond 104 deg",
@@ -1107,7 +1144,7 @@ def apply(R, S, sc, cam, floor, lights):
     for n, ob in R.o.items():
         a = alpha.get(n, 1.0)
         ob.hide_render = a <= 0.002
-        ob.color = (hl.get(n, 0.0), ghost.get(n, 0.0), 0.0, a)
+        ob.color = (hl.get(n, 0.0), ghost.get(n, 0.0), S.get("wipe", {}).get(n, 0.0), a)
         o = off.get(n)
         M = Matrix.Translation(o) if o is not None else Matrix.Identity(4)
         sp_ = S.get("spin_screw", {}).get(n)
