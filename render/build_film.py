@@ -163,7 +163,7 @@ def make_material(key):
     if key == "glass":
         bsdf.inputs["Transmission Weight"].default_value = 0.85
     if key == "gfrp":                                         # woven glass under resin: warm ivory, faint weave
-        bsdf.inputs["Base Color"].default_value = (0.66, 0.64, 0.58, 1)
+        bsdf.inputs["Base Color"].default_value = (0.52, 0.50, 0.45, 1)
         bsdf.inputs["Coat Weight"].default_value = 0.35
         wv = nt.nodes.new("ShaderNodeTexWave")
         wv.inputs["Scale"].default_value = 160.0
@@ -248,12 +248,13 @@ def studio(sc):
         sc.collection.objects.link(lo)
         lo.location = loc
         lo.rotation_euler = (Vector((0, 0, 0)) - Vector(loc)).to_track_quat("-Z", "Y").to_euler()
+        lo.visible_camera = False                             # light, reflect, but never show up in shot
         return lo
 
     k = 0.6
     L = [area("key", (2.2, 1.6, 2.4), 420 * k, 1.6), area("fill", (-1.4, 2.6, 1.0), 140 * k, 3.0, (0.85, 0.9, 1.0)),
          area("rim", (-2.0, -1.6, 1.8), 380 * k, 1.2, (1.0, 0.92, 0.85)), area("front", (2.5, -1.0, 0.4), 90 * k, 2.0),
-         area("amber", (-2.4, 0.6, 1.2), 160, 2.0, (1.0, 0.68, 0.3))]
+         area("amber", (-2.4, 0.6, 1.2), 70, 2.0, (1.0, 0.68, 0.3))]
     rig = bpy.data.objects.new("lights", None)               # lights follow the robot when it rolls
     sc.collection.objects.link(rig)
     for lo in L:
@@ -696,12 +697,12 @@ class Film:
     # ---------------------------------------------------------------- segments
     def seg_title(self, t, S, dur):
         S["yaw"] = math.radians(-22 + 18 * ease(t / dur))
-        S["cam"] = cam_keys(t, [(0, aim((0, 0.02, -0.03), 26, -0.42), 26, 9, 2.6, 50), (dur, aim((0, 0.02, -0.03), 34, -0.36), 34, 12, 2.3, 50)])
+        S["cam"] = cam_keys(t, [(0, aim((0, 0.02, -0.03), 26, -0.32), 26, 9, 2.7, 50), (dur, aim((0, 0.02, -0.03), 34, -0.28), 34, 12, 2.45, 50)])
         S["title"] = dict(text="GYRA Mk2.1", sub="The build: every part, every bolt", a=win(t, 1.2, dur - 0.6, 1.0))
 
     def seg_reveal(self, t, S, dur):
         S["yaw"] = math.radians(-4)
-        S["cam"] = cam_keys(t, [(0, aim((0, 0.02, -0.03), 34, -0.36), 34, 12, 2.3, 50), (dur, (0, 0, -0.06), 58, 19, 2.3, 48)])
+        S["cam"] = cam_keys(t, [(0, aim((0, 0.02, -0.03), 34, -0.28), 34, 12, 2.45, 50), (dur, (0, 0, -0.06), 58, 19, 2.3, 48)])
         g = ramp(t, 1.5, 4.5)
         self.ghost_shells(S, g, pods=True)
         A = [("tyre", "Tyre halves", "GFRP drums, PU tread, 7075 ring gears", ["drum_L"], "cyan", 4.8),
@@ -749,8 +750,8 @@ class Film:
         S["lift"] = 0.32 * ease_io(clamp(t / 3.0)) * (1 - ease_io((t - 14.5) / 3.5))
         self.explode_offsets(S, x)
         z = S["lift"]
-        S["cam"] = cam_keys(t, [(0, (0, 0, -0.06), 58, 19, 2.3, 48), (6, (0, 0, 0.12), 112, 20, 2.9, 42),
-                                (12, (0, 0, 0.12), 150, 24, 2.95, 42), (dur, (0, 0, -0.04), 205, 16, 2.25, 50)])
+        S["cam"] = cam_keys(t, [(0, (0, 0, -0.06), 58, 19, 2.3, 48), (6, (0, 0, 0.14), 112, 18, 3.25, 42),
+                                (12, (0, 0, 0.14), 150, 22, 3.3, 42), (dur, (0, 0, -0.02), 205, 15, 2.6, 48)])
         A = [("tyre", "Tyre half (x2)", "drum + ring gear + rim, bonded; PU tread", ["drum_L"], "cyan"),
              ("pod", "Sensor pod (x2)", "8 V-wheels or rollers carry the tyre", ["pod_plate_L"], "cyan"),
              ("yoke", "Yoke", "2 drive cassettes, level gear, 432 Wh battery", ["hanger_L"], "amber"),
