@@ -35,3 +35,4 @@ rl/runs/nav3d/*.ts
 rl/runs/nav3d/*.log
 rl/runs/nav3d/*.jsonl
 render/out_*/
+render/out_*.log
