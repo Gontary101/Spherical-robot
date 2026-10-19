@@ -956,7 +956,7 @@ class Film:
         for n in ("pitch_bumper0", "pitch_bumper1", "pitch_striker0", "pitch_striker1"):
             S["hl"][n] = 0.5
         S["root"] = Vector((0, 0, 0))
-        S["cam"] = cam_keys(t, [(0, (0.04, 0.05, -0.05), 76, 12, 1.12, 50), (dur, (0.04, 0.05, -0.05), 98, 9, 1.0, 50)])
+        S["cam"] = cam_keys(t, [(0, (0.08, 0.05, 0.03), 76, 12, 1.32, 50), (dur, (0.08, 0.05, 0.03), 98, 9, 1.2, 50)])
         self.label(S, "hg", "Yoke hanger", "pitches with the pendulum", [("hanger_L", (0.121, 0.031, -0.17))], "amber",
                    win(t, 1.0, dur - 0.4, 0.4))
         self.label(S, "lb", "Level bracket", "carries the spine: stays level", [("level_bracket", (0.018, 0.066, 0.06))], "green", win(t, 1.6, dur - 0.4, 0.4))
