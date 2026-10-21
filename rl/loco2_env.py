@@ -475,6 +475,13 @@ class Loco2Env:
             u = self.long_ctrl(self, est, t)            # torque while active (stop and hold); steering and lean stay
             if u is not None:                           # with the policy
                 tau_sum = u
+                # bumpless hand-back: the policy's history and delay line hold the torque actually applied, in its
+                # own terms, so its estimator is not misled and its first actions after the hand-back continue it
+                a0 = _clamp((u - (tl + tr)) / RES_SUM, -1.0, 1.0)
+                a = a.copy()
+                a[0] = a0
+                self.a_queue[-1] = a
+                self.base_a[0] = (u - RES_SUM * a0) / 100.0
         bob_target = _clamp(bob_c + RES_BOB * a_eff[2], -0.698, 0.698)
         step = S["bob_slew"] * self.hw["lean_rate"] / 60.0 * DT
         self.bob_cmd += _clamp(bob_target - self.bob_cmd, -step, step)

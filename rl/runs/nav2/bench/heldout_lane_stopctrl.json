@@ -1,0 +1,3022 @@
+[
+ {
+  "scenario": "clutter",
+  "ep": 0,
+  "success": false,
+  "time": 60.0,
+  "failure": "timeout",
+  "geo_left": 2.4924399852527794,
+  "stopped_frac": 0.33,
+  "w_reversals": 49
+ },
+ {
+  "scenario": "clutter",
+  "ep": 1,
+  "success": true,
+  "time": 9.4,
+  "failure": null
+ },
+ {
+  "scenario": "clutter",
+  "ep": 2,
+  "success": true,
+  "time": 4.9,
+  "failure": null
+ },
+ {
+  "scenario": "clutter",
+  "ep": 3,
+  "success": true,
+  "time": 5.9,
+  "failure": null
+ },
+ {
+  "scenario": "clutter",
+  "ep": 4,
+  "success": true,
+  "time": 7.5,
+  "failure": null
+ },
+ {
+  "scenario": "clutter",
+  "ep": 5,
+  "success": true,
+  "time": 4.0,
+  "failure": null
+ },
+ {
+  "scenario": "clutter",
+  "ep": 6,
+  "success": true,
+  "time": 7.0,
+  "failure": null
+ },
+ {
+  "scenario": "clutter",
+  "ep": 7,
+  "success": true,
+  "time": 5.300000000000001,
+  "failure": null
+ },
+ {
+  "scenario": "clutter",
+  "ep": 8,
+  "success": true,
+  "time": 10.5,
+  "failure": null
+ },
+ {
+  "scenario": "clutter",
+  "ep": 9,
+  "success": true,
+  "time": 5.800000000000001,
+  "failure": null
+ },
+ {
+  "scenario": "clutter",
+  "ep": 10,
+  "success": true,
+  "time": 8.700000000000001,
+  "failure": null
+ },
+ {
+  "scenario": "clutter",
+  "ep": 11,
+  "success": true,
+  "time": 9.5,
+  "failure": null
+ },
+ {
+  "scenario": "clutter",
+  "ep": 12,
+  "success": true,
+  "time": 5.5,
+  "failure": null
+ },
+ {
+  "scenario": "clutter",
+  "ep": 13,
+  "success": true,
+  "time": 4.4,
+  "failure": null
+ },
+ {
+  "scenario": "clutter",
+  "ep": 14,
+  "success": true,
+  "time": 4.1000000000000005,
+  "failure": null
+ },
+ {
+  "scenario": "clutter",
+  "ep": 15,
+  "success": true,
+  "time": 10.3,
+  "failure": null
+ },
+ {
+  "scenario": "forest (thin poles)",
+  "ep": 0,
+  "success": true,
+  "time": 11.200000000000001,
+  "failure": null
+ },
+ {
+  "scenario": "forest (thin poles)",
+  "ep": 1,
+  "success": true,
+  "time": 16.6,
+  "failure": null
+ },
+ {
+  "scenario": "forest (thin poles)",
+  "ep": 2,
+  "success": false,
+  "time": 15.700000000000001,
+  "failure": "collision",
+  "kind": "static",
+  "obstacle": "b7",
+  "speed": 0.5135266178953307,
+  "toward": -0.00736482634608294,
+  "at_fault": true,
+  "bearing": -62.77176842689444,
+  "side": "side",
+  "perceived": "lidar",
+  "unseen_reason": "-",
+  "known_s_before": 3.0,
+  "brake_s_before": 2.0,
+  "v_at_brake": 0.8616600203450133,
+  "dist_at_brake": 0.4933508575310858,
+  "map_dist": 0.03906540593865539,
+  "interv_1s": 8,
+  "cmd_last": [
+   0.0,
+   0.0
+  ],
+  "v_hist": [
+   0.31,
+   -0.79,
+   0.48,
+   0.35,
+   -0.69,
+   0.48,
+   0.54,
+   -0.75,
+   0.57,
+   0.45
+  ],
+  "cmd_v_hist": [
+   0.0,
+   0.0,
+   -0.25,
+   0.0,
+   0.0,
+   -0.25,
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ],
+  "push": false
+ },
+ {
+  "scenario": "forest (thin poles)",
+  "ep": 3,
+  "success": true,
+  "time": 6.800000000000001,
+  "failure": null
+ },
+ {
+  "scenario": "forest (thin poles)",
+  "ep": 4,
+  "success": true,
+  "time": 13.600000000000001,
+  "failure": null
+ },
+ {
+  "scenario": "forest (thin poles)",
+  "ep": 5,
+  "success": true,
+  "time": 7.6000000000000005,
+  "failure": null
+ },
+ {
+  "scenario": "forest (thin poles)",
+  "ep": 6,
+  "success": false,
+  "time": 15.5,
+  "failure": "collision",
+  "kind": "static",
+  "obstacle": "p36",
+  "speed": 0.4143011557178697,
+  "toward": 0.012791235730568676,
+  "at_fault": true,
+  "bearing": 52.13164929592781,
+  "side": "side",
+  "perceived": "lidar",
+  "unseen_reason": "blind_wedge",
+  "known_s_before": 3.0,
+  "brake_s_before": 0.6000000000000001,
+  "v_at_brake": 0.348321779515397,
+  "dist_at_brake": 0.47542212667643413,
+  "map_dist": 0.04917415006799958,
+  "interv_1s": 10,
+  "cmd_last": [
+   0.0,
+   0.0
+  ],
+  "v_hist": [
+   -0.14,
+   -0.31,
+   0.11,
+   -0.08,
+   0.35,
+   0.17,
+   -0.67,
+   0.36,
+   0.86,
+   0.33
+  ],
+  "cmd_v_hist": [
+   -0.25,
+   0.0,
+   0.0,
+   0.25,
+   -0.25,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ],
+  "push": false
+ },
+ {
+  "scenario": "forest (thin poles)",
+  "ep": 7,
+  "success": true,
+  "time": 6.9,
+  "failure": null
+ },
+ {
+  "scenario": "forest (thin poles)",
+  "ep": 8,
+  "success": true,
+  "time": 6.300000000000001,
+  "failure": null
+ },
+ {
+  "scenario": "forest (thin poles)",
+  "ep": 9,
+  "success": true,
+  "time": 9.5,
+  "failure": null
+ },
+ {
+  "scenario": "forest (thin poles)",
+  "ep": 10,
+  "success": true,
+  "time": 5.4,
+  "failure": null
+ },
+ {
+  "scenario": "forest (thin poles)",
+  "ep": 11,
+  "success": true,
+  "time": 13.3,
+  "failure": null
+ },
+ {
+  "scenario": "forest (thin poles)",
+  "ep": 12,
+  "success": true,
+  "time": 9.9,
+  "failure": null
+ },
+ {
+  "scenario": "forest (thin poles)",
+  "ep": 13,
+  "success": true,
+  "time": 9.700000000000001,
+  "failure": null
+ },
+ {
+  "scenario": "forest (thin poles)",
+  "ep": 14,
+  "success": true,
+  "time": 6.7,
+  "failure": null
+ },
+ {
+  "scenario": "forest (thin poles)",
+  "ep": 15,
+  "success": true,
+  "time": 7.7,
+  "failure": null
+ },
+ {
+  "scenario": "rooms, 1.0 m doors",
+  "ep": 0,
+  "success": false,
+  "time": 55.1,
+  "failure": "collision",
+  "kind": "static",
+  "obstacle": "iw14",
+  "speed": 0.7427178219795243,
+  "toward": -0.08690276291207859,
+  "at_fault": true,
+  "bearing": 87.11085132872734,
+  "side": "side",
+  "perceived": "lidar",
+  "unseen_reason": "blind_wedge",
+  "known_s_before": 3.0,
+  "brake_s_before": 0.2,
+  "v_at_brake": 0.45757559631353717,
+  "dist_at_brake": 0.43228233743150396,
+  "map_dist": 0.04855600286333142,
+  "interv_1s": 8,
+  "cmd_last": [
+   0.0,
+   0.0
+  ],
+  "v_hist": [
+   0.48,
+   0.31,
+   -1.25,
+   0.35,
+   0.38,
+   -0.97,
+   0.09,
+   0.56,
+   0.46,
+   -0.74
+  ],
+  "cmd_v_hist": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.25,
+   0.0,
+   0.0
+  ],
+  "push": false
+ },
+ {
+  "scenario": "rooms, 1.0 m doors",
+  "ep": 1,
+  "success": false,
+  "time": 60.0,
+  "failure": "timeout",
+  "geo_left": 11.900259191136286,
+  "stopped_frac": 0.59,
+  "w_reversals": 45
+ },
+ {
+  "scenario": "rooms, 1.0 m doors",
+  "ep": 2,
+  "success": true,
+  "time": 3.9000000000000004,
+  "failure": null
+ },
+ {
+  "scenario": "rooms, 1.0 m doors",
+  "ep": 3,
+  "success": true,
+  "time": 41.0,
+  "failure": null
+ },
+ {
+  "scenario": "rooms, 1.0 m doors",
+  "ep": 4,
+  "success": true,
+  "time": 7.0,
+  "failure": null
+ },
+ {
+  "scenario": "rooms, 1.0 m doors",
+  "ep": 5,
+  "success": true,
+  "time": 51.900000000000006,
+  "failure": null
+ },
+ {
+  "scenario": "rooms, 1.0 m doors",
+  "ep": 6,
+  "success": true,
+  "time": 4.4,
+  "failure": null
+ },
+ {
+  "scenario": "rooms, 1.0 m doors",
+  "ep": 7,
+  "success": false,
+  "time": 30.3,
+  "failure": "collision",
+  "kind": "static",
+  "obstacle": "iw11",
+  "speed": 0.028841179723720467,
+  "toward": -0.004556076628269637,
+  "at_fault": true,
+  "bearing": -62.666556554452015,
+  "side": "side",
+  "perceived": "lidar",
+  "unseen_reason": "blind_wedge",
+  "known_s_before": 3.0,
+  "brake_s_before": 0.4,
+  "v_at_brake": -0.13257310419438287,
+  "dist_at_brake": 0.3948136951372657,
+  "map_dist": 0.07741536981577588,
+  "interv_1s": 10,
+  "cmd_last": [
+   0.0,
+   0.0
+  ],
+  "v_hist": [
+   -0.02,
+   -0.02,
+   0.06,
+   0.04,
+   -0.05,
+   -0.18,
+   -0.13,
+   0.18,
+   0.22,
+   -0.03
+  ],
+  "cmd_v_hist": [
+   0.0,
+   0.0,
+   -0.25,
+   -0.25,
+   -0.25,
+   0.25,
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ],
+  "push": false
+ },
+ {
+  "scenario": "rooms, 1.0 m doors",
+  "ep": 8,
+  "success": false,
+  "time": 9.700000000000001,
+  "failure": "collision",
+  "kind": "static",
+  "obstacle": "iw4",
+  "speed": 0.017798001896947382,
+  "toward": 0.005252113509541315,
+  "at_fault": true,
+  "bearing": -106.92835405210957,
+  "side": "side",
+  "perceived": "lidar",
+  "unseen_reason": "blind_wedge",
+  "known_s_before": 3.0,
+  "brake_s_before": 1.0,
+  "v_at_brake": -0.32530914216927465,
+  "dist_at_brake": 0.513706649451711,
+  "map_dist": 0.03173571293028516,
+  "interv_1s": 10,
+  "cmd_last": [
+   0.0,
+   0.0
+  ],
+  "v_hist": [
+   -0.33,
+   0.6,
+   -0.56,
+   -0.77,
+   -0.33,
+   -0.05,
+   0.31,
+   0.31,
+   -0.72,
+   -0.02
+  ],
+  "cmd_v_hist": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   -0.25,
+   0.0,
+   0.0,
+   0.0
+  ],
+  "push": false
+ },
+ {
+  "scenario": "rooms, 1.0 m doors",
+  "ep": 9,
+  "success": true,
+  "time": 5.4,
+  "failure": null
+ },
+ {
+  "scenario": "rooms, 1.0 m doors",
+  "ep": 10,
+  "success": false,
+  "time": 36.4,
+  "failure": "collision",
+  "kind": "static",
+  "obstacle": "iw11",
+  "speed": 0.4218522871633187,
+  "toward": -0.07237607279557595,
+  "at_fault": true,
+  "bearing": 75.04803012069708,
+  "side": "side",
+  "perceived": "lidar",
+  "unseen_reason": "blind_wedge",
+  "known_s_before": 3.0,
+  "brake_s_before": 0.1,
+  "v_at_brake": 0.3828524296344087,
+  "dist_at_brake": 0.39217794882572804,
+  "map_dist": 0.029500773727617828,
+  "interv_1s": 9,
+  "cmd_last": [
+   0.0,
+   0.0
+  ],
+  "v_hist": [
+   0.17,
+   0.23,
+   0.45,
+   0.0,
+   -0.4,
+   0.32,
+   0.34,
+   -1.22,
+   -0.35,
+   0.38
+  ],
+  "cmd_v_hist": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.25,
+   0.0,
+   0.0,
+   0.0,
+   1.0,
+   0.0
+  ],
+  "push": false
+ },
+ {
+  "scenario": "rooms, 1.0 m doors",
+  "ep": 11,
+  "success": true,
+  "time": 45.1,
+  "failure": null
+ },
+ {
+  "scenario": "rooms, 1.0 m doors",
+  "ep": 12,
+  "success": false,
+  "time": 60.0,
+  "failure": "timeout",
+  "geo_left": 6.112774514722773,
+  "stopped_frac": 0.2866666666666667,
+  "w_reversals": 84
+ },
+ {
+  "scenario": "rooms, 1.0 m doors",
+  "ep": 13,
+  "success": false,
+  "time": 12.8,
+  "failure": "collision",
+  "kind": "static",
+  "obstacle": "iw7",
+  "speed": 0.396320871985836,
+  "toward": 0.381238526016795,
+  "at_fault": true,
+  "bearing": -142.43770712182524,
+  "side": "rear",
+  "perceived": "unseen",
+  "unseen_reason": "blind_wedge",
+  "known_s_before": 3.0,
+  "brake_s_before": 0.0,
+  "v_at_brake": -0.3682224543703248,
+  "dist_at_brake": 0.3449483172338261,
+  "map_dist": 0.09986478448258752,
+  "interv_1s": 10,
+  "cmd_last": [
+   0.25,
+   0.0
+  ],
+  "v_hist": [
+   -0.02,
+   0.4,
+   -0.03,
+   -0.37,
+   0.36,
+   -0.47,
+   -0.37,
+   0.13,
+   -0.11,
+   -0.37
+  ],
+  "cmd_v_hist": [
+   0.25,
+   0.0,
+   0.0,
+   0.25,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.25
+  ],
+  "push": false
+ },
+ {
+  "scenario": "rooms, 1.0 m doors",
+  "ep": 14,
+  "success": false,
+  "time": 35.9,
+  "failure": "collision",
+  "kind": "static",
+  "obstacle": "c38",
+  "speed": 0.9326062868960159,
+  "toward": 0.12742467150968098,
+  "at_fault": true,
+  "bearing": -75.20535228605634,
+  "side": "side",
+  "perceived": "lidar",
+  "unseen_reason": "blind_wedge",
+  "known_s_before": 3.0,
+  "brake_s_before": 0.2,
+  "v_at_brake": 0.25210133888149316,
+  "dist_at_brake": 0.4363608179205314,
+  "map_dist": 0.028099063698089694,
+  "interv_1s": 8,
+  "cmd_last": [
+   0.0,
+   0.5
+  ],
+  "v_hist": [
+   0.38,
+   -1.05,
+   -0.39,
+   0.29,
+   0.42,
+   -0.24,
+   -0.76,
+   -0.01,
+   0.25,
+   0.93
+  ],
+  "cmd_v_hist": [
+   0.0,
+   0.0,
+   0.75,
+   0.0,
+   0.0,
+   0.0,
+   0.25,
+   0.5,
+   -0.25,
+   0.0
+  ],
+  "push": false
+ },
+ {
+  "scenario": "rooms, 1.0 m doors",
+  "ep": 15,
+  "success": false,
+  "time": 60.0,
+  "failure": "timeout",
+  "geo_left": 8.611719632079481,
+  "stopped_frac": 0.39666666666666667,
+  "w_reversals": 68
+ },
+ {
+  "scenario": "maze",
+  "ep": 0,
+  "success": true,
+  "time": 5.6000000000000005,
+  "failure": null
+ },
+ {
+  "scenario": "maze",
+  "ep": 1,
+  "success": true,
+  "time": 10.3,
+  "failure": null
+ },
+ {
+  "scenario": "maze",
+  "ep": 2,
+  "success": true,
+  "time": 8.200000000000001,
+  "failure": null
+ },
+ {
+  "scenario": "maze",
+  "ep": 3,
+  "success": true,
+  "time": 6.5,
+  "failure": null
+ },
+ {
+  "scenario": "maze",
+  "ep": 4,
+  "success": true,
+  "time": 39.800000000000004,
+  "failure": null
+ },
+ {
+  "scenario": "maze",
+  "ep": 5,
+  "success": true,
+  "time": 8.3,
+  "failure": null
+ },
+ {
+  "scenario": "maze",
+  "ep": 6,
+  "success": true,
+  "time": 8.200000000000001,
+  "failure": null
+ },
+ {
+  "scenario": "maze",
+  "ep": 7,
+  "success": true,
+  "time": 8.3,
+  "failure": null
+ },
+ {
+  "scenario": "maze",
+  "ep": 8,
+  "success": true,
+  "time": 4.1000000000000005,
+  "failure": null
+ },
+ {
+  "scenario": "maze",
+  "ep": 9,
+  "success": true,
+  "time": 9.9,
+  "failure": null
+ },
+ {
+  "scenario": "maze",
+  "ep": 10,
+  "success": true,
+  "time": 8.6,
+  "failure": null
+ },
+ {
+  "scenario": "maze",
+  "ep": 11,
+  "success": true,
+  "time": 6.1000000000000005,
+  "failure": null
+ },
+ {
+  "scenario": "maze",
+  "ep": 12,
+  "success": true,
+  "time": 7.5,
+  "failure": null
+ },
+ {
+  "scenario": "maze",
+  "ep": 13,
+  "success": true,
+  "time": 7.1000000000000005,
+  "failure": null
+ },
+ {
+  "scenario": "maze",
+  "ep": 14,
+  "success": true,
+  "time": 5.5,
+  "failure": null
+ },
+ {
+  "scenario": "maze",
+  "ep": 15,
+  "success": true,
+  "time": 6.0,
+  "failure": null
+ },
+ {
+  "scenario": "mixed",
+  "ep": 0,
+  "success": false,
+  "time": 52.1,
+  "failure": "collision",
+  "kind": "static",
+  "obstacle": "b40",
+  "speed": 0.5974191139099042,
+  "toward": -0.027954589966079482,
+  "at_fault": true,
+  "bearing": -77.90649125608611,
+  "side": "side",
+  "perceived": "lidar",
+  "unseen_reason": "-",
+  "known_s_before": 3.0,
+  "brake_s_before": 2.0,
+  "v_at_brake": 0.1872624709463598,
+  "dist_at_brake": 0.4959226684412731,
+  "map_dist": 0.03239054100463628,
+  "interv_1s": 10,
+  "cmd_last": [
+   0.0,
+   0.0
+  ],
+  "v_hist": [
+   -0.12,
+   0.02,
+   -0.26,
+   -0.2,
+   -0.03,
+   0.25,
+   -0.1,
+   -0.36,
+   -0.71,
+   0.58
+  ],
+  "cmd_v_hist": [
+   -0.25,
+   -0.25,
+   0.0,
+   0.0,
+   0.0,
+   -0.25,
+   0.0,
+   -0.25,
+   0.0,
+   0.0
+  ],
+  "push": false
+ },
+ {
+  "scenario": "mixed",
+  "ep": 1,
+  "success": true,
+  "time": 5.9,
+  "failure": null
+ },
+ {
+  "scenario": "mixed",
+  "ep": 2,
+  "success": true,
+  "time": 23.5,
+  "failure": null
+ },
+ {
+  "scenario": "mixed",
+  "ep": 3,
+  "success": false,
+  "time": 17.8,
+  "failure": "collision",
+  "kind": "static",
+  "obstacle": "iw5",
+  "speed": 0.5636521456043279,
+  "toward": 0.22889058800229203,
+  "at_fault": true,
+  "bearing": -83.27750989868726,
+  "side": "side",
+  "perceived": "lidar",
+  "unseen_reason": "blind_wedge",
+  "known_s_before": 3.0,
+  "brake_s_before": 0.1,
+  "v_at_brake": 0.5383380117287191,
+  "dist_at_brake": 0.3969117893257598,
+  "map_dist": 0.030816007763867198,
+  "interv_1s": 8,
+  "cmd_last": [
+   0.0,
+   0.0
+  ],
+  "v_hist": [
+   0.16,
+   0.26,
+   0.42,
+   -0.88,
+   0.06,
+   0.4,
+   0.51,
+   -0.54,
+   -0.31,
+   0.54
+  ],
+  "cmd_v_hist": [
+   0.25,
+   0.25,
+   0.0,
+   0.0,
+   1.0,
+   0.25,
+   0.0,
+   0.0,
+   0.5,
+   0.0
+  ],
+  "push": false
+ },
+ {
+  "scenario": "mixed",
+  "ep": 4,
+  "success": true,
+  "time": 10.3,
+  "failure": null
+ },
+ {
+  "scenario": "mixed",
+  "ep": 5,
+  "success": true,
+  "time": 16.0,
+  "failure": null
+ },
+ {
+  "scenario": "mixed",
+  "ep": 6,
+  "success": false,
+  "time": 4.3,
+  "failure": "collision",
+  "kind": "static",
+  "obstacle": "c23",
+  "speed": 0.3727930367184902,
+  "toward": -0.008072075856460824,
+  "at_fault": true,
+  "bearing": -43.36730298929511,
+  "side": "front",
+  "perceived": "lidar",
+  "unseen_reason": "blind_wedge",
+  "known_s_before": 3.0,
+  "brake_s_before": 0.2,
+  "v_at_brake": 1.0721003241521456,
+  "dist_at_brake": 0.38490345253092123,
+  "map_dist": 0.09901713546608665,
+  "interv_1s": 7,
+  "cmd_last": [
+   0.0,
+   0.0
+  ],
+  "v_hist": [
+   0.42,
+   0.13,
+   -0.02,
+   0.45,
+   0.57,
+   -0.28,
+   -0.5,
+   0.28,
+   1.07,
+   0.25
+  ],
+  "cmd_v_hist": [
+   0.0,
+   -0.25,
+   -0.25,
+   -0.25,
+   0.0,
+   0.0,
+   0.0,
+   0.5,
+   0.0,
+   0.0
+  ],
+  "push": false
+ },
+ {
+  "scenario": "mixed",
+  "ep": 7,
+  "success": true,
+  "time": 14.0,
+  "failure": null
+ },
+ {
+  "scenario": "mixed",
+  "ep": 8,
+  "success": true,
+  "time": 19.8,
+  "failure": null
+ },
+ {
+  "scenario": "mixed",
+  "ep": 9,
+  "success": true,
+  "time": 19.5,
+  "failure": null
+ },
+ {
+  "scenario": "mixed",
+  "ep": 10,
+  "success": true,
+  "time": 6.800000000000001,
+  "failure": null
+ },
+ {
+  "scenario": "mixed",
+  "ep": 11,
+  "success": true,
+  "time": 10.100000000000001,
+  "failure": null
+ },
+ {
+  "scenario": "mixed",
+  "ep": 12,
+  "success": true,
+  "time": 17.5,
+  "failure": null
+ },
+ {
+  "scenario": "mixed",
+  "ep": 13,
+  "success": true,
+  "time": 20.6,
+  "failure": null
+ },
+ {
+  "scenario": "mixed",
+  "ep": 14,
+  "success": false,
+  "time": 14.3,
+  "failure": "collision",
+  "kind": "static",
+  "obstacle": "iw20",
+  "speed": 0.12588028989932099,
+  "toward": -0.09524675718385599,
+  "at_fault": true,
+  "bearing": -105.20636591965552,
+  "side": "side",
+  "perceived": "lidar",
+  "unseen_reason": "blind_wedge",
+  "known_s_before": 3.0,
+  "brake_s_before": 0.9,
+  "v_at_brake": 0.2100234751802348,
+  "dist_at_brake": 0.5148208348416558,
+  "map_dist": 0.03799875023917069,
+  "interv_1s": 10,
+  "cmd_last": [
+   0.0,
+   0.0
+  ],
+  "v_hist": [
+   -0.66,
+   0.21,
+   0.54,
+   -1.17,
+   -0.22,
+   0.79,
+   -0.2,
+   -1.01,
+   -0.78,
+   -0.05
+  ],
+  "cmd_v_hist": [
+   0.25,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ],
+  "push": false
+ },
+ {
+  "scenario": "mixed",
+  "ep": 15,
+  "success": false,
+  "time": 28.700000000000003,
+  "failure": "collision",
+  "kind": "static",
+  "obstacle": "iw10",
+  "speed": 0.11515785972924912,
+  "toward": -0.005065219067513414,
+  "at_fault": true,
+  "bearing": -137.30019194563772,
+  "side": "rear",
+  "perceived": "unseen",
+  "unseen_reason": "blind_wedge",
+  "known_s_before": 3.0,
+  "brake_s_before": 0.6000000000000001,
+  "v_at_brake": 0.3448949090715572,
+  "dist_at_brake": 0.43235640661424635,
+  "map_dist": 0.09235490440479849,
+  "interv_1s": 10,
+  "cmd_last": [
+   0.0,
+   0.0
+  ],
+  "v_hist": [
+   -0.43,
+   -0.05,
+   -0.13,
+   0.23,
+   0.34,
+   -0.92,
+   0.4,
+   0.51,
+   -1.15,
+   0.08
+  ],
+  "cmd_v_hist": [
+   0.0,
+   0.0,
+   0.25,
+   0.25,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ],
+  "push": false
+ },
+ {
+  "scenario": "maze, no map",
+  "ep": 0,
+  "success": true,
+  "time": 6.1000000000000005,
+  "failure": null
+ },
+ {
+  "scenario": "maze, no map",
+  "ep": 1,
+  "success": true,
+  "time": 11.3,
+  "failure": null
+ },
+ {
+  "scenario": "maze, no map",
+  "ep": 2,
+  "success": true,
+  "time": 8.1,
+  "failure": null
+ },
+ {
+  "scenario": "maze, no map",
+  "ep": 3,
+  "success": true,
+  "time": 7.7,
+  "failure": null
+ },
+ {
+  "scenario": "maze, no map",
+  "ep": 4,
+  "success": true,
+  "time": 18.3,
+  "failure": null
+ },
+ {
+  "scenario": "maze, no map",
+  "ep": 5,
+  "success": true,
+  "time": 9.600000000000001,
+  "failure": null
+ },
+ {
+  "scenario": "maze, no map",
+  "ep": 6,
+  "success": true,
+  "time": 8.3,
+  "failure": null
+ },
+ {
+  "scenario": "maze, no map",
+  "ep": 7,
+  "success": true,
+  "time": 11.200000000000001,
+  "failure": null
+ },
+ {
+  "scenario": "maze, no map",
+  "ep": 8,
+  "success": true,
+  "time": 3.8000000000000003,
+  "failure": null
+ },
+ {
+  "scenario": "maze, no map",
+  "ep": 9,
+  "success": true,
+  "time": 9.200000000000001,
+  "failure": null
+ },
+ {
+  "scenario": "maze, no map",
+  "ep": 10,
+  "success": true,
+  "time": 9.1,
+  "failure": null
+ },
+ {
+  "scenario": "maze, no map",
+  "ep": 11,
+  "success": true,
+  "time": 4.800000000000001,
+  "failure": null
+ },
+ {
+  "scenario": "maze, no map",
+  "ep": 12,
+  "success": true,
+  "time": 9.3,
+  "failure": null
+ },
+ {
+  "scenario": "maze, no map",
+  "ep": 13,
+  "success": true,
+  "time": 7.2,
+  "failure": null
+ },
+ {
+  "scenario": "maze, no map",
+  "ep": 14,
+  "success": true,
+  "time": 5.9,
+  "failure": null
+ },
+ {
+  "scenario": "maze, no map",
+  "ep": 15,
+  "success": true,
+  "time": 4.2,
+  "failure": null
+ },
+ {
+  "scenario": "mixed, 40 % stale map",
+  "ep": 0,
+  "success": false,
+  "time": 60.0,
+  "failure": "timeout",
+  "geo_left": 5.23934945561127,
+  "stopped_frac": 0.5,
+  "w_reversals": 71
+ },
+ {
+  "scenario": "mixed, 40 % stale map",
+  "ep": 1,
+  "success": true,
+  "time": 8.3,
+  "failure": null
+ },
+ {
+  "scenario": "mixed, 40 % stale map",
+  "ep": 2,
+  "success": false,
+  "time": 9.8,
+  "failure": "collision",
+  "kind": "static",
+  "obstacle": "iw11",
+  "speed": 0.5354613919639242,
+  "toward": -0.031456992612708574,
+  "at_fault": true,
+  "bearing": -45.81435798760167,
+  "side": "side",
+  "perceived": "lidar",
+  "unseen_reason": "blind_wedge",
+  "known_s_before": 3.0,
+  "brake_s_before": 0.5,
+  "v_at_brake": 0.721009612621531,
+  "dist_at_brake": 0.525848114105379,
+  "map_dist": 0.07254778476387462,
+  "interv_1s": 8,
+  "cmd_last": [
+   0.0,
+   0.0
+  ],
+  "v_hist": [
+   0.15,
+   0.47,
+   -0.59,
+   0.08,
+   0.32,
+   0.72,
+   -0.68,
+   -0.21,
+   1.34,
+   0.36
+  ],
+  "cmd_v_hist": [
+   1.5,
+   0.0,
+   0.0,
+   0.0,
+   0.5,
+   0.0,
+   0.0,
+   0.0,
+   -0.25,
+   0.0
+  ],
+  "push": true
+ },
+ {
+  "scenario": "mixed, 40 % stale map",
+  "ep": 3,
+  "success": false,
+  "time": 17.8,
+  "failure": "collision",
+  "kind": "static",
+  "obstacle": "iw5",
+  "speed": 0.5636521456043279,
+  "toward": 0.22889058800229203,
+  "at_fault": true,
+  "bearing": -83.27750989868726,
+  "side": "side",
+  "perceived": "lidar",
+  "unseen_reason": "blind_wedge",
+  "known_s_before": 3.0,
+  "brake_s_before": 0.1,
+  "v_at_brake": 0.5383380117287191,
+  "dist_at_brake": 0.3969117893257598,
+  "map_dist": 0.030816007763867198,
+  "interv_1s": 8,
+  "cmd_last": [
+   0.0,
+   0.0
+  ],
+  "v_hist": [
+   0.16,
+   0.26,
+   0.42,
+   -0.88,
+   0.06,
+   0.4,
+   0.51,
+   -0.54,
+   -0.31,
+   0.54
+  ],
+  "cmd_v_hist": [
+   0.25,
+   0.25,
+   0.0,
+   0.0,
+   1.0,
+   0.25,
+   0.0,
+   0.0,
+   0.5,
+   0.0
+  ],
+  "push": false
+ },
+ {
+  "scenario": "mixed, 40 % stale map",
+  "ep": 4,
+  "success": true,
+  "time": 10.3,
+  "failure": null
+ },
+ {
+  "scenario": "mixed, 40 % stale map",
+  "ep": 5,
+  "success": true,
+  "time": 22.400000000000002,
+  "failure": null
+ },
+ {
+  "scenario": "mixed, 40 % stale map",
+  "ep": 6,
+  "success": false,
+  "time": 4.3,
+  "failure": "collision",
+  "kind": "static",
+  "obstacle": "c23",
+  "speed": 0.3727930367184902,
+  "toward": -0.008072075856460824,
+  "at_fault": true,
+  "bearing": -43.36730298929511,
+  "side": "front",
+  "perceived": "lidar",
+  "unseen_reason": "blind_wedge",
+  "known_s_before": 3.0,
+  "brake_s_before": 0.2,
+  "v_at_brake": 1.0721003241521456,
+  "dist_at_brake": 0.38490345253092123,
+  "map_dist": 0.09901713546608665,
+  "interv_1s": 7,
+  "cmd_last": [
+   0.0,
+   0.0
+  ],
+  "v_hist": [
+   0.42,
+   0.13,
+   -0.02,
+   0.45,
+   0.57,
+   -0.28,
+   -0.5,
+   0.28,
+   1.07,
+   0.25
+  ],
+  "cmd_v_hist": [
+   0.0,
+   -0.25,
+   -0.25,
+   -0.25,
+   0.0,
+   0.0,
+   0.0,
+   0.5,
+   0.0,
+   0.0
+  ],
+  "push": false
+ },
+ {
+  "scenario": "mixed, 40 % stale map",
+  "ep": 7,
+  "success": true,
+  "time": 19.400000000000002,
+  "failure": null
+ },
+ {
+  "scenario": "mixed, 40 % stale map",
+  "ep": 8,
+  "success": true,
+  "time": 19.8,
+  "failure": null
+ },
+ {
+  "scenario": "mixed, 40 % stale map",
+  "ep": 9,
+  "success": true,
+  "time": 19.5,
+  "failure": null
+ },
+ {
+  "scenario": "mixed, 40 % stale map",
+  "ep": 10,
+  "success": true,
+  "time": 6.800000000000001,
+  "failure": null
+ },
+ {
+  "scenario": "mixed, 40 % stale map",
+  "ep": 11,
+  "success": true,
+  "time": 9.1,
+  "failure": null
+ },
+ {
+  "scenario": "mixed, 40 % stale map",
+  "ep": 12,
+  "success": true,
+  "time": 17.5,
+  "failure": null
+ },
+ {
+  "scenario": "mixed, 40 % stale map",
+  "ep": 13,
+  "success": true,
+  "time": 20.6,
+  "failure": null
+ },
+ {
+  "scenario": "mixed, 40 % stale map",
+  "ep": 14,
+  "success": true,
+  "time": 17.5,
+  "failure": null
+ },
+ {
+  "scenario": "mixed, 40 % stale map",
+  "ep": 15,
+  "success": false,
+  "time": 28.700000000000003,
+  "failure": "collision",
+  "kind": "static",
+  "obstacle": "iw10",
+  "speed": 0.11515785972924912,
+  "toward": -0.005065219067513414,
+  "at_fault": true,
+  "bearing": -137.30019194563772,
+  "side": "rear",
+  "perceived": "unseen",
+  "unseen_reason": "blind_wedge",
+  "known_s_before": 3.0,
+  "brake_s_before": 0.6000000000000001,
+  "v_at_brake": 0.3448949090715572,
+  "dist_at_brake": 0.43235640661424635,
+  "map_dist": 0.09235490440479849,
+  "interv_1s": 10,
+  "cmd_last": [
+   0.0,
+   0.0
+  ],
+  "v_hist": [
+   -0.43,
+   -0.05,
+   -0.13,
+   0.23,
+   0.34,
+   -0.92,
+   0.4,
+   0.51,
+   -1.15,
+   0.08
+  ],
+  "cmd_v_hist": [
+   0.0,
+   0.0,
+   0.25,
+   0.25,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ],
+  "push": false
+ },
+ {
+  "scenario": "6 pedestrians to 1.4 m/s",
+  "ep": 0,
+  "success": true,
+  "time": 19.8,
+  "failure": null
+ },
+ {
+  "scenario": "6 pedestrians to 1.4 m/s",
+  "ep": 1,
+  "success": true,
+  "time": 10.8,
+  "failure": null
+ },
+ {
+  "scenario": "6 pedestrians to 1.4 m/s",
+  "ep": 2,
+  "success": true,
+  "time": 7.2,
+  "failure": null
+ },
+ {
+  "scenario": "6 pedestrians to 1.4 m/s",
+  "ep": 3,
+  "success": false,
+  "time": 28.6,
+  "failure": "collision",
+  "kind": "pedestrian",
+  "obstacle": "dyn1",
+  "speed": 0.5226679982125654,
+  "toward": -0.1200103329193726,
+  "at_fault": false,
+  "bearing": -62.92215894094653,
+  "side": "side",
+  "perceived": "lidar",
+  "unseen_reason": "blind_wedge",
+  "known_s_before": 0.0,
+  "brake_s_before": 0.1,
+  "v_at_brake": 0.3983152775021929,
+  "dist_at_brake": 0.3809768346855809,
+  "map_dist": 1.401184827035625,
+  "interv_1s": 7,
+  "cmd_last": [
+   0.0,
+   0.0
+  ],
+  "v_hist": [
+   0.05,
+   -0.62,
+   -0.14,
+   1.1,
+   0.92,
+   0.68,
+   0.11,
+   0.02,
+   0.78,
+   0.4
+  ],
+  "cmd_v_hist": [
+   0.0,
+   1.47,
+   1.47,
+   0.0,
+   0.0,
+   0.0,
+   0.25,
+   1.1,
+   0.25,
+   0.0
+  ],
+  "push": true
+ },
+ {
+  "scenario": "6 pedestrians to 1.4 m/s",
+  "ep": 4,
+  "success": true,
+  "time": 7.1000000000000005,
+  "failure": null
+ },
+ {
+  "scenario": "6 pedestrians to 1.4 m/s",
+  "ep": 5,
+  "success": true,
+  "time": 7.300000000000001,
+  "failure": null
+ },
+ {
+  "scenario": "6 pedestrians to 1.4 m/s",
+  "ep": 6,
+  "success": true,
+  "time": 6.4,
+  "failure": null
+ },
+ {
+  "scenario": "6 pedestrians to 1.4 m/s",
+  "ep": 7,
+  "success": true,
+  "time": 6.6000000000000005,
+  "failure": null
+ },
+ {
+  "scenario": "6 pedestrians to 1.4 m/s",
+  "ep": 8,
+  "success": false,
+  "time": 4.6000000000000005,
+  "failure": "collision",
+  "kind": "pedestrian",
+  "obstacle": "dyn1",
+  "speed": 0.16398972496587969,
+  "toward": -0.13390467328169608,
+  "at_fault": false,
+  "bearing": -20.020737827493424,
+  "side": "front",
+  "perceived": "depth_only",
+  "unseen_reason": "blind_wedge",
+  "known_s_before": 0.0,
+  "brake_s_before": 0.4,
+  "v_at_brake": 0.745126849983806,
+  "dist_at_brake": 0.3360019181600365,
+  "map_dist": 0.7853172830589397,
+  "interv_1s": 10,
+  "cmd_last": [
+   0.0,
+   0.0
+  ],
+  "v_hist": [
+   -0.29,
+   0.13,
+   -0.07,
+   0.09,
+   0.07,
+   0.32,
+   0.75,
+   -0.25,
+   0.09,
+   -0.09
+  ],
+  "cmd_v_hist": [
+   -0.25,
+   0.0,
+   0.25,
+   0.25,
+   0.25,
+   0.25,
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ],
+  "push": true
+ },
+ {
+  "scenario": "6 pedestrians to 1.4 m/s",
+  "ep": 9,
+  "success": true,
+  "time": 7.5,
+  "failure": null
+ },
+ {
+  "scenario": "6 pedestrians to 1.4 m/s",
+  "ep": 10,
+  "success": false,
+  "time": 10.0,
+  "failure": "collision",
+  "kind": "pedestrian",
+  "obstacle": "dyn4",
+  "speed": 0.8610355471468119,
+  "toward": -0.8347056813638613,
+  "at_fault": false,
+  "bearing": -27.63729966730464,
+  "side": "front",
+  "perceived": "unseen",
+  "unseen_reason": "blind_wedge",
+  "known_s_before": 0.0,
+  "brake_s_before": 0.4,
+  "v_at_brake": 0.3595482232223284,
+  "dist_at_brake": 0.331944306680748,
+  "map_dist": 1.1062242221934229,
+  "interv_1s": 8,
+  "cmd_last": [
+   0.0,
+   0.0
+  ],
+  "v_hist": [
+   -1.16,
+   -0.1,
+   0.24,
+   0.67,
+   -0.68,
+   -0.17,
+   0.36,
+   0.71,
+   -0.22,
+   -0.84
+  ],
+  "cmd_v_hist": [
+   0.0,
+   1.5,
+   0.25,
+   0.0,
+   0.0,
+   1.5,
+   -0.5,
+   0.0,
+   0.0,
+   0.0
+  ],
+  "push": false
+ },
+ {
+  "scenario": "6 pedestrians to 1.4 m/s",
+  "ep": 11,
+  "success": false,
+  "time": 4.3,
+  "failure": "collision",
+  "kind": "pedestrian",
+  "obstacle": "dyn5",
+  "speed": 0.8710335781752246,
+  "toward": 0.007448090946434879,
+  "at_fault": false,
+  "bearing": -63.32261790176895,
+  "side": "side",
+  "perceived": "depth_only",
+  "unseen_reason": "noise_dropout",
+  "known_s_before": 0.0,
+  "brake_s_before": 0.2,
+  "v_at_brake": 1.9400698669661094,
+  "dist_at_brake": 0.4731069263534751,
+  "map_dist": 0.6522812167601629,
+  "interv_1s": 3,
+  "cmd_last": [
+   0.0,
+   0.0
+  ],
+  "v_hist": [
+   0.47,
+   0.65,
+   0.77,
+   0.89,
+   1.02,
+   1.19,
+   1.34,
+   1.56,
+   1.94,
+   0.78
+  ],
+  "cmd_v_hist": [
+   2.0,
+   2.0,
+   2.0,
+   2.0,
+   1.99,
+   2.0,
+   1.75,
+   1.62,
+   0.0,
+   0.0
+  ],
+  "push": false
+ },
+ {
+  "scenario": "6 pedestrians to 1.4 m/s",
+  "ep": 12,
+  "success": false,
+  "time": 60.0,
+  "failure": "timeout",
+  "geo_left": 5.829661301251989,
+  "stopped_frac": 0.4083333333333333,
+  "w_reversals": 87
+ },
+ {
+  "scenario": "6 pedestrians to 1.4 m/s",
+  "ep": 13,
+  "success": true,
+  "time": 5.5,
+  "failure": null
+ },
+ {
+  "scenario": "6 pedestrians to 1.4 m/s",
+  "ep": 14,
+  "success": true,
+  "time": 4.4,
+  "failure": null
+ },
+ {
+  "scenario": "6 pedestrians to 1.4 m/s",
+  "ep": 15,
+  "success": true,
+  "time": 10.9,
+  "failure": null
+ },
+ {
+  "scenario": "LiDAR 60 deg blind sector",
+  "ep": 0,
+  "success": false,
+  "time": 27.8,
+  "failure": "collision",
+  "kind": "static",
+  "obstacle": "b40",
+  "speed": 0.499113014868763,
+  "toward": 0.011543305721293159,
+  "at_fault": true,
+  "bearing": -40.625038325599554,
+  "side": "front",
+  "perceived": "lidar",
+  "unseen_reason": "blind_wedge",
+  "known_s_before": 3.0,
+  "brake_s_before": 3.0,
+  "v_at_brake": 0.6223381391065685,
+  "dist_at_brake": 0.41666163020218294,
+  "map_dist": 0.10559965250857346,
+  "interv_1s": 10,
+  "cmd_last": [
+   0.0,
+   0.0
+  ],
+  "v_hist": [
+   0.07,
+   0.35,
+   -0.74,
+   0.57,
+   0.96,
+   -0.78,
+   -0.35,
+   0.3,
+   0.88,
+   0.33
+  ],
+  "cmd_v_hist": [
+   -0.25,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ],
+  "push": true
+ },
+ {
+  "scenario": "LiDAR 60 deg blind sector",
+  "ep": 1,
+  "success": true,
+  "time": 7.1000000000000005,
+  "failure": null
+ },
+ {
+  "scenario": "LiDAR 60 deg blind sector",
+  "ep": 2,
+  "success": true,
+  "time": 14.200000000000001,
+  "failure": null
+ },
+ {
+  "scenario": "LiDAR 60 deg blind sector",
+  "ep": 3,
+  "success": true,
+  "time": 39.400000000000006,
+  "failure": null
+ },
+ {
+  "scenario": "LiDAR 60 deg blind sector",
+  "ep": 4,
+  "success": true,
+  "time": 10.200000000000001,
+  "failure": null
+ },
+ {
+  "scenario": "LiDAR 60 deg blind sector",
+  "ep": 5,
+  "success": true,
+  "time": 15.3,
+  "failure": null
+ },
+ {
+  "scenario": "LiDAR 60 deg blind sector",
+  "ep": 6,
+  "success": true,
+  "time": 4.800000000000001,
+  "failure": null
+ },
+ {
+  "scenario": "LiDAR 60 deg blind sector",
+  "ep": 7,
+  "success": true,
+  "time": 24.1,
+  "failure": null
+ },
+ {
+  "scenario": "LiDAR 60 deg blind sector",
+  "ep": 8,
+  "success": true,
+  "time": 23.1,
+  "failure": null
+ },
+ {
+  "scenario": "LiDAR 60 deg blind sector",
+  "ep": 9,
+  "success": true,
+  "time": 12.4,
+  "failure": null
+ },
+ {
+  "scenario": "LiDAR 60 deg blind sector",
+  "ep": 10,
+  "success": true,
+  "time": 7.2,
+  "failure": null
+ },
+ {
+  "scenario": "LiDAR 60 deg blind sector",
+  "ep": 11,
+  "success": true,
+  "time": 8.5,
+  "failure": null
+ },
+ {
+  "scenario": "LiDAR 60 deg blind sector",
+  "ep": 12,
+  "success": true,
+  "time": 15.4,
+  "failure": null
+ },
+ {
+  "scenario": "LiDAR 60 deg blind sector",
+  "ep": 13,
+  "success": true,
+  "time": 19.400000000000002,
+  "failure": null
+ },
+ {
+  "scenario": "LiDAR 60 deg blind sector",
+  "ep": 14,
+  "success": true,
+  "time": 17.3,
+  "failure": null
+ },
+ {
+  "scenario": "LiDAR 60 deg blind sector",
+  "ep": 15,
+  "success": true,
+  "time": 12.600000000000001,
+  "failure": null
+ },
+ {
+  "scenario": "depth camera dead",
+  "ep": 0,
+  "success": false,
+  "time": 9.1,
+  "failure": "collision",
+  "kind": "static",
+  "obstacle": "b40",
+  "speed": 0.5464811141231357,
+  "toward": -0.12575518207589945,
+  "at_fault": true,
+  "bearing": -63.11897715850459,
+  "side": "side",
+  "perceived": "lidar",
+  "unseen_reason": "blind_wedge",
+  "known_s_before": 3.0,
+  "brake_s_before": 1.4000000000000001,
+  "v_at_brake": 0.30199278604078345,
+  "dist_at_brake": 0.5164384116177264,
+  "map_dist": 0.060589795217381115,
+  "interv_1s": 9,
+  "cmd_last": [
+   0.0,
+   0.0
+  ],
+  "v_hist": [
+   0.9,
+   -0.19,
+   -0.52,
+   0.61,
+   0.6,
+   -0.43,
+   -0.5,
+   0.1,
+   0.54,
+   0.42
+  ],
+  "cmd_v_hist": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   -0.25,
+   0.0
+  ],
+  "push": true
+ },
+ {
+  "scenario": "depth camera dead",
+  "ep": 1,
+  "success": true,
+  "time": 6.7,
+  "failure": null
+ },
+ {
+  "scenario": "depth camera dead",
+  "ep": 2,
+  "success": true,
+  "time": 10.100000000000001,
+  "failure": null
+ },
+ {
+  "scenario": "depth camera dead",
+  "ep": 3,
+  "success": false,
+  "time": 17.7,
+  "failure": "collision",
+  "kind": "static",
+  "obstacle": "iw4",
+  "speed": 0.16370644141461935,
+  "toward": -0.09397046548841424,
+  "at_fault": true,
+  "bearing": 62.79609454070278,
+  "side": "side",
+  "perceived": "unseen",
+  "unseen_reason": "blind_wedge",
+  "known_s_before": 3.0,
+  "brake_s_before": 2.6,
+  "v_at_brake": 1.2552415783123752,
+  "dist_at_brake": 0.5421039675712641,
+  "map_dist": 0.04695543434446954,
+  "interv_1s": 9,
+  "cmd_last": [
+   0.0,
+   0.0
+  ],
+  "v_hist": [
+   0.44,
+   0.54,
+   -0.61,
+   -0.01,
+   0.28,
+   0.46,
+   -0.67,
+   0.35,
+   0.84,
+   0.08
+  ],
+  "cmd_v_hist": [
+   -0.25,
+   0.0,
+   0.0,
+   -0.25,
+   -0.25,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ],
+  "push": false
+ },
+ {
+  "scenario": "depth camera dead",
+  "ep": 4,
+  "success": true,
+  "time": 7.2,
+  "failure": null
+ },
+ {
+  "scenario": "depth camera dead",
+  "ep": 5,
+  "success": true,
+  "time": 18.3,
+  "failure": null
+ },
+ {
+  "scenario": "depth camera dead",
+  "ep": 6,
+  "success": true,
+  "time": 6.5,
+  "failure": null
+ },
+ {
+  "scenario": "depth camera dead",
+  "ep": 7,
+  "success": false,
+  "time": 9.200000000000001,
+  "failure": "collision",
+  "kind": "static",
+  "obstacle": "iw5",
+  "speed": 1.1119871024607457,
+  "toward": 0.28001995935911556,
+  "at_fault": true,
+  "bearing": 81.63341916896472,
+  "side": "side",
+  "perceived": "lidar",
+  "unseen_reason": "-",
+  "known_s_before": 3.0,
+  "brake_s_before": 0.1,
+  "v_at_brake": 1.1054439589801628,
+  "dist_at_brake": 0.3952088839407999,
+  "map_dist": 0.03421114161735553,
+  "interv_1s": 3,
+  "cmd_last": [
+   0.0,
+   0.0
+  ],
+  "v_hist": [
+   0.4,
+   0.5,
+   1.15,
+   0.39,
+   0.06,
+   -0.07,
+   0.25,
+   0.41,
+   0.6,
+   1.11
+  ],
+  "cmd_v_hist": [
+   1.0,
+   1.0,
+   0.0,
+   0.0,
+   0.5,
+   0.25,
+   0.75,
+   1.0,
+   0.5,
+   0.0
+  ],
+  "push": false
+ },
+ {
+  "scenario": "depth camera dead",
+  "ep": 8,
+  "success": false,
+  "time": 17.0,
+  "failure": "collision",
+  "kind": "static",
+  "obstacle": "p26",
+  "speed": 0.3971872967345956,
+  "toward": -0.036756602062659884,
+  "at_fault": true,
+  "bearing": -54.25504023837241,
+  "side": "side",
+  "perceived": "lidar",
+  "unseen_reason": "blind_wedge",
+  "known_s_before": 3.0,
+  "brake_s_before": 0.9,
+  "v_at_brake": 0.23638167481878938,
+  "dist_at_brake": 0.4666364306471304,
+  "map_dist": 0.03564898051234071,
+  "interv_1s": 10,
+  "cmd_last": [
+   0.0,
+   0.0
+  ],
+  "v_hist": [
+   0.31,
+   0.24,
+   -0.67,
+   0.33,
+   0.73,
+   -0.6,
+   -0.62,
+   0.17,
+   0.73,
+   0.3
+  ],
+  "cmd_v_hist": [
+   0.25,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ],
+  "push": true
+ },
+ {
+  "scenario": "depth camera dead",
+  "ep": 9,
+  "success": true,
+  "time": 16.5,
+  "failure": null
+ },
+ {
+  "scenario": "depth camera dead",
+  "ep": 10,
+  "success": true,
+  "time": 9.700000000000001,
+  "failure": null
+ },
+ {
+  "scenario": "depth camera dead",
+  "ep": 11,
+  "success": true,
+  "time": 9.0,
+  "failure": null
+ },
+ {
+  "scenario": "depth camera dead",
+  "ep": 12,
+  "success": true,
+  "time": 12.5,
+  "failure": null
+ },
+ {
+  "scenario": "depth camera dead",
+  "ep": 13,
+  "success": true,
+  "time": 26.0,
+  "failure": null
+ },
+ {
+  "scenario": "depth camera dead",
+  "ep": 14,
+  "success": false,
+  "time": 19.400000000000002,
+  "failure": "collision",
+  "kind": "static",
+  "obstacle": "iw18",
+  "speed": 0.5557159595349951,
+  "toward": -0.11159250439582544,
+  "at_fault": true,
+  "bearing": 71.17553824222313,
+  "side": "side",
+  "perceived": "lidar",
+  "unseen_reason": "-",
+  "known_s_before": 3.0,
+  "brake_s_before": 0.7000000000000001,
+  "v_at_brake": 1.240240599831359,
+  "dist_at_brake": 0.42195279845864475,
+  "map_dist": 0.05273615148641084,
+  "interv_1s": 8,
+  "cmd_last": [
+   0.0,
+   0.0
+  ],
+  "v_hist": [
+   -0.34,
+   -0.23,
+   0.31,
+   1.24,
+   0.5,
+   -0.41,
+   -0.1,
+   0.49,
+   0.35,
+   -0.55
+  ],
+  "cmd_v_hist": [
+   0.0,
+   0.5,
+   0.5,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   -0.25,
+   0.0,
+   0.0
+  ],
+  "push": false
+ },
+ {
+  "scenario": "depth camera dead",
+  "ep": 15,
+  "success": true,
+  "time": 21.400000000000002,
+  "failure": null
+ },
+ {
+  "scenario": "dust: spurious returns 3 %",
+  "ep": 0,
+  "success": false,
+  "time": 22.8,
+  "failure": "collision",
+  "kind": "static",
+  "obstacle": "b40",
+  "speed": 0.4940940488343093,
+  "toward": -0.0017740265061575848,
+  "at_fault": true,
+  "bearing": -63.30819824581503,
+  "side": "side",
+  "perceived": "lidar",
+  "unseen_reason": "blind_wedge",
+  "known_s_before": 3.0,
+  "brake_s_before": 1.5,
+  "v_at_brake": 0.8120865217280784,
+  "dist_at_brake": 0.5792320707171585,
+  "map_dist": 0.025871160407886156,
+  "interv_1s": 10,
+  "cmd_last": [
+   0.0,
+   0.0
+  ],
+  "v_hist": [
+   0.36,
+   -0.34,
+   -0.01,
+   0.41,
+   0.58,
+   -0.55,
+   -0.62,
+   0.3,
+   0.74,
+   0.44
+  ],
+  "cmd_v_hist": [
+   0.0,
+   0.0,
+   0.0,
+   -0.25,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ],
+  "push": false
+ },
+ {
+  "scenario": "dust: spurious returns 3 %",
+  "ep": 1,
+  "success": true,
+  "time": 7.6000000000000005,
+  "failure": null
+ },
+ {
+  "scenario": "dust: spurious returns 3 %",
+  "ep": 2,
+  "success": true,
+  "time": 9.700000000000001,
+  "failure": null
+ },
+ {
+  "scenario": "dust: spurious returns 3 %",
+  "ep": 3,
+  "success": true,
+  "time": 48.0,
+  "failure": null
+ },
+ {
+  "scenario": "dust: spurious returns 3 %",
+  "ep": 4,
+  "success": false,
+  "time": 20.8,
+  "failure": "collision",
+  "kind": "static",
+  "obstacle": "iw8",
+  "speed": 0.4390318067550312,
+  "toward": 0.15619608337462387,
+  "at_fault": true,
+  "bearing": -58.703785358711244,
+  "side": "side",
+  "perceived": "lidar",
+  "unseen_reason": "blind_wedge",
+  "known_s_before": 3.0,
+  "brake_s_before": 0.6000000000000001,
+  "v_at_brake": 0.5960141139854506,
+  "dist_at_brake": 0.419525563187761,
+  "map_dist": 0.06024320720480117,
+  "interv_1s": 8,
+  "cmd_last": [
+   0.0,
+   0.25
+  ],
+  "v_hist": [
+   0.54,
+   0.37,
+   -1.04,
+   -0.45,
+   0.6,
+   0.51,
+   -0.07,
+   -0.32,
+   0.15,
+   0.43
+  ],
+  "cmd_v_hist": [
+   -0.25,
+   0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   0.0,
+   -0.25,
+   0.0,
+   0.0
+  ],
+  "push": false
+ },
+ {
+  "scenario": "dust: spurious returns 3 %",
+  "ep": 5,
+  "success": true,
+  "time": 16.0,
+  "failure": null
+ },
+ {
+  "scenario": "dust: spurious returns 3 %",
+  "ep": 6,
+  "success": true,
+  "time": 5.4,
+  "failure": null
+ },
+ {
+  "scenario": "dust: spurious returns 3 %",
+  "ep": 7,
+  "success": true,
+  "time": 11.100000000000001,
+  "failure": null
+ },
+ {
+  "scenario": "dust: spurious returns 3 %",
+  "ep": 8,
+  "success": false,
+  "time": 23.200000000000003,
+  "failure": "collision",
+  "kind": "static",
+  "obstacle": "p26",
+  "speed": 0.6902512337006133,
+  "toward": -0.3697305297023281,
+  "at_fault": true,
+  "bearing": -104.28133424556039,
+  "side": "side",
+  "perceived": "lidar",
+  "unseen_reason": "-",
+  "known_s_before": 3.0,
+  "brake_s_before": 1.5,
+  "v_at_brake": -0.27753921108868934,
+  "dist_at_brake": 0.49777320100545286,
+  "map_dist": 0.05525612980086592,
+  "interv_1s": 10,
+  "cmd_last": [
+   0.0,
+   0.0
+  ],
+  "v_hist": [
+   0.21,
+   0.01,
+   -0.08,
+   -0.38,
+   0.91,
+   -0.51,
+   -0.28,
+   0.93,
+   -0.22,
+   -0.47
+  ],
+  "cmd_v_hist": [
+   0.0,
+   0.0,
+   -0.25,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ],
+  "push": false
+ },
+ {
+  "scenario": "dust: spurious returns 3 %",
+  "ep": 9,
+  "success": true,
+  "time": 22.6,
+  "failure": null
+ },
+ {
+  "scenario": "dust: spurious returns 3 %",
+  "ep": 10,
+  "success": true,
+  "time": 6.5,
+  "failure": null
+ },
+ {
+  "scenario": "dust: spurious returns 3 %",
+  "ep": 11,
+  "success": true,
+  "time": 7.7,
+  "failure": null
+ },
+ {
+  "scenario": "dust: spurious returns 3 %",
+  "ep": 12,
+  "success": true,
+  "time": 14.9,
+  "failure": null
+ },
+ {
+  "scenario": "dust: spurious returns 3 %",
+  "ep": 13,
+  "success": true,
+  "time": 16.900000000000002,
+  "failure": null
+ },
+ {
+  "scenario": "dust: spurious returns 3 %",
+  "ep": 14,
+  "success": true,
+  "time": 15.8,
+  "failure": null
+ },
+ {
+  "scenario": "dust: spurious returns 3 %",
+  "ep": 15,
+  "success": true,
+  "time": 21.900000000000002,
+  "failure": null
+ },
+ {
+  "scenario": "LiDAR odometry lost (wheel+gyro)",
+  "ep": 0,
+  "success": false,
+  "time": 21.5,
+  "failure": "collision",
+  "kind": "static",
+  "obstacle": "b40",
+  "speed": 0.18525323995866444,
+  "toward": 0.016476234683862938,
+  "at_fault": true,
+  "bearing": -63.389951787658575,
+  "side": "side",
+  "perceived": "lidar",
+  "unseen_reason": "blind_wedge",
+  "known_s_before": 3.0,
+  "brake_s_before": 1.5,
+  "v_at_brake": 0.23046554916673476,
+  "dist_at_brake": 0.5416727128672442,
+  "map_dist": 0.06106145980003405,
+  "interv_1s": 10,
+  "cmd_last": [
+   -0.25,
+   0.0
+  ],
+  "v_hist": [
+   -0.97,
+   -0.19,
+   -0.03,
+   0.1,
+   0.27,
+   0.04,
+   -0.17,
+   0.38,
+   0.24,
+   0.17
+  ],
+  "cmd_v_hist": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   -0.25,
+   -0.25
+  ],
+  "push": true
+ },
+ {
+  "scenario": "LiDAR odometry lost (wheel+gyro)",
+  "ep": 1,
+  "success": true,
+  "time": 7.0,
+  "failure": null
+ },
+ {
+  "scenario": "LiDAR odometry lost (wheel+gyro)",
+  "ep": 2,
+  "success": true,
+  "time": 16.0,
+  "failure": null
+ },
+ {
+  "scenario": "LiDAR odometry lost (wheel+gyro)",
+  "ep": 3,
+  "success": true,
+  "time": 14.200000000000001,
+  "failure": null
+ },
+ {
+  "scenario": "LiDAR odometry lost (wheel+gyro)",
+  "ep": 4,
+  "success": false,
+  "time": 60.0,
+  "failure": "timeout",
+  "geo_left": 1.2408020189742857,
+  "stopped_frac": 0.47,
+  "w_reversals": 52
+ },
+ {
+  "scenario": "LiDAR odometry lost (wheel+gyro)",
+  "ep": 5,
+  "success": true,
+  "time": 18.400000000000002,
+  "failure": null
+ },
+ {
+  "scenario": "LiDAR odometry lost (wheel+gyro)",
+  "ep": 6,
+  "success": true,
+  "time": 6.5,
+  "failure": null
+ },
+ {
+  "scenario": "LiDAR odometry lost (wheel+gyro)",
+  "ep": 7,
+  "success": true,
+  "time": 22.3,
+  "failure": null
+ },
+ {
+  "scenario": "LiDAR odometry lost (wheel+gyro)",
+  "ep": 8,
+  "success": false,
+  "time": 53.0,
+  "failure": "collision",
+  "kind": "static",
+  "obstacle": "p26",
+  "speed": 0.14995061493820236,
+  "toward": -0.022384626424521284,
+  "at_fault": true,
+  "bearing": -53.77421716477463,
+  "side": "side",
+  "perceived": "depth_only",
+  "unseen_reason": "blind_wedge",
+  "known_s_before": 3.0,
+  "brake_s_before": 0.4,
+  "v_at_brake": 0.16006456103640154,
+  "dist_at_brake": 0.3753879611085506,
+  "map_dist": 0.041672216211572834,
+  "interv_1s": 9,
+  "cmd_last": [
+   -0.25,
+   0.0
+  ],
+  "v_hist": [
+   -0.43,
+   0.87,
+   0.46,
+   0.15,
+   0.09,
+   0.3,
+   0.16,
+   -0.13,
+   0.23,
+   0.11
+  ],
+  "cmd_v_hist": [
+   0.0,
+   0.0,
+   0.25,
+   0.0,
+   0.0,
+   0.25,
+   -0.25,
+   0.0,
+   -0.25,
+   -0.25
+  ],
+  "push": false
+ },
+ {
+  "scenario": "LiDAR odometry lost (wheel+gyro)",
+  "ep": 9,
+  "success": true,
+  "time": 22.0,
+  "failure": null
+ },
+ {
+  "scenario": "LiDAR odometry lost (wheel+gyro)",
+  "ep": 10,
+  "success": true,
+  "time": 5.0,
+  "failure": null
+ },
+ {
+  "scenario": "LiDAR odometry lost (wheel+gyro)",
+  "ep": 11,
+  "success": true,
+  "time": 9.4,
+  "failure": null
+ },
+ {
+  "scenario": "LiDAR odometry lost (wheel+gyro)",
+  "ep": 12,
+  "success": true,
+  "time": 33.7,
+  "failure": null
+ },
+ {
+  "scenario": "LiDAR odometry lost (wheel+gyro)",
+  "ep": 13,
+  "success": true,
+  "time": 22.3,
+  "failure": null
+ },
+ {
+  "scenario": "LiDAR odometry lost (wheel+gyro)",
+  "ep": 14,
+  "success": false,
+  "time": 33.9,
+  "failure": "collision",
+  "kind": "static",
+  "obstacle": "iw18",
+  "speed": 0.16881257122174034,
+  "toward": -0.02763385938272937,
+  "at_fault": true,
+  "bearing": 107.59660772038522,
+  "side": "side",
+  "perceived": "lidar",
+  "unseen_reason": "-",
+  "known_s_before": 3.0,
+  "brake_s_before": 1.5,
+  "v_at_brake": 0.3609555426259749,
+  "dist_at_brake": 0.41228291178022436,
+  "map_dist": 0.04966120047442162,
+  "interv_1s": 10,
+  "cmd_last": [
+   0.0,
+   0.0
+  ],
+  "v_hist": [
+   -0.7,
+   0.32,
+   0.61,
+   0.26,
+   0.12,
+   -0.13,
+   -0.37,
+   -0.57,
+   -0.36,
+   -0.15
+  ],
+  "cmd_v_hist": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ],
+  "push": false
+ },
+ {
+  "scenario": "LiDAR odometry lost (wheel+gyro)",
+  "ep": 15,
+  "success": true,
+  "time": 30.200000000000003,
+  "failure": null
+ },
+ {
+  "scenario": "everything at once",
+  "ep": 0,
+  "success": false,
+  "time": 60.0,
+  "failure": "timeout",
+  "geo_left": 5.191885267668181,
+  "stopped_frac": 0.35833333333333334,
+  "w_reversals": 63
+ },
+ {
+  "scenario": "everything at once",
+  "ep": 1,
+  "success": true,
+  "time": 8.8,
+  "failure": null
+ },
+ {
+  "scenario": "everything at once",
+  "ep": 2,
+  "success": true,
+  "time": 15.4,
+  "failure": null
+ },
+ {
+  "scenario": "everything at once",
+  "ep": 3,
+  "success": true,
+  "time": 15.700000000000001,
+  "failure": null
+ },
+ {
+  "scenario": "everything at once",
+  "ep": 4,
+  "success": true,
+  "time": 8.1,
+  "failure": null
+ },
+ {
+  "scenario": "everything at once",
+  "ep": 5,
+  "success": true,
+  "time": 17.8,
+  "failure": null
+ },
+ {
+  "scenario": "everything at once",
+  "ep": 6,
+  "success": true,
+  "time": 4.2,
+  "failure": null
+ },
+ {
+  "scenario": "everything at once",
+  "ep": 7,
+  "success": false,
+  "time": 27.6,
+  "failure": "fall"
+ },
+ {
+  "scenario": "everything at once",
+  "ep": 8,
+  "success": false,
+  "time": 16.400000000000002,
+  "failure": "collision",
+  "kind": "static",
+  "obstacle": "p26",
+  "speed": 0.029912433371879363,
+  "toward": 0.029912092305144865,
+  "at_fault": true,
+  "bearing": -44.634336809783186,
+  "side": "front",
+  "perceived": "depth_only",
+  "unseen_reason": "blind_wedge",
+  "known_s_before": 3.0,
+  "brake_s_before": 0.5,
+  "v_at_brake": 0.3977508111375262,
+  "dist_at_brake": 0.44043976678009533,
+  "map_dist": 0.13722373411820932,
+  "interv_1s": 7,
+  "cmd_last": [
+   0.0,
+   0.0
+  ],
+  "v_hist": [
+   -0.44,
+   0.83,
+   0.29,
+   -1.29,
+   -0.23,
+   0.4,
+   0.55,
+   0.07,
+   0.35,
+   0.02
+  ],
+  "cmd_v_hist": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   2.0,
+   0.0,
+   0.0,
+   0.0,
+   -0.25,
+   0.0
+  ],
+  "push": true
+ },
+ {
+  "scenario": "everything at once",
+  "ep": 9,
+  "success": true,
+  "time": 25.900000000000002,
+  "failure": null
+ },
+ {
+  "scenario": "everything at once",
+  "ep": 10,
+  "success": true,
+  "time": 5.5,
+  "failure": null
+ },
+ {
+  "scenario": "everything at once",
+  "ep": 11,
+  "success": true,
+  "time": 13.8,
+  "failure": null
+ },
+ {
+  "scenario": "everything at once",
+  "ep": 12,
+  "success": true,
+  "time": 13.600000000000001,
+  "failure": null
+ },
+ {
+  "scenario": "everything at once",
+  "ep": 13,
+  "success": true,
+  "time": 14.200000000000001,
+  "failure": null
+ },
+ {
+  "scenario": "everything at once",
+  "ep": 14,
+  "success": false,
+  "time": 10.0,
+  "failure": "collision",
+  "kind": "static",
+  "obstacle": "iw11",
+  "speed": 0.3799959053405062,
+  "toward": -0.017455931913784053,
+  "at_fault": true,
+  "bearing": -69.97225751024511,
+  "side": "side",
+  "perceived": "lidar",
+  "unseen_reason": "blind_wedge",
+  "known_s_before": 3.0,
+  "brake_s_before": 0.7000000000000001,
+  "v_at_brake": 0.27527346971499966,
+  "dist_at_brake": 0.45440604062815076,
+  "map_dist": 0.040883868920835675,
+  "interv_1s": 8,
+  "cmd_last": [
+   0.0,
+   0.25
+  ],
+  "v_hist": [
+   0.07,
+   0.05,
+   0.11,
+   0.28,
+   0.46,
+   -1.13,
+   -0.6,
+   0.01,
+   0.25,
+   0.35
+  ],
+  "cmd_v_hist": [
+   0.25,
+   0.25,
+   0.25,
+   -0.25,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ],
+  "push": true
+ },
+ {
+  "scenario": "everything at once",
+  "ep": 15,
+  "success": true,
+  "time": 19.900000000000002,
+  "failure": null
+ }
+]
