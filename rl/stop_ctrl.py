@@ -144,7 +144,7 @@ class StopCascade:
     distance - capped at TH_MAX (beyond ~60 deg gravity no longer restores the pendulum; a linear regulator that
     ignored this looped it over the top). Inner: the classical pendulum-angle loop (sim/gyra2_sim.py)."""
 
-    def __init__(self, k_v=2.0, th_max=math.radians(60), k_s=2.0, k_i=1.0, kp=130.0, kd=13.0, kp_h=80.0, kd_h=10.0):
+    def __init__(self, k_v=2.0, th_max=math.radians(60), k_s=2.0, k_i=1.0, kp=130.0, kd=13.0, kp_h=60.0, kd_h=12.0):
         self.k_v, self.th_max, self.k_s, self.k_i, self.kp, self.kd = k_v, th_max, k_s, k_i, kp, kd
         self.kp_h, self.kd_h = kp_h, kd_h
         self.reset()
