@@ -64,6 +64,7 @@ HW_MK2 = dict(crown_d=0.050, lean_rate=60.0, wheel=None, level_pi=False, a_roll=
 # Mk2.1 (rl/hw_study.py): crown offset 90 mm (+80 mm width), 180 deg/s lean actuator, PI spine levelling
 HW_MK21 = dict(crown_d=0.090, lean_rate=180.0, wheel=None, level_pi=True, a_roll=4.0, cad="out21")
 ADR_FACTORS = ("terrain", "slope", "friction", "push", "wind", "payload", "actuator", "sensor", "speed")
+CMD_MIX = os.environ.get("GYRA_CMD", "operator")   # "nav": also the navigator's command sequences (training)
 TAU_PEND = 39.7                  # N m: pendulum gravity torque m g L at 90 deg (CAD)
 
 
@@ -324,8 +325,19 @@ class Loco2Env:
         r, S = self.rng, self.S
         vm = S["v_max"]
         a_lat = min(4.0, 0.6 * 9.81 * self.mu)
-        u = r.random()
         w_max = min(3.0, 1.5 + vm / 4)
+        if CMD_MIX == "nav" and (self.burst_until > self.d.time or r.random() < 0.3):
+            # the navigator's commands: its candidate speeds and turn rates, switched every 0.1-0.5 s, a third of
+            # them stops - brief stops, stops while turning, stops cut short, all as steps
+            if self.burst_until <= self.d.time:
+                self.burst_until = self.d.time + r.uniform(2.0, 6.0)
+            v = 0.0 if r.random() < 0.35 else float(min(r.choice([-0.25, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0]), vm))
+            w = float(np.clip(r.choice(np.arange(-1.5, 1.51, 0.25)), -a_lat / max(abs(v), 0.5), a_lat / max(abs(v), 0.5)))
+            self.cmd_target, self.cmd_ramp = np.array([v, w]), 0.0
+            self.cmd_from, self.cmd_t0 = self.cmd.copy(), self.d.time
+            self.next_cmd_t = self.d.time + r.uniform(0.1, 0.5)
+            return
+        u = r.random()
         if u < 0.10:
             v, w = 0.0, 0.0
         elif u < 0.25:
@@ -346,7 +358,8 @@ class Loco2Env:
             w = float(np.clip(1.5 * err, -w_max, w_max))
             w = float(np.clip(w, -a_lat / max(abs(v), 0.5), a_lat / max(abs(v), 0.5)))
         self.cmd_target = np.array([v, w])
-        self.cmd_ramp = 0.0 if r.random() < 0.5 else r.uniform(0.5, 1.5)
+        p_step = 0.9 if CMD_MIX == "nav" and v == 0.0 else 0.5    # stops are abrupt where the navigator commands them
+        self.cmd_ramp = 0.0 if r.random() < p_step else r.uniform(0.5, 1.5)
         self.cmd_from = self.cmd.copy()
         self.cmd_t0 = self.d.time
         self.next_cmd_t = self.d.time + r.uniform(1.5, 5.0)
@@ -423,6 +436,7 @@ class Loco2Env:
         self.cmd = np.zeros(2)
         self.v_ref, self.w_ref = 0.0, 0.0
         self.e_s, self.e_psi = 0.0, 0.0
+        self.burst_until = -1.0
         self.u_terrain = np.zeros(2)
         if not self.external_cmd:
             self._sample_cmd()
