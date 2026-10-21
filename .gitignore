@@ -39,3 +39,4 @@ render/out_*.log
 media/partial/
 rl/runs/nav2/bench/sensors_*.log
 rl/runs/nav2/bench/sensors_DONE
+rl/runs/nav2/bench/*.log
