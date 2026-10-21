@@ -191,7 +191,10 @@ class StopCascade:
         th_ref = float(np.clip(th_ref, -self.th_max, self.th_max))
         kp, kd = (self.kp_h, self.kd_h) if self.hold else (self.kp, self.kd)
         u_eq = self.k_g * math.sin(th_ref)             # the pendulum's own weight at the wanted angle: no P-loop offset
-        return float(np.clip(u_eq + kp * (t["pend"] - th_ref) + kd * t["pend_rate"], -TAU_MAX, TAU_MAX))
+        # steering keeps priority: each motor carries half the common torque plus or minus half the steering torque,
+        # so the common torque gets only what the steering leaves (else the motors saturate and turns stall)
+        head = max(TAU_MAX - abs(getattr(env, "tau_diff", 0.0)), 0.0)
+        return float(np.clip(u_eq + kp * (t["pend"] - th_ref) + kd * t["pend_rate"], -head, head))
 
 
 # ---------------------------------------------------------------------------------------------- benchmark
@@ -265,7 +268,9 @@ def nav_run(args):
                 vmax = max(vmax, sv * t["v"])
                 absv.append(abs(t["v"]))
         if v_c == 0.0 and abs(t0["v"]) > 0.1:
-            out.append(dict(v=t0["v"], go_on=float(sv * (e.d.qpos[0:2] - p0) @ fwd0), surge=vmax - abs(t0["v"])))
+            dp = e.d.qpos[0:2] - p0
+            out.append(dict(v=t0["v"], go_on=float(sv * dp @ fwd0), side=float(abs(dp[0] * fwd0[1] - dp[1] * fwd0[0])),
+                            surge=vmax - abs(t0["v"]), w_err=float(abs(e._truth()["w"] - w_c)), path=float(np.linalg.norm(dp))))
         if abs(e._truth()["pend"]) > 2.4 or e.d.qpos[0] ** 2 + e.d.qpos[1] ** 2 > 400:
             out.append(dict(v=0.0, go_on=0.0, surge=0.0, fell=abs(e._truth()["pend"]) > 2.4))
             oa, _ = e.reset()
@@ -310,8 +315,11 @@ if __name__ == "__main__":
         for m, q in cfgs:
             o = sum([x[2] for x in R if x[0] == m and x[1] == q], [])
             av = np.array(sum([x[3] for x in R if x[0] == m and x[1] == q], []))
+            o = [x for x in o if "side" in x]
             g, su = np.array([x["go_on"] for x in o]), np.array([x["surge"] for x in o])
+            sd, we = np.array([x["side"] for x in o]), np.array([x["w_err"] for x in o])
             print(f"{m:7s} {json.dumps(q):60s} stops {len(o)}: go-on p50 {np.median(g):.2f} p95 {np.percentile(g, 95):.2f} m; "
+                  f"side p95 {np.percentile(sd, 95):.2f} m; yaw-rate error p50 {np.median(we):.2f}; "
                   f"surge p95 {np.percentile(su, 95):.2f} max {su.max():.2f} m/s; |v| while stopped mean {av.mean():.2f}; "
                   f"falls {sum(x.get('fell', False) for x in o)}")
     if a.bench or a.sweep:

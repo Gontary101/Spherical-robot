@@ -472,6 +472,7 @@ class Loco2Env:
         tau_sum = (tl + tr) + RES_SUM * a_eff[0]
         tau_diff = (tr - tl) + RES_DIFF * a_eff[1]
         if self.long_ctrl is not None:                  # a model-based longitudinal controller owns the common drive
+            self.tau_diff = tau_diff                    # steering torque this step: the stop controller leaves it room
             u = self.long_ctrl(self, est, t)            # torque while active (stop and hold); steering and lean stay
             if u is not None:                           # with the policy
                 tau_sum = u
