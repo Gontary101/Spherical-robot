@@ -2,14 +2,16 @@
 Stop-and-hold controller for the pendulum-driven sphere (low level, model-based).
 
 The learned locomotion policy tracks speed commands well, but "track zero smoothly" is not "stop": from field states
-its stops took 0.79 m per m/s (median), 1.45 (p95), up to 3.4, and it crept 0.3 m afterwards (rl/stop_ctrl.py
---bench). While a stop is commanded this controller owns the common drive torque (steering and lean stay with the
-policy): an LQR on a longitudinal model identified from the simulator (rolling speed, pendulum angle and rate,
-travelled distance and its integral), so the robot stops short, then holds its spot on slopes, against wind and with
-an off-centre payload (integral action) instead of creeping.
+its stops took 0.75 m per m/s (median), 1.51 (p95), up to 2.8, and it crept 0.26 m afterwards. While a stop is
+commanded StopCascade owns the common drive torque (steering and lean stay with the policy): a pendulum-capped braking
+cascade with a disturbance observer, both built on a longitudinal model identified from the simulator (rolling speed,
+pendulum angle and rate). Field stops: 0.45 / 0.77 / 0.91 m per m/s, creep 0.04 m; 8 deg downhill 0.58 / 0.91 / 1.26,
+creep 0.03 m (policy 0.68 / 1.32 / 2.03, 0.17 m); no falls. Enabled in the navigation stack with GYRA_STOPCTRL=1.
+(StopHold, one LQR on the same model, looped the pendulum over the top from fast stops; kept for reference.)
 
     python rl/stop_ctrl.py --identify     # longitudinal model from excitation data -> rl/runs/nav2/bench/stop_model.json
-    python rl/stop_ctrl.py --bench        # stopping distance / time / creep: policy vs stop controller, field conditions
+    python rl/stop_ctrl.py --bench        # stopping distance / time / creep: policy vs LQR, field conditions
+    python rl/stop_ctrl.py --sweep-cascade   # StopCascade variants on field ground and an 8 deg downhill
 """
 import argparse
 import json
@@ -140,19 +142,22 @@ class StopHold:
 
 class StopCascade:
     """Stop and hold as a cascade that respects the pendulum by construction. Outer: the pendulum angle wanted -
-    braking in proportion to the speed (no command ramp), then, once still, holding the spot (PD on the distance plus
-    a small integral) - capped at TH_MAX (beyond ~60 deg gravity no longer restores the pendulum; a linear regulator
-    that ignored this looped it over the top). Inner: the classical pendulum-angle loop (sim/gyra2_sim.py), stiffer
-    while braking, softer and better damped while holding.
+    braking in proportion to the speed (no command ramp), then, once still, holding the spot (PD on the distance) -
+    capped at TH_MAX (beyond ~60 deg gravity no longer restores the pendulum; a linear regulator that ignored this
+    looped it over the top). Inner: the classical pendulum-angle loop (sim/gyra2_sim.py), stiffer while braking,
+    softer and better damped while holding, plus the torque that holds the pendulum at the wanted angle, so the angle
+    asked for is the angle reached.
 
     A slope, wind or an off-centre payload needs a standing pendulum angle to stand still, which a speed-proportional
     brake never asks for: downhill it rolled on at the speed where k_v * v balanced the slope. A disturbance observer
-    on the identified longitudinal model estimates the acceleration the model does not explain and adds the pendulum
-    angle that cancels it, so the brake and the hold act on a level robot whatever the ground does."""
+    on the identified longitudinal model estimates the acceleration the model does not explain and adds the standing
+    pendulum angle that cancels it (static gain of the model: the torque that holds the pendulum also drives the
+    shell), so the brake and the hold act on a level robot whatever the ground does. It is the hold's integral action
+    too (a separate integrator on the distance only fought it)."""
 
-    def __init__(self, k_v=2.0, th_max=math.radians(60), k_s=2.0, k_i=1.0, kp=130.0, kd=13.0, kp_h=60.0, kd_h=12.0,
-                 l_obs=0.1, path=MODEL):
-        self.k_v, self.th_max, self.k_s, self.k_i, self.kp, self.kd = k_v, th_max, k_s, k_i, kp, kd
+    def __init__(self, k_v=1.5, th_max=math.radians(60), k_s=2.0, kp=130.0, kd=13.0, kp_h=60.0, kd_h=12.0,
+                 l_obs=0.03, path=MODEL):
+        self.k_v, self.th_max, self.k_s, self.kp, self.kd = k_v, th_max, k_s, kp, kd
         self.kp_h, self.kd_h, self.l_obs = kp_h, kd_h, l_obs
         M = json.load(open(path))
         A, B = np.array(M["A"]), np.array(M["B"])
@@ -162,7 +167,7 @@ class StopCascade:
         self.reset()
 
     def reset(self):
-        self.active, self.hold, self.anchor, self.integ, self.fwd = False, False, None, 0.0, None
+        self.active, self.hold, self.anchor, self.fwd = False, False, None, None
         self.x_prev, self.dist = None, 0.0
 
     def __call__(self, env, est, t):
@@ -179,12 +184,10 @@ class StopCascade:
         self.x_prev = x
         pos = float(env.d.qpos[0:2] @ self.fwd)        # wheel odometry along the heading at the stop command
         if not self.hold and abs(t["v"]) < 0.05:
-            self.hold, self.anchor, self.integ = True, pos, 0.0
+            self.hold, self.anchor = True, pos
         th_ref = self.k_v * v - self.dist / self.g_s     # plus the standing angle that cancels the disturbance
         if self.hold:
-            s = pos - self.anchor
-            self.integ = float(np.clip(self.integ + s * DT, -0.3, 0.3))
-            th_ref += self.k_s * s + self.k_i * self.integ
+            th_ref += self.k_s * (pos - self.anchor)
         th_ref = float(np.clip(th_ref, -self.th_max, self.th_max))
         kp, kd = (self.kp_h, self.kd_h) if self.hold else (self.kp, self.kd)
         u_eq = self.k_g * math.sin(th_ref)             # the pendulum's own weight at the wanted angle: no P-loop offset
@@ -202,7 +205,7 @@ def bench_run(args):
     e = SI.env_for(cond, seed)
     oa, _ = e.reset()
     ctrl = StopHold(q=q, r=r_) if mode == "stop" else (StopCascade(k_v=q[0], th_max=math.radians(q[1]), kp=q[2], kd=q[3], kp_h=q[4], kd_h=q[5],
-                                                                     k_s=q[6], k_i=q[7], l_obs=q[8]) if mode == "cascade" else None)
+                                                                     k_s=q[6], l_obs=q[8]) if mode == "cascade" else None)
     out = []
     for i in range(n):
         e.long_ctrl = None
@@ -253,9 +256,9 @@ if __name__ == "__main__":
     if a.identify:
         identify()
     if a.sweep_cascade:
-        # (k_v, th_max, brake kp/kd, hold kp/kd, hold k_s/k_i, observer gain) on flat field ground and an 8 deg slope
-        cfgs = [("cascade", (2.0, 60.0, 130.0, 13.0, 60.0, 12.0, 2.0, ki, lo), 0) for lo in (0.03, 0.1) for ki in (1.0, 0.0)] + \
-               [("cascade", (1.5, 60.0, 130.0, 13.0, 60.0, 12.0, 2.0, 0.0, 0.03), 0)]
+        # (k_v, th_max, brake kp/kd, hold kp/kd, hold k_s, unused, observer gain) on flat field ground and an 8 deg slope
+        cfgs = [("policy", (0,) * 9, 0)] + [("cascade", (kv, 60.0, 130.0, 13.0, 60.0, 12.0, 2.0, 0.0, lo), 0)
+                                            for kv in (1.5, 2.0) for lo in (0.0, 0.03, 0.1)]
         conds = (FIELD, "downhill 8 deg")
         with mp.get_context("fork").Pool(4) as pool:
             R = pool.map(bench_run, [(m, s_, 40, q, r_, c) for m, q, r_ in cfgs for s_ in (31, 32, 33) for c in conds])
@@ -263,7 +266,7 @@ if __name__ == "__main__":
             for c in conds:
                 o = sum([x[3] for x, (mm, qq, _, cc) in zip(R, [(m_, q_, r__, c_) for m_, q_, r__ in cfgs for _ in (31, 32, 33) for c_ in conds])
                          if mm == m and qq == q and cc == c], [])
-                print(f"{m:7s} k_v {q[0]:.1f} k_i {q[7]:.1f} obs {q[8]:.2f} {c[:8]:8s}: " + summarise(o))
+                print(f"{m:7s} k_v {q[0]:.1f} obs {q[8]:.2f} {c[:8]:8s}: " + summarise(o))
     if a.bench or a.sweep:
         base = (40.0, 30.0, 2.0, 0.05, 60.0)
         cfgs = [("policy", base, 1e-4)] + ([("stop", base, 1e-4)] if a.bench else
