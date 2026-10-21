@@ -883,6 +883,7 @@ class Nav2Env:
         c, s_ = math.cos(yaw), math.sin(yaw)
         R = np.array([[c, -s_], [s_, c]])
         free, occ = [], []
+        self.cam_gids = set()                                       # geoms the cameras see (people detection)
         for k in range(len(self.cam_pos)):
             pts = self.cam_pts[self.cam_idx == k]
             if not len(pts):
@@ -899,6 +900,7 @@ class Nav2Env:
             dist, gid = np.zeros(n), np.zeros(n, np.int32)
             mujoco.mj_multiRay(self.m, self.d, o, d.reshape(-1), self.g_obs, 1, self.loco.bid["spine"], gid, dist, None, n, MAX_R)
             hit = (gid >= 0) & (dist >= 0) & (dist < L - 0.03)
+            self.cam_gids.update(int(g) for g in np.unique(gid[hit]))
             free.append(pts[~hit])
             if hit.any():
                 occ.append((o[:2] + d[hit, :2] * dist[hit, None] - pos) @ R)
@@ -929,8 +931,10 @@ class Nav2Env:
 
     def _track_people(self, scan):
         """People tracker: a person is detected when one of the dense map rays that survived the sensor model
-        (self-occlusion, dead sector, dropouts) returns from it; measured centroid noise 5 cm. Velocity by smoothed
-        finite differences; a track coasts for 1 s without detection. Local frame."""
+        (self-occlusion, dead sector, dropouts) returns from it (centroid noise 5 cm), or - as built - when a pod
+        camera's sight line meets them (position from the ground contact, 10 cm): the lane cameras see the lane the
+        LiDARs cannot, and a person there must be tracked, not only mapped. Velocity by smoothed finite differences;
+        a track coasts for 1 s without detection. Local frame."""
         if not self.dyn:
             return
         pos, yaw, _ = self._pose()
@@ -940,10 +944,11 @@ class Nav2Env:
         valid = scan < MAX_R - 1e-3
         for i, o in enumerate(self.dyn):
             gid = self.m.geom(f"dyn{i}").id
-            if not np.any(valid & (self.map_gid == gid)):
+            by_lidar = np.any(valid & (self.map_gid == gid))
+            if not (by_lidar or gid in getattr(self, "cam_gids", ())):
                 continue
             seen.add(i)
-            z = to_loc(o["p"]) + self.rng.normal(0, 0.05, 2)
+            z = to_loc(o["p"]) + self.rng.normal(0, 0.05 if by_lidar else 0.10, 2)
             tr = self.tracks.get(i)
             if tr is None:
                 self.tracks[i] = dict(p=z, v=np.zeros(2), seen=0.0)
@@ -977,8 +982,8 @@ class Nav2Env:
         if self.P["odom"] != "lio" and SCAN_MATCH:
             self.loc = self._scan_match(scan)
             self.odo = self.loc.copy()
-        self._track_people(scan)
         fr, oc = self._nearfield() if NEARFIELD else (np.zeros((0, 2)), np.zeros((0, 2)))
+        self._track_people(scan)
         dfr, doc = self._depth_points()
         oc = np.concatenate([oc, doc])
         oc = oc[~self._near_people(oc)]
