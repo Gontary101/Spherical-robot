@@ -68,6 +68,16 @@ SHIELD_COST = 0.3                # reward per unit of safety-filter correction (
 SCAN_MATCH = True                # without LIO, register each dense scan against the local map
 NEARFIELD = True                 # pod ground cameras observe the floor around the robot (except the wedge ahead)
 MAP_3D = True                    # map scan cut from 3-D returns (low obstacles below the hub plane are seen)
+# Sensor model. "ideal": the design-study model (2-D tyre-box occlusion of the pod LiDARs, a forward stereo depth
+# camera 0.25 m ahead of the axle, one ground camera per pod). "asbuilt": the build CAD's sensors (cad/build): each
+# Mid-360 at its pod's pole (|y| 0.395 m), axis outboard, field -7..+52 deg about the axle (it cannot look down and
+# inward past the sphere); the six pod cameras ray-cast against the CAD (render/camera_views.py ->
+# rl/sensor_tables.py); no forward depth camera. "asbuilt_lane": as built, with the front / rear cameras moved to the
+# pod rims (lane cameras, docs/11_build.md).
+SENSORS = os.environ.get("GYRA_SENSORS", "ideal")
+LIDAR_POD_Y = 0.395
+LIDAR_EL = (math.sin(math.radians(-7.0)), math.sin(math.radians(52.0)))
+LOW_H = -0.22                    # the low-ring returns lie ~0.22 m below the LiDARs (obstacles 0.1 m tall)
 
 
 def MAP_ELEV(z0, d_near=0.4, d_far=6.0, band=0.10):
@@ -101,6 +111,20 @@ def pod_visibility(hw):
             blocked = enters & (t1 > 0) & (t1 < 1) & (np.abs(t1 * px) < tyre_x)
             blocked |= enters & (np.abs(px) < tyre_x) & (np.abs(py) < tyre_y)
             vis |= ~blocked
+        return vis
+    return visible
+
+
+def lidar_visible_asbuilt(h=0.0):
+    """As-built Mid-360s: is robot-frame point (px, py), h below/above the LiDARs, inside either sensor's field?
+    The elevation about the outboard axle axis must lie in -7..+52 deg (below that the pod shell and the sphere hide
+    it; above it the sensor has no beams: straight sideways close in is blind)."""
+    def visible(px, py):
+        vis = np.zeros(np.broadcast(px, py).shape, bool)
+        for sg in (1.0, -1.0):
+            dy = sg * py - LIDAR_POD_Y
+            se = dy / np.maximum(np.sqrt(px ** 2 + dy ** 2 + h ** 2), 1e-6)
+            vis |= (se >= LIDAR_EL[0]) & (se <= LIDAR_EL[1])
         return vis
     return visible
 
@@ -234,6 +258,11 @@ class Nav2Env:
         self.map_ang = np.linspace(-np.pi, np.pi, MAP_RAYS, endpoint=False)    # dense rays for the local map
         self.visible = pod_visibility(self.loco.hw)
         self.map_rmin = min_visible_range(self.visible, self.map_ang)
+        if SENSORS != "ideal":
+            self.visible = lidar_visible_asbuilt(0.0)
+            self.visible_low = lidar_visible_asbuilt(LOW_H)
+            T = np.load(os.path.join(ROOT, "rl", "sensors", f"{SENSORS}.npz"))
+            self.cam_pts, self.cam_idx, self.cam_pos = T["pts"], T["cam"], T["cam_pos"]
         self.nf_pts, self.nf_pod, self.pod_y = nearfield_table(self.loco.hw)
         k = np.arange(LIDAR_OVERSAMPLE) - (LIDAR_OVERSAMPLE - 1) / 2
         self.fine_ang = (self.beam_ang[:, None] + k[None, :] * (2 * np.pi / N_BEAM / LIDAR_OVERSAMPLE)).ravel()
@@ -577,7 +606,7 @@ class Nav2Env:
 
     def _depth(self, pos, yaw):
         r, P = self.rng, self.P
-        if P["depth_blackout"] or r.random() < P["depth_drop"]:
+        if P["depth_blackout"] or r.random() < P["depth_drop"] or SENSORS != "ideal":
             return np.zeros(DEPTH_W * DEPTH_H)
         c, s = np.cos(yaw), np.sin(yaw)
         dirs = self.cam_dirs @ np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]]).T
@@ -733,10 +762,18 @@ class Nav2Env:
         true[(gid < 0) | (true < 0)] = MAX_R
         true = np.minimum(true, MAX_R)
         self.map_gid = gid
-        if MAP_3D:
+        if SENSORS != "ideal":                      # each return must lie inside a Mid-360's field (horizontal ring and
+            ca, sa = np.cos(self.map_ang), np.sin(self.map_ang)        # low rings tested at their own heights)
+            true = np.where(self.visible(true * ca, true * sa) | (true >= MAX_R - 1e-6), true, MAX_R)
+            if MAP_3D:
+                low = self._scan3d_low(pos, yaw)
+                true = np.minimum(true, np.where(self.visible_low(low * ca, low * sa), low, MAX_R))
+            vis = np.ones(n, bool)
+        elif MAP_3D:
             true = np.minimum(true, self._scan3d_low(pos, yaw))
         r, P = self.rng, self.P
-        vis = (true >= self.map_rmin) | (true >= MAX_R - 1e-6)
+        if SENSORS == "ideal":
+            vis = (true >= self.map_rmin) | (true >= MAX_R - 1e-6)
         meas = np.where(vis, true, MAX_R) + r.normal(0, 0.02, len(true))
         meas[r.random(len(true)) < 0.02] = MAX_R
         spur = r.random(len(true)) < P["lidar_spurious"]
@@ -757,6 +794,8 @@ class Nav2Env:
     def _nearfield(self):
         """The pods' ground cameras: for every visible floor point, a sight line from its pod (true pose, obstacles
         only, returns under the terrain rejected). Robot-frame (free floor points, obstacle points)."""
+        if SENSORS != "ideal":
+            return self._cameras_asbuilt()
         pos, yaw, _ = self._pose()
         c, s_ = math.cos(yaw), math.sin(yaw)
         R = np.array([[c, -s_], [s_, c]])
@@ -780,6 +819,35 @@ class Nav2Env:
                 hw_ = o[:2] + d[hit, :2] * dist[hit, None]
                 occ.append((hw_ - pos) @ R)                      # world -> robot frame
         return np.concatenate(free), (np.concatenate(occ) if occ else np.zeros((0, 2)))
+
+    def _cameras_asbuilt(self):
+        """The as-built pod cameras: every floor point a camera sees past the tyre (CAD ray-cast table), cast from that
+        camera's real position into the world (true pose, obstacles only, returns under the terrain rejected): free
+        floor, or the obstacle point the sight line meets. Robot-frame (free points, obstacle points)."""
+        pos, yaw, _ = self._pose()
+        c, s_ = math.cos(yaw), math.sin(yaw)
+        R = np.array([[c, -s_], [s_, c]])
+        free, occ = [], []
+        for k in range(len(self.cam_pos)):
+            pts = self.cam_pts[self.cam_idx == k]
+            if not len(pts):
+                continue
+            pts = pts + self.rng.uniform(-0.06, 0.06, 2)
+            cp = self.cam_pos[k]
+            o = np.r_[pos + R @ cp[:2], self.d.qpos[2] + cp[2]]
+            tw = pos + pts @ R.T
+            zg = TR.height_at(self.loco.hmap, tw[:, 0], tw[:, 1]) if self.loco.hmap is not None else np.zeros(len(tw))
+            d = np.c_[tw - o[:2], zg - o[2]]
+            L = np.linalg.norm(d, axis=1)
+            d = d / L[:, None]
+            n = len(d)
+            dist, gid = np.zeros(n), np.zeros(n, np.int32)
+            mujoco.mj_multiRay(self.m, self.d, o, d.reshape(-1), self.g_obs, 1, self.loco.bid["spine"], gid, dist, None, n, MAX_R)
+            hit = (gid >= 0) & (dist >= 0) & (dist < L - 0.03)
+            free.append(pts[~hit])
+            if hit.any():
+                occ.append((o[:2] + d[hit, :2] * dist[hit, None] - pos) @ R)
+        return (np.concatenate(free) if free else np.zeros((0, 2))), (np.concatenate(occ) if occ else np.zeros((0, 2)))
 
     def _scan_match(self, scan):
         """Scan-to-map registration (the fallback when LiDAR-inertial odometry is lost): around the dead-reckoned
@@ -861,7 +929,7 @@ class Nav2Env:
         oc = oc[~self._near_people(oc)]
         hp = np.c_[scan * np.cos(self.map_ang), scan * np.sin(self.map_ang)]
         self.lmap.update(self.loc.copy(), self.map_ang, scan, depth=None,
-                         visible=self.map_rmin, dead=dead, free_every=4, free_max=6.0, robot_r=self.robot_r,
+                         visible=self.map_rmin if SENSORS == "ideal" else self.visible, dead=dead, free_every=4, free_max=6.0, robot_r=self.robot_r,
                          nearfield=(np.concatenate([fr, dfr]), oc), hit_mask=~self._near_people(hp))
         if self.filter is not None:
             self.filter.peds = [(tr["p"].copy(), tr["v"].copy()) for tr in self.tracks.values()]
