@@ -27,6 +27,7 @@ from eval_nav2 import CALM, LOCO, SCEN, make  # noqa: E402
 from nav2_env import MAX_R, N_BEAM, Nav2Env  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+SEED0 = int(os.environ.get("GYRA_SEED0", 0))      # held-out episodes: GYRA_SEED0=100 (the benchmark uses 0..15)
 
 
 def contact_info(env):
@@ -50,7 +51,7 @@ def run(args):
     nav = make("nav2", path) if path not in ("vfh", "oracle", "mpc") else make(path, None)
     out = []
     for ep in range(n):
-        env = Nav2Env(seed=70000 + ep, low_ckpt=low, level=0.8, adaptive=False, scenario={"nav": CALM | SCEN[scen], "loco": LOCO},
+        env = Nav2Env(seed=70000 + SEED0 + ep, low_ckpt=low, level=0.8, adaptive=False, scenario={"nav": CALM | SCEN[scen], "loco": LOCO},
                       shield=shield)
         oa, oc = env.reset()
         hist = deque(maxlen=10)
