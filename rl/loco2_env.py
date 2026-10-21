@@ -454,6 +454,8 @@ class Loco2Env:
         if S["mu2"] is not None and d.time >= S["mu_switch_t"] and self.mu != S["mu2"]:
             self._set_mu(S["mu2"])
 
+    long_ctrl = None                                    # callable(env, est, truth) -> tau_sum or None (rl/stop_ctrl.py)
+
     def step(self, a):
         a = np.clip(np.asarray(a, dtype=np.float64), -1, 1)
         S, d, r = self.S, self.d, self.rng
@@ -469,6 +471,10 @@ class Loco2Env:
         self.base_a = np.array([(tl + tr) / 100.0, (tr - tl) / 100.0, bob_c / 0.698])
         tau_sum = (tl + tr) + RES_SUM * a_eff[0]
         tau_diff = (tr - tl) + RES_DIFF * a_eff[1]
+        if self.long_ctrl is not None:                  # a model-based longitudinal controller owns the common drive
+            u = self.long_ctrl(self, est, t)            # torque while active (stop and hold); steering and lean stay
+            if u is not None:                           # with the policy
+                tau_sum = u
         bob_target = _clamp(bob_c + RES_BOB * a_eff[2], -0.698, 0.698)
         step = S["bob_slew"] * self.hw["lean_rate"] / 60.0 * DT
         self.bob_cmd += _clamp(bob_target - self.bob_cmd, -step, step)

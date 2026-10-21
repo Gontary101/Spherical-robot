@@ -255,6 +255,9 @@ class Nav2Env:
         self.level, self.adaptive, self.scenario = level, adaptive and scenario is None, scenario
         self.low = LowLevel(low_ckpt or os.environ.get("GYRA_LOW", os.path.join(ROOT, "rl/runs/loco2/best_train.pt")))
         self.loco = Loco2Env(seed=seed, adaptive=False, world_fn=self._world, ep_len=10 ** 9, external_cmd=True)
+        import stop_ctrl
+        if stop_ctrl.ENABLED:                       # stops and holds by the model-based controller (rl/stop_ctrl.py)
+            self.loco.long_ctrl = stop_ctrl.StopCascade()
         # navigation resets are frequent (short early episodes): reuse a per-worker terrain bank (flips/transposes add variety)
         self.loco.terrain_tol, self.loco.terrain_reuse, self.loco.terrain_cache = 0.3, 0.95, 24
         self.loco.lite = True
@@ -1082,7 +1085,9 @@ class Nav2Env:
         # command lets disturbances integrate into drift (up to 0.4 m in 5 s, measured); once the robot is at rest, a
         # slow outer loop on the along-track displacement from that rest point bounds it (0.13-0.17 m worst case).
         # The anchor is taken only once the robot has slowed, so hold never pulls back through the braking distance.
-        if abs(v_cmd) < 0.05:
+        if abs(v_cmd) < 0.05 and self.loco.long_ctrl is not None:
+            v_cmd = 0.0                                 # the stop controller brakes and holds the spot itself
+        elif abs(v_cmd) < 0.05:
             if self.hold_anchor is None and abs(self.loco._truth()["v"]) < 0.1:
                 self.hold_anchor = self.loc[:2].copy()
             if self.hold_anchor is not None:

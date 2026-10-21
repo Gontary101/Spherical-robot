@@ -44,6 +44,9 @@ def env_for(cond, seed):
         sc["slope_dir"] = 0.0 if "uphill" in cond else math.pi
         e.scenario = sc
     e.spawn = (0.0, 0.0, 0.0)
+    import stop_ctrl
+    if stop_ctrl.ENABLED:                            # identify the closed loop as it will run: stops by the stop controller
+        e.long_ctrl = stop_ctrl.StopCascade()
     return e
 
 
@@ -235,7 +238,37 @@ def main():
     ap.add_argument("--arcs-only", action="store_true", help="re-measure only the field error tables")
     ap.add_argument("--braking-only", action="store_true", help="re-measure the dynamic braking table under field conditions")
     ap.add_argument("--reach", action="store_true", help="identify the pendulum angle a command reaches in the reaction window")
+    ap.add_argument("--stops", action="store_true", help="re-identify every stopping table (steady, dynamic, reach) in --out")
     a = ap.parse_args()
+    if a.stops:
+        res = json.load(open(a.out))
+        with mp.get_context("fork").Pool(4) as pool:
+            B = pool.map(braking, [(c, v0, s) for c in CONDS for v0 in (0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5) for s in range(3)])
+            DB = sum(pool.map(dyn_braking, [(100 + s, 120) for s in range(4)] +
+                                            [(300 + s, 150, "field (rough, wind, payload; no pushes)") for s in range(4)]), [])
+            R = sum(pool.map(reach, [(700 + s, 250, c) for s in range(4) for c in ("nominal", "field (rough, wind, payload; no pushes)")]), [])
+        vb = np.array([0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5])
+        T = np.zeros((len(vb), len(PB) + 1))
+        for x in DB:
+            sv = np.sign(x["v"]) if abs(x["v"]) > 0.05 else 1.0
+            i = int(np.clip(np.searchsorted(vb, abs(x["v"])), 0, len(vb) - 1))
+            T[i, int(np.searchsorted(PB, sv * x["pend"]))] = max(T[i, int(np.searchsorted(PB, sv * x["pend"]))], x["dist"])
+        T = np.maximum.accumulate(T, axis=0)
+        v0s = sorted({b["v0"] for b in B})
+        flat = np.interp(vb, [0.0] + v0s, [0.05] + [max(b["dist"] for b in B if b["v0"] == v) for v in v0s])
+        T = np.maximum(T, flat[:, None]) + 0.05
+        res["brake_table"] = dict(v=[0.0] + v0s, d=[0.05] + [max(b["dist"] for b in B if b["v0"] == v) + 0.05 for v in v0s])
+        res["brake_table2"] = dict(v=vb.tolist(), pend_edges=PB.tolist(), d=T.tolist(), cond="max(nominal, field), stop controller")
+        RT, N = reach_table(R)
+        res["pend_reach"] = dict(pend_edges=PB.tolist(), dv_edges=DVB.tolist(), table=RT.tolist(), n=N.tolist(), t_react=T_REACT, quantile=5, samples=len(R))
+        res["pend_reach_samples"], res["dyn_braking"], res["braking"] = R, DB, B
+        res.pop("dyn_braking_field", None)
+        json.dump(res, open(a.out, "w"), indent=1)
+        print("steady braking table:", dict(zip(res["brake_table"]["v"], [round(x, 2) for x in res["brake_table"]["d"]])))
+        print("state-dependent braking table (rows |v|, columns pendulum bins):")
+        for i, v in enumerate(vb):
+            print(f"   {v:3.1f} m/s " + " ".join(f"{x:5.2f}" for x in T[i]))
+        return
     if a.reach:
         res = json.load(open(a.out))
         with mp.get_context("fork").Pool(4) as pool:
