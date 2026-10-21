@@ -30,7 +30,7 @@ from nav2_env import LowLevel  # noqa: E402
 L.GEOFENCE = 1e9
 DEAD, A_FWD, A_REV, TAU_W = 0.22, 1.7, 1.1, 0.15      # identified from step responses (see docs/09)
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-LOW = os.path.join(ROOT, "rl/runs/loco31/best.pt")
+LOW = os.environ.get("GYRA_LOW") or os.path.join(ROOT, "rl/runs/loco31/best.pt")   # low-level policy under test
 from eval_nav2 import LOCO  # noqa: E402
 CONDS = {"nominal": {}, "field (rough, wind, payload; no pushes)": dict(LOCO, push_rate=0.0), "ice mu 0.3": dict(mu=0.3), "wet mu 0.6": dict(mu=0.6), "downhill 8 deg": dict(slope=np.radians(8)),
          "uphill 8 deg": dict(slope=np.radians(8)), "payload 10 kg": dict(payload=10.0, payload_pos=np.array([0.0, 0.0, 0.05]))}
