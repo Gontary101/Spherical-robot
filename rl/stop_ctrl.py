@@ -155,7 +155,10 @@ class StopCascade:
         self.k_v, self.th_max, self.k_s, self.k_i, self.kp, self.kd = k_v, th_max, k_s, k_i, kp, kd
         self.kp_h, self.kd_h, self.l_obs = kp_h, kd_h, l_obs
         M = json.load(open(path))
-        self.a_v, self.b_v, self.c_v = np.array(M["A"])[0], M["B"][0], M["c"][0]   # rolling-speed row of the model
+        A, B = np.array(M["A"]), np.array(M["B"])
+        self.a_v, self.b_v, self.c_v = A[0], B[0], M["c"][0]   # rolling-speed row of the model
+        self.k_g = -A[2, 1] / B[2]                     # drive torque that holds the pendulum still at an angle (per rad)
+        self.g_s = A[0, 1] + B[0] * self.k_g           # speed change per step of a pendulum held at an angle (per rad)
         self.reset()
 
     def reset(self):
@@ -177,14 +180,15 @@ class StopCascade:
         pos = float(env.d.qpos[0:2] @ self.fwd)        # wheel odometry along the heading at the stop command
         if not self.hold and abs(t["v"]) < 0.05:
             self.hold, self.anchor, self.integ = True, pos, 0.0
-        th_ref = self.k_v * v - self.dist / self.a_v[1]  # pendulum angle that cancels the disturbance
+        th_ref = self.k_v * v - self.dist / self.g_s     # plus the standing angle that cancels the disturbance
         if self.hold:
             s = pos - self.anchor
             self.integ = float(np.clip(self.integ + s * DT, -0.3, 0.3))
             th_ref += self.k_s * s + self.k_i * self.integ
         th_ref = float(np.clip(th_ref, -self.th_max, self.th_max))
         kp, kd = (self.kp_h, self.kd_h) if self.hold else (self.kp, self.kd)
-        return float(np.clip(kp * (t["pend"] - th_ref) + kd * t["pend_rate"], -TAU_MAX, TAU_MAX))
+        u_eq = self.k_g * math.sin(th_ref)             # the pendulum's own weight at the wanted angle: no P-loop offset
+        return float(np.clip(u_eq + kp * (t["pend"] - th_ref) + kd * t["pend_rate"], -TAU_MAX, TAU_MAX))
 
 
 # ---------------------------------------------------------------------------------------------- benchmark
@@ -250,8 +254,8 @@ if __name__ == "__main__":
         identify()
     if a.sweep_cascade:
         # (k_v, th_max, brake kp/kd, hold kp/kd, hold k_s/k_i, observer gain) on flat field ground and an 8 deg slope
-        cfgs = [("policy", (0,) * 9, 0)] + [("cascade", (2.0, 60.0, 130.0, 13.0, 60.0, 12.0, 2.0, ki, lo), 0)
-                                            for lo in (0.0, 0.05, 0.1) for ki in (1.0, 0.0)]
+        cfgs = [("cascade", (2.0, 60.0, 130.0, 13.0, 60.0, 12.0, 2.0, ki, lo), 0) for lo in (0.03, 0.1) for ki in (1.0, 0.0)] + \
+               [("cascade", (1.5, 60.0, 130.0, 13.0, 60.0, 12.0, 2.0, 0.0, 0.03), 0)]
         conds = (FIELD, "downhill 8 deg")
         with mp.get_context("fork").Pool(4) as pool:
             R = pool.map(bench_run, [(m, s_, 40, q, r_, c) for m, q, r_ in cfgs for s_ in (31, 32, 33) for c in conds])
@@ -259,7 +263,7 @@ if __name__ == "__main__":
             for c in conds:
                 o = sum([x[3] for x, (mm, qq, _, cc) in zip(R, [(m_, q_, r__, c_) for m_, q_, r__ in cfgs for _ in (31, 32, 33) for c_ in conds])
                          if mm == m and qq == q and cc == c], [])
-                print(f"{m:7s} k_i {q[7]:.1f} obs {q[8]:.2f} {c[:8]:8s}: " + summarise(o))
+                print(f"{m:7s} k_v {q[0]:.1f} k_i {q[7]:.1f} obs {q[8]:.2f} {c[:8]:8s}: " + summarise(o))
     if a.bench or a.sweep:
         base = (40.0, 30.0, 2.0, 0.05, 60.0)
         cfgs = [("policy", base, 1e-4)] + ([("stop", base, 1e-4)] if a.bench else
