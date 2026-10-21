@@ -237,6 +237,41 @@ def bench_run(args):
     return mode, q, r_, out
 
 
+def nav_run(args):
+    """Command sequences like the navigator's: speeds from its candidate set held 0.1-0.5 s, a third of them zero
+    (brief stops, stops while turning, stops cut short). For every zero segment: how far the robot goes on in the
+    direction it was moving, and how much it speeds up after the stop command (pendulum reaction surges)."""
+    mode, seed, n, q = args[:4]
+    cond = args[4] if len(args) > 4 else FIELD
+    import sysid_low as SI
+    from nav2_env import LowLevel
+    low = LowLevel(SI.LOW)
+    rng = np.random.default_rng(seed)
+    e = SI.env_for(cond, seed)
+    e.long_ctrl = (StopCascade(**q) if mode == "cascade" else None)
+    oa, _ = e.reset()
+    out, absv = [], []
+    for i in range(n):
+        v_c = 0.0 if rng.random() < 0.35 else float(rng.choice([-0.25, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0]))
+        w_c = float(rng.choice([-0.75, -0.25, 0.0, 0.0, 0.25, 0.75]))
+        t0 = e._truth()
+        sv, p0 = (np.sign(t0["v"]) or 1.0), e.d.qpos[0:2].copy()
+        fwd0, vmax = t0["fwd"][:2].copy(), 0.0
+        for k in range(int(rng.integers(1, 6)) * 5):
+            e.cmd = np.array([v_c, w_c])
+            (oa, _), *_ = e.step(low(oa)[0])
+            t = e._truth()
+            if v_c == 0.0:
+                vmax = max(vmax, sv * t["v"])
+                absv.append(abs(t["v"]))
+        if v_c == 0.0 and abs(t0["v"]) > 0.1:
+            out.append(dict(v=t0["v"], go_on=float(sv * (e.d.qpos[0:2] - p0) @ fwd0), surge=vmax - abs(t0["v"])))
+        if abs(e._truth()["pend"]) > 2.4 or e.d.qpos[0] ** 2 + e.d.qpos[1] ** 2 > 400:
+            out.append(dict(v=0.0, go_on=0.0, surge=0.0, fell=abs(e._truth()["pend"]) > 2.4))
+            oa, _ = e.reset()
+    return mode, q, out, absv
+
+
 def summarise(o):
     v = np.array([x["v"] for x in o]); d = np.array([x["dist"] for x in o])
     sel = np.abs(v) > 0.15
@@ -252,6 +287,7 @@ if __name__ == "__main__":
     ap.add_argument("--bench", action="store_true")
     ap.add_argument("--sweep", action="store_true", help="a few weightings of the regulator")
     ap.add_argument("--sweep-cascade", action="store_true")
+    ap.add_argument("--nav-bench", default=None, help="JSON list of StopCascade kwargs to compare with the policy on navigator-like commands")
     a = ap.parse_args()
     if a.identify:
         identify()
@@ -267,6 +303,17 @@ if __name__ == "__main__":
                 o = sum([x[3] for x, (mm, qq, _, cc) in zip(R, [(m_, q_, r__, c_) for m_, q_, r__ in cfgs for _ in (31, 32, 33) for c_ in conds])
                          if mm == m and qq == q and cc == c], [])
                 print(f"{m:7s} k_v {q[0]:.1f} obs {q[8]:.2f} {c[:8]:8s}: " + summarise(o))
+    if a.nav_bench:
+        cfgs = [("policy", {})] + [("cascade", q) for q in json.loads(a.nav_bench)]
+        with mp.get_context("fork").Pool(4) as pool:
+            R = pool.map(nav_run, [(m, s_, 150, q) for m, q in cfgs for s_ in (41, 42, 43, 44)])
+        for m, q in cfgs:
+            o = sum([x[2] for x in R if x[0] == m and x[1] == q], [])
+            av = np.array(sum([x[3] for x in R if x[0] == m and x[1] == q], []))
+            g, su = np.array([x["go_on"] for x in o]), np.array([x["surge"] for x in o])
+            print(f"{m:7s} {json.dumps(q):60s} stops {len(o)}: go-on p50 {np.median(g):.2f} p95 {np.percentile(g, 95):.2f} m; "
+                  f"surge p95 {np.percentile(su, 95):.2f} max {su.max():.2f} m/s; |v| while stopped mean {av.mean():.2f}; "
+                  f"falls {sum(x.get('fell', False) for x in o)}")
     if a.bench or a.sweep:
         base = (40.0, 30.0, 2.0, 0.05, 60.0)
         cfgs = [("policy", base, 1e-4)] + ([("stop", base, 1e-4)] if a.bench else
