@@ -36,6 +36,10 @@ class SafetyFilter:
         if "brake_table2" in S:                                     # stopping distance from dynamic states, by speed and
             T2 = S["brake_table2"]                                  # pendulum angle (signed with the motion; < 0 = still
             self.T2 = (np.array(T2["v"]), np.array(T2["d"]), np.array(T2["pend_edges"]))   # accelerating)
+        self.reach = None
+        if "pend_reach" in S and os.environ.get("GYRA_REACH", "1") == "1":   # pendulum angle a command can reach in the
+            Q = S["pend_reach"]                                                # reaction window (rl/sysid_low.py --reach)
+            self.reach = (np.array(Q["pend_edges"]), np.array(Q["dv_edges"]), np.array(Q["table"]))
         R = S["response"]
         self.dead, self.a_fwd, self.a_rev, self.tau_w = R["dead"], R["a_fwd"], R["a_rev"], R["tau_w"]
         e = S["arc_error"]
@@ -110,12 +114,20 @@ class SafetyFilter:
             # 1.47 m from 0.5 m/s vs 0.41 m from a neutral pendulum). Candidates that speed up get the worst column;
             # holding / slowing ones the column of the current pendulum angle, one bin towards accelerating as margin.
             tv, td, edges = self.T2
-            sv = np.sign(v0) if abs(v0) > 0.05 else 1.0
-            c_now = int(np.searchsorted(edges, sv * self.pend))
-            col = np.where(np.abs(cmds[:, 0]) > abs(v0) + 0.1, 0, max(c_now - 1, 0))
             av = np.abs(v)
-            d2 = np.array([np.interp(av[i], tv, td[:, col[i]]) for i in range(len(av))]) if len(np.unique(col)) > 1 else \
-                np.interp(av, tv, td[:, col[0]])
+            if self.reach is not None:
+                # enter the braking table at the pendulum angle THIS command can reach by brake onset (identified from
+                # the current angle and the commanded speed change, 5th percentile, signed with the motion at onset)
+                pe, de, RT = self.reach
+                sv = np.where(av > 0.05, np.sign(v), np.where(np.abs(cmds[:, 0]) > 0.05, np.sign(cmds[:, 0]), 1.0))
+                reach = RT[np.searchsorted(pe, sv * self.pend), np.searchsorted(de, sv * (cmds[:, 0] - v0))]
+                col = np.searchsorted(edges, reach)
+            else:
+                sv = np.sign(v0) if abs(v0) > 0.05 else 1.0
+                c_now = int(np.searchsorted(edges, sv * self.pend))
+                col = np.where(np.abs(cmds[:, 0]) > abs(v0) + 0.1, 0, max(c_now - 1, 0))
+            D = np.stack([np.interp(av, tv, td[:, c]) for c in range(td.shape[1])], 1)
+            d2 = D[np.arange(len(av)), col]
             d_stop = np.maximum(d_stop, d2)
         kappa = np.where(np.abs(v) > 0.05, w / np.maximum(np.abs(v), 0.05), 0.0)
         n_brake = 12

@@ -7,6 +7,9 @@ after a stop command and how far its path departs from the unicycle prediction o
   braking   accelerate to v0, command 0: stopping distance / time, across friction, slope (along the path), payload
   arcs      random (v, w) commands held 1 s from random initial motion: deviation of the real path from the unicycle
             arc (lag-compensated), as a function of horizon
+  reach     the pendulum angle a command can produce within the filter's reaction window (dead time + one control
+            period), from the current angle and the commanded speed change: the braking table is then entered at
+            the state the command leads to, not at the worst state the robot has ever been in
 
     python rl/sysid_low.py --out rl/runs/nav2/bench/sysid.json
 """
@@ -91,6 +94,67 @@ def dyn_braking(args):
     return out
 
 
+PB = np.radians([-60, -30, -10, 10, 30, 60])                       # pendulum bins, signed with the motion (<0 = accelerating)
+DVB = np.array([-1.0, -0.3, -0.1, 0.1, 0.3, 0.7, 1.5])            # commanded speed change bins, signed with the motion
+T_REACT = DEAD + 0.1                                               # dead time + one 10 Hz navigation period
+
+
+def motion_sign(v_end, v_c):
+    return np.sign(v_end) if abs(v_end) > 0.05 else (np.sign(v_c) if abs(v_c) > 0.05 else 1.0)
+
+
+def reach(args):
+    """From random states of random speed profiles, a random candidate command (crawls, holds, speed-ups, stops,
+    reversals) is held for the reaction window; returns (pend0, dv, pend_end), all signed with the motion at brake
+    onset, the convention the filter uses."""
+    seed, n, cond = args
+    low = LowLevel(LOW)
+    r = np.random.default_rng(seed)
+    e = env_for(cond, seed)
+    oa, _ = e.reset()
+    out = []
+    for i in range(n):
+        v_a = r.uniform(-0.5, 3.0) if r.random() < 0.7 else r.uniform(-0.3, 0.4)    # many slow states: doors, mazes
+        for k in range(int(r.uniform(0.3, 2.5) / 0.02)):
+            e.cmd = np.array([v_a, r.uniform(-0.4, 0.4)])
+            (oa, _), *_ = e.step(low(oa)[0])
+        t0 = e._truth()
+        v0, th0 = t0["v"], t0["pend"]
+        v_c = float(np.clip(v0 + r.choice([r.uniform(-1.5, 2.0), r.uniform(-0.4, 0.4)]), -1.0, 3.5))
+        if r.random() < 0.3:
+            v_c = float(r.uniform(-0.3, 0.4))                                      # crawl commands
+        for k in range(int(round(T_REACT / 0.02))):
+            e.cmd = np.array([v_c, r.uniform(-0.4, 0.4)])
+            (oa, _), *_ = e.step(low(oa)[0])
+        t1 = e._truth()
+        sv = motion_sign(t1["v"], v_c)
+        out.append(dict(pend0=float(sv * th0), dv=float(sv * (v_c - v0)), pend_end=float(sv * t1["pend"]), v0=float(v0), v_c=v_c))
+        if e.d.qpos[0] ** 2 + e.d.qpos[1] ** 2 > 400:
+            oa, _ = e.reset()
+    return out
+
+
+def reach_table(R, q=5.0, n_min=12):
+    """Per (pendulum bin, speed-change bin): the q-th percentile of the reached angle (the accelerating extreme);
+    a sparse cell is filled from the more severe cells (conservative); monotone in the speed change (a larger
+    speed-up never reaches a milder angle)."""
+    T = np.full((len(PB) + 1, len(DVB) + 1), -np.pi / 2)
+    N = np.zeros_like(T, dtype=int)
+    p0 = np.array([x["pend0"] for x in R]); dv = np.array([x["dv"] for x in R]); pe = np.array([x["pend_end"] for x in R])
+    i = np.searchsorted(PB, p0)
+    j = np.searchsorted(DVB, dv)
+    for a in range(T.shape[0]):
+        for b in range(T.shape[1]):
+            m = (i == a) & (j == b)
+            N[a, b] = m.sum()
+            if m.sum() < n_min:                                    # sparse: pool the more severe states (pendulum at
+                m = (i <= a) & (j >= b)                            # least as accelerated, speed-up at least as large)
+            if m.sum() >= n_min:
+                T[a, b] = np.percentile(pe[m], q)
+    T = np.minimum.accumulate(T, axis=1)                         # more speed-up -> at least as accelerating
+    return T, N
+
+
 def arcs(args):
     seed, n, cond = args
     low = LowLevel(LOW)
@@ -170,7 +234,23 @@ def main():
     ap.add_argument("--out", default=os.path.join(ROOT, "rl/runs/nav2/bench/sysid.json"))
     ap.add_argument("--arcs-only", action="store_true", help="re-measure only the field error tables")
     ap.add_argument("--braking-only", action="store_true", help="re-measure the dynamic braking table under field conditions")
+    ap.add_argument("--reach", action="store_true", help="identify the pendulum angle a command reaches in the reaction window")
     a = ap.parse_args()
+    if a.reach:
+        res = json.load(open(a.out))
+        with mp.get_context("fork").Pool(4) as pool:
+            R = sum(pool.map(reach, [(700 + s, 250, c) for s in range(4) for c in ("nominal", "field (rough, wind, payload; no pushes)")]), []) \
+            if "pend_reach_samples" not in res else res["pend_reach_samples"]
+        T, N = reach_table(R)
+        res["pend_reach"] = dict(pend_edges=PB.tolist(), dv_edges=DVB.tolist(), table=T.tolist(), n=N.tolist(), t_react=T_REACT,
+                                 quantile=5, samples=len(R))
+        res["pend_reach_samples"] = R
+        json.dump(res, open(a.out, "w"), indent=1)
+        print(f"{len(R)} samples; reached pendulum angle (deg, 5th percentile, signed with the motion), rows = current angle bin "
+              f"{np.degrees(PB).round().tolist()}, columns = speed change bin {DVB.tolist()}:")
+        for row, nr in zip(np.degrees(T), N):
+            print("   " + " ".join(f"{x:6.1f}" for x in row) + "   n " + " ".join(f"{x:3d}" for x in nr))
+        return
     if a.braking_only:                               # re-identify the dynamic braking table under field conditions
         res = json.load(open(a.out))
         with mp.get_context("fork").Pool(4) as pool:

@@ -61,6 +61,14 @@ V_RANGE = (-1.0, 3.5)
 W_RANGE = 2.5
 COST_ALPHA, COST_RANGE = 4.0, 0.6   # costmap: up to 5x traversal cost within 0.6 m of the footprint touching anything
 PLAN_MARGIN = 0.08               # planner keeps this much air between the robot's footprint and any mapped obstacle
+# Live replanning (as production planners replan on their costmap): every REPLAN_EVERY navigation steps the route is
+# recomputed with, within REPLAN_R of the robot, the clearance from the robot's own local map (5 cm cells, measured
+# surface points) and the safety filter's own passability requirement (PASS_NEED of air beside the footprint at a
+# crawl: its margin + the crawl prediction error); beyond it, the prior map. A route fixed once from the prior map's
+# 0.1 m grid (+-7 cm quantisation, as large as the margin) can lead through a gap the filter will never accept, or into
+# an obstacle the prior map lacks, and nothing revised it.
+REPLAN = os.environ.get("GYRA_REPLAN", "1") == "1"
+REPLAN_EVERY, REPLAN_R, PASS_NEED = 10, 4.0, 0.06
 MAP_RAYS = 1152                  # the pods' 3-D LiDARs return dense clouds: 0.31 deg rays for the local map
 HOLD_K = 2.0                     # position-hold gain (1/s) at rest; 0.5 ... 4 tested, 2 best under field disturbances
 SHIELD_COST = 0.3                # reward per unit of safety-filter correction (action units, 0..2 per step); 1.0
@@ -422,6 +430,46 @@ class Nav2Env:
         dist = dijkstra(G, directed=False, indices=goal_cell[0] * n + goal_cell[1])
         return dist.reshape(n, n)
 
+    def _replan(self):
+        """Route on the live map (see REPLAN): local-map clearance and the filter's requirement near the robot, the
+        prior map beyond. Kept as is when the live map leaves no route (the prior one is the better guess then)."""
+        near = np.hypot(self.gx - self.odo[0], self.gy - self.odo[1]) < REPLAN_R
+        pts = np.c_[self.gx[near], self.gy[near]]
+        d = self.odo[2] - self.loc[2]
+        c, s_ = math.cos(-d), math.sin(-d)
+        r = pts - self.odo[:2]
+        q = self.loc[:2] + np.c_[c * r[:, 0] - s_ * r[:, 1], s_ * r[:, 0] + c * r[:, 1]]
+        ri, ci = self.lmap._idx(q)
+        inside = (ri >= 0) & (ri < self.lmap.n) & (ci >= 0) & (ci < self.lmap.n)
+        seen = np.zeros(len(q), bool)
+        seen[inside] = np.abs(self.lmap.L[ri[inside], ci[inside]]) > 0.05
+        clear = self.plan_clear0.copy()
+        need = np.full(clear.shape, self.robot_r + PLAN_MARGIN)
+        cl = clear[near]
+        # a planner cell is passable if the robot fits ANYWHERE in it: the best local-map clearance over the cell (3 x 3
+        # samples, the local map's own resolution), not the value at its centre - a 1.0 m door leaves a +-8.7 cm band
+        # of feasible centre positions, narrower than the 0.1 m grid, so centre samples flickered across the threshold
+        o = (np.arange(3) - 1) * GRID / 3
+        ox, oy = np.meshgrid(o, o)
+        sub = q[seen][:, None, :] + np.c_[ox.ravel(), oy.ravel()][None]
+        cl[seen] = self.lmap.clearance(sub.reshape(-1, 2)).reshape(-1, 9).max(1)
+        clear[near] = cl
+        nd = need[near]
+        nd[seen] = self.robot_r + PASS_NEED
+        need[near] = nd
+        free = clear > need
+        pg = self._geodesic(free, self._cell(self.goal), clear)
+        if np.isfinite(pg[self._cell(self.odo[:2])]):
+            if os.environ.get("GYRA_REPLAN_LOG"):
+                old = self.plan_geo[self._cell(self.odo[:2])]
+                path = self.plan_path(self.odo[:2], 30)
+                ij = [self._cell(p) for p in path]
+                m = min(float(clear[i, j] - need[i, j]) for i, j in ij) if ij else 0.0
+                self.replan_log = getattr(self, "replan_log", []) + [(float(self.d.time), float(old),
+                                                                       float(pg[self._cell(self.odo[:2])]), m)]
+            self.plan_clear, self.plan_free = clear, free
+            self._set_plan(pg)
+
     def _cell(self, p):
         j = int(np.clip((p[0] + ARENA) / GRID, 0, self.n_grid - 1))
         i = int(np.clip((p[1] + ARENA) / GRID, 0, self.n_grid - 1))
@@ -456,6 +504,7 @@ class Nav2Env:
         kept = [o for o in obs if o["wall"] or r.random() >= P["map_stale"]]
         self.plan_clear = edt(~self._occupancy(kept)) * GRID
         self.plan_free = self.plan_clear > self.robot_r + PLAN_MARGIN
+        self.plan_clear0, self.plan_free0 = self.plan_clear, self.plan_free
         self.clear = clear
         self.set_goal(np.array([self.gx[tuple(gi)], self.gy[tuple(gi)]]))
         self.static_specs = []
@@ -491,7 +540,11 @@ class Nav2Env:
         self.geo = self._geodesic(self.free, gc, self.clear)            # potential for the progress reward / critic
         self.geo[~np.isfinite(self.geo)] = 99.0
         self.geo_len = self._geodesic(self.free, gc)                     # plain shortest length (SPL metric)
-        pg = self._geodesic(self.plan_free, gc, self.plan_clear)
+        self._set_plan(self._geodesic(self.plan_free, gc, self.plan_clear))
+
+    def _set_plan(self, pg):
+        """Planner field and its descent pointers (blocked cells point to their best neighbour)."""
+        pg = pg.copy()
         pg[~np.isfinite(pg)] = 1e6
         n = self.n_grid
         best = pg.copy()
@@ -732,7 +785,9 @@ class Nav2Env:
         horizontal range of the nearest obstacle hit per azimuth; ground hits (terrain geom: ground segmentation)
         are not obstacles."""
         z0 = self.d.qpos[2]
-        a = self.map_ang[::4] + yaw                 # 1.25 deg: low obstacles are >= 0.24 m wide, i.e. >= 2.3 deg at 6 m
+        # every map ray (0.31 deg): casting at 1.25 deg and copying each result to its 4 neighbours widened every
+        # obstacle edge sideways by up to a bin (2-6 cm at 1-3 m) - doors narrowed by the sensor model, not the world
+        a = self.map_ang + yaw
         el = MAP_ELEV(z0)
         ce, se = np.cos(el)[:, None], np.sin(el)[:, None]
         dirs = np.stack([ce * np.cos(a)[None], ce * np.sin(a)[None], np.broadcast_to(se, (len(el), len(a)))], -1).reshape(-1, 3)
@@ -747,7 +802,7 @@ class Nav2Env:
             p = np.array([pos[0], pos[1], z0]) + dirs[hit] * dist[hit, None]
             hit[np.flatnonzero(hit)] = p[:, 2] > TR.height_at(self.loco.hmap, p[:, 0], p[:, 1]) + 0.01
         horiz = np.where(hit, dist * np.cos(np.repeat(el, len(a))), MAX_R).reshape(len(el), len(a))
-        return np.repeat(horiz.min(0), 4)
+        return horiz.min(0)
 
     def _map_scan(self):
         """Dense masked LiDAR for the map: same sensor model as the policy scan (pod self-occlusion, noise, dropouts,
@@ -1112,6 +1167,8 @@ class Nav2Env:
         obs = self._obs(pos, yaw, t, true)
         if self.shield:
             self._map_update()
+            if REPLAN and self.steps % REPLAN_EVERY == 0:
+                self._replan()
             self._put_envelope(obs)
             info["intervened"] = intervened
             if done:

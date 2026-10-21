@@ -27,6 +27,37 @@ K_HEAD, K_REV = float(os.environ.get("K_HEAD", 0.4)), float(os.environ.get("K_RE
 K_PATH = float(os.environ.get("K_PATH", 1.5))            # m of route per m^2 of cross-track error (mid + end)
 RECOVERY = os.environ.get("MPC_RECOVERY", "1") == "1"
 TIGHTEN = float(os.environ.get("MPC_TIGHTEN", 0.0))     # m of spare filter slack per m/s of speed (32-episode A/B: no gain)
+# Route-relative (Frenet) candidates: follow the planner's route - costmap-centred, so it runs straight through the
+# middle of a door - at a speed and a lateral offset, with pure-pursuit feedback INSIDE the rollout. A body-frame arc
+# held for 1.5 s cannot express "line up with the door, then go straight through"; a route-relative candidate does it
+# by construction. Arcs stay in the candidate set (turning in place, backing off, leaving the route).
+FRENET = os.environ.get("MPC_FRENET", "1") == "1"
+FR_V = (0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5)
+FR_Q = (-0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3)
+
+
+def route_ref(env, n=60, ds=0.05):
+    """The planner's route ahead of the robot in the LOCAL frame (local map, MPC rollouts): the grid staircase
+    smoothed (moving average over 0.5 m) and resampled every ds. Returns points (M, 2), unit tangents (M, 2), or None."""
+    path = env.plan_path(env.odo[:2], n)
+    if len(path) < 4:
+        return None
+    P = path                                                    # from the robot's cell: its offset from the route
+    k = 5                                                       # stays measurable (the pursuit blends it away)
+    Ps = np.array([P[max(0, i - k // 2):i + k // 2 + 1].mean(0) for i in range(len(P))])
+    seg = np.linalg.norm(np.diff(Ps, axis=0), axis=1)
+    s = np.r_[0.0, np.cumsum(seg)]
+    if s[-1] < 0.3:
+        return None
+    S = np.arange(0.0, s[-1], ds)
+    Q = np.c_[np.interp(S, s, Ps[:, 0]), np.interp(S, s, Ps[:, 1])]
+    d = env.odo[2] - env.loc[2]                                 # odometry frame -> local frame
+    c_, s_ = math.cos(-d), math.sin(-d)
+    r = Q - env.odo[:2]
+    Q = env.loc[:2] + np.c_[c_ * r[:, 0] - s_ * r[:, 1], s_ * r[:, 0] + c_ * r[:, 1]]
+    T = np.gradient(Q, axis=0)
+    T /= np.maximum(np.linalg.norm(T, axis=1, keepdims=True), 1e-9)
+    return Q, T
 
 
 def grid_bilinear(env, G, p, far=99.0):
@@ -100,6 +131,14 @@ class GeoMPC:
             pos, yaw, t = env._pose()
             v0, w0 = t["v"], t["w"]
         C = self.cand
+        ref = route_ref(env) if (self.deployable and FRENET) else None
+        nA = len(C)
+        if ref is not None:                                     # route-relative candidates (speed, lateral offset)
+            RQ, RT = ref
+            FV, FQ = np.meshgrid(FR_V, FR_Q, indexing="ij")
+            FV, FQ = FV.ravel(), FQ.ravel()
+            C = np.r_[C, np.c_[FV, np.zeros_like(FV)]]          # (v, w) filled from the first pursuit step below
+            e0 = float(((np.array(pos) - RQ[0]) * np.array([-RT[0, 1], RT[0, 0]])).sum())
         N = len(C)
         x, y, th = np.full(N, pos[0]), np.full(N, pos[1]), np.full(N, yaw)
         v, w = np.full(N, v0), np.full(N, w0)
@@ -111,10 +150,30 @@ class GeoMPC:
         step = 0
         mx = my = None
         while k < self.h - 1e-9:
+            cmd = C
+            if ref is not None:                                 # pure pursuit on the offset route, every step
+                F = slice(nA, N)
+                px, py = x[F], y[F]
+                dd = (px[:, None] - RQ[None, :, 0]) ** 2 + (py[:, None] - RQ[None, :, 1]) ** 2
+                i0 = dd.argmin(1)
+                ld = np.clip(0.4 + 0.6 * np.maximum(v[F], FV), 0.5, 1.5)
+                il = np.minimum(i0 + (ld / 0.05).astype(int), len(RQ) - 1)
+                sl = il * 0.05
+                q = e0 + (FQ - e0) * np.minimum(1.0, sl / np.maximum(0.8, FV))   # blend to the offset over ~1 s
+                tx, ty = RQ[il, 0] - RT[il, 1] * q, RQ[il, 1] + RT[il, 0] * q
+                al = np.arctan2(ty - py, tx - px) - th[F]
+                al = (al + np.pi) % (2 * np.pi) - np.pi
+                kap = 2.0 * np.sin(al) / np.maximum(np.hypot(tx - px, ty - py), 0.2)
+                vf = np.where(np.abs(al) > 1.2, 0.0, np.minimum(FV, np.sqrt(1.5 / np.maximum(np.abs(kap), 1e-3))))
+                wf = np.clip(np.where(vf > 0.0, vf * kap, 1.5 * al), -W_RANGE, W_RANGE)   # far off heading: turn first
+                cmd = C.copy()
+                cmd[F, 0], cmd[F, 1] = vf, wf
+                if step == 0:
+                    C = cmd.copy()                              # the command actually sent if this candidate wins
             if k >= DEAD:
-                acc = np.where((C[:, 0] < v) & (v <= 0.0), A_REV, A_FWD)
-                v = v + np.clip(C[:, 0] - v, -acc * self.dt, acc * self.dt)
-                w = w + aw * (C[:, 1] - w)
+                acc = np.where((cmd[:, 0] < v) & (v <= 0.0), A_REV, A_FWD)
+                v = v + np.clip(cmd[:, 0] - v, -acc * self.dt, acc * self.dt)
+                w = w + aw * (cmd[:, 1] - w)
             th = th + w * self.dt
             x, y = x + v * np.cos(th) * self.dt, y + v * np.sin(th) * self.dt
             if self.deployable:
@@ -158,6 +217,9 @@ class GeoMPC:
                     u = np.clip(((Q - A[None]) * AB[None]).sum(-1) / np.maximum((AB ** 2).sum(-1), 1e-9)[None], 0, 1)
                     dist = np.linalg.norm(Q - (A[None] + u[..., None] * AB[None]), axis=-1).min(1)
                     track += np.minimum(dist, 1.0) ** 2
+        if ref is not None:
+            head[nA:], track[nA:] = 0.0, 0.0                    # on the route by construction
+            track[nA:] = 0.3 * FQ ** 2                          # prefer the route itself (the costmap's centre line)
         cost = (geo + 2.0 * clr_pen + 50.0 * hit + 0.05 * np.abs(C[:, 1]) + K_HEAD * head + K_REV * np.maximum(0.0, -C[:, 0])
                 + K_PATH * (2.0 if env.d.time < self.boost_until else 1.0) * track
                 + 0.15 * np.abs(C[:, 1] - self.prev[1]) + 0.1 * np.abs(C[:, 0] - self.prev[0]))

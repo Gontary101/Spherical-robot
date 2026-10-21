@@ -214,11 +214,11 @@ def build_pod(side):
             rec = _box_on(at(1.55), dv, ex, ey, 28.5, 28.5, 2.1)            # window recess: +0.5 .. +2.6
             core = sphere(R_SH, (0, sg * S.D, 0))
             eye = solid(body.cut(cav).cut(rec))                             # a cup dropped through a pocket in the shield
-            for k, du in enumerate((-19.0, 19.0)):                          # two lugs, 2 x M3 into shield inserts
-                q = c0 + unit(tuple(lf + ey * du - c0)) * R_SH               # across the axis: both lugs on the cap
-                qn = unit(tuple(q - c0))
-                lug = cyl(4.6, q - qn * 1.0, q + qn * 6.0).cut(core)
-                eye = solid(eye.fuse(lug))
+            for k, du in enumerate((-23.0, 23.0)):                          # two ears, 2 x M3 into shield inserts:
+                q = c0 + unit(tuple(lf + ey * du - c0)) * R_SH               # across the axis (both on the cap), heads
+                qn = unit(tuple(q - c0))                                     # and inserts clear of the cup
+                ear = _box_on(q + qn * 2.5, qn, ex, ey, 10.0, 14.0, 7.0).cut(core)
+                eye = solid(eye.fuse(ear))
                 boss = cyl(4.5, q - qn * 12.0, q - qn * 5.0).intersect(sphere(R_SH - 1.0, (0, sg * S.D, 0)))
                 shield = solid(shield.fuse(boss))
                 J.append(Joint(f"cam_eye_screw_{s}{i}{k}", 3, tuple(q + qn * 6.0), tuple(-qn),
