@@ -118,7 +118,7 @@ class Comp:
     def tw(self, s, w, size):
         return font(w, max(1, round(size * self.s))).getlength(s) / self.s
 
-    def labels(self, d, labels):
+    def labels(self, d, labels, top_right=60):
         placed = []
         for lb in labels:
             a = lb["alpha"]
@@ -129,7 +129,7 @@ class Comp:
             right = ax >= 1920 * 0.5                         # callout columns at the sides, away from the subject
             px = 1920 - 70 - tw if right else 70
             py = ay - th / 2
-            py = min(max(py, 60), 1080 - 280 - th)
+            py = min(max(py, top_right if right else 60), 1080 - 280 - th)      # right column clears a readout pill
             for (qx, qy, qw, qh) in placed:                 # keep panels apart (stable order)
                 if px < qx + qw + 12 and qx < px + tw + 12 and py < qy + qh + 12 and qy < py + th + 12:
                     py = qy + qh + 14 if py >= qy else qy - th - 14
@@ -210,7 +210,8 @@ class Comp:
             sd.rectangle([0, self.P(1080 - 300), self.P(1150), self.P(1080)], fill=(4, 8, 20, int(150 * c["a"])))
             sh = sh.filter(ImageFilter.GaussianBlur(self.P(80)))
             layer.alpha_composite(sh)
-        self.labels(d, js.get("labels") or [])
+        tr = any(r.get("pos", "tr") == "tr" for r in (js.get("readouts") or []))     # for the whole shot: no jump
+        self.labels(d, js.get("labels") or [], top_right=150 if tr else 60)
         if c and c["a"] > 0.003:
             self.caption(d, c)
         if js.get("title") and js["title"]["a"] > 0.003:
