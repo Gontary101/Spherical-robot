@@ -191,12 +191,56 @@ def build_pod(side):
     for k in range(S.N_WHEELS):                    # reliefs over the stud nuts at the shield base
         cx, cz = stems[k]
         shield = solid(shield.cut(cyl(9.0, (cx, Y(u0), cz), (cx, Y(u1 + 14.0), cz))))
-    # cameras square to the shell (an oblique window would vignette a 120 deg lens or put the board into the wall);
-    # placed between the wheel studs, as far outboard-forward / -rearward / -down as the cap allows
-    CAMS = [((0.351, 0.925, 0.145), "front"), ((-0.351, 0.925, 0.145), "rear"), ((0.145, 0.925, -0.351), "ground")]
+    # Cameras. The ground camera sits square to the shell between the studs, behind a flat PC window. The front and
+    # rear cameras are LANE cameras: at the cap edge between the studs (22.5 deg below / behind the axle line), aimed
+    # forward (rear: backward), down and inward, so that their view grazes over the tyre's curve and sees the lane
+    # straight ahead from ~0.6 m - which the pole-mounted LiDARs cannot (blind to ~3.2 m; render/camera_views.py,
+    # docs/11_build.md section 8b). That view is 79 deg from the shell normal, so a lane camera sits in a printed eye
+    # on the shield (flat PC window square to its axis), its lower half in a pocket through the shell.
+    LANE_BETA = math.radians(26.5)                 # polar angle of the eye on the shield: stays inside the cap edge
+    CAMS = [("lane", -22.5, 1, "lane front"), ("lane", 202.5, -1, "lane rear"), ("flat", (0.145, 0.925, -0.351), 0, "ground")]
     cam_parts = []
-    for i, (dp, nm) in enumerate(CAMS):
-        dp = unit(dp)
+    for i, (kind, ang, fwd, nm) in enumerate(CAMS):
+        if kind == "lane":
+            a = math.radians(ang)
+            nrm = Vector(math.sin(LANE_BETA) * math.cos(a), sg * math.cos(LANE_BETA), math.sin(LANE_BETA) * math.sin(a))
+            lf = c0 + nrm * (R_SH + 3.0)                                    # lens front, 3 mm proud of the shield
+            dv = unit((fwd * 0.94, -sg * 0.25, -0.19))
+            ex = unit(tuple(dv.cross(Vector(0, 0, 1))))
+            ey = dv.cross(ex)
+            at = lambda t: lf + dv * t                                      # point on the camera axis, t from the lens front
+            body = _box_on(at(-7.3), dv, ex, ey, 33.0, 33.0, 19.6)          # eye: lens front -15.6 .. +2.5 mm
+            cav = _box_on(at(-5.55), dv, ex, ey, 26.5, 26.5, 12.1)         # camera space: -11.6 .. +0.5
+            rec = _box_on(at(1.55), dv, ex, ey, 28.5, 28.5, 2.1)            # window recess: +0.5 .. +2.6
+            core = sphere(R_SH, (0, sg * S.D, 0))
+            eye = solid(body.cut(cav).cut(rec))                             # a cup dropped through a pocket in the shield
+            for k, du in enumerate((-19.0, 19.0)):                          # two lugs, 2 x M3 into shield inserts
+                q = c0 + unit(tuple(lf + ey * du - c0)) * R_SH               # across the axis: both lugs on the cap
+                qn = unit(tuple(q - c0))
+                lug = cyl(4.6, q - qn * 1.0, q + qn * 6.0).cut(core)
+                eye = solid(eye.fuse(lug))
+                boss = cyl(4.5, q - qn * 12.0, q - qn * 5.0).intersect(sphere(R_SH - 1.0, (0, sg * S.D, 0)))
+                shield = solid(shield.fuse(boss))
+                J.append(Joint(f"cam_eye_screw_{s}{i}{k}", 3, tuple(q + qn * 6.0), tuple(-qn),
+                               [f"cam_eye_{s}{i}", f"pod_shield_{s}"], end="insert", step=f"pod_{s}_shield_sub"))
+            shield = solid(shield.cut(_box_on(at(-7.3), dv, ex, ey, 34.0, 34.0, 20.6)))    # pocket: the cup + 0.5 mm
+            cam_parts.append(Part(f"cam_eye_{s}{i}", eye, "spine", "nylon", rho="pa12", spec=dict(
+                material="PA12 (HP MJF), dyed black", process="MJF print",
+                note="lane-camera eye: window bonded in the front recess (Dow 732), 4 x M2 inserts for the camera, "
+                     "2 lugs; RTV-sealed in its shield pocket; USB cable through a slot in the back wall")))
+            win = _box_on(at(1.25), dv, ex, ey, 28.3, 28.3, 1.5)
+            cam_parts.append(Part(f"cam_window_{s}{i}", win, "spine", "glass", rho="pc", spec=dict(
+                material="PC 1.5 mm, AR coated", process="laser cut 28.3 x 28.3", bond="Dow 732 RTV seal")))
+            lens = cyl(4.55, at(-5.5), at(0.0))
+            board = _box_on(at(-8.55), dv, ex, ey, 25.0, 25.0, 6.1)
+            cam_parts.append(Part(f"camera_{s}{i}", lens.fuse(board), "spine", "motor_black", mass=0.027, kind="cots",
+                                  spec=dict(pn="Waveshare OV9281 1MP Mono USB Camera (A)", view=nm, fov_deg=120,
+                                            source="waveshare.com product page + outline drawing", verified=True)))
+            for k, (du, dw) in enumerate(((10.5, 10.5), (-10.5, 10.5), (-10.5, -10.5), (10.5, -10.5))):
+                J.append(Joint(f"cam_screw_{s}{i}{k}", 2, tuple(at(-5.5) + ex * du + ey * dw), tuple(-dv),
+                               [f"camera_{s}{i}", f"cam_eye_{s}{i}"], end="insert", step=f"pod_{s}_shield_sub"))
+            continue
+        dp = unit(ang)
         dp = Vector(dp.x, sg * dp.y, dp.z)
         at = lambda rho: c0 + dp * rho                                     # point on the camera axis at radius rho
         fx = unit((dp.z, 0.0, -dp.x))                                      # tangential: the holder's long side
@@ -222,8 +266,8 @@ def build_pod(side):
             shield = solid(shield.fuse(boss))
             J.append(Joint(f"cam_holder_screw_{s}{i}{k}", 3, tuple(at(285.0) + fx * du), tuple(dp),
                            [f"cam_holder_{s}{i}", f"pod_shield_{s}"], end="insert", step=f"pod_{s}_shield_sub"))
-        for k, (du, dv) in enumerate(((10.5, 10.5), (-10.5, 10.5), (-10.5, -10.5), (10.5, -10.5))):
-            J.append(Joint(f"cam_screw_{s}{i}{k}", 2, tuple(at(278.9) + fx * du + fy * dv), tuple(dp),
+        for k, (du, dv_) in enumerate(((10.5, 10.5), (-10.5, 10.5), (-10.5, -10.5), (10.5, -10.5))):
+            J.append(Joint(f"cam_screw_{s}{i}{k}", 2, tuple(at(278.9) + fx * du + fy * dv_), tuple(dp),
                            [f"camera_{s}{i}", f"cam_holder_{s}{i}"], end="insert", step=f"pod_{s}_shield_sub"))
     P.append(Part(f"pod_shield_{s}", shield, "spine", "nylon", rho="pa12",
                   spec=dict(material="PA12 (HP MJF), dyed black", process="MJF print", finish="bead blast + clear coat",
