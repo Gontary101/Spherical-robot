@@ -41,7 +41,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "sim"))
 import terrain as TR  # noqa: E402
 from gyra2_model import R as R_NOM  # noqa: E402
 from gyra2_model import MotorModel, build_xml2  # noqa: E402
-from gyra2_sim import ClassicalController  # noqa: E402
+from gyra2_sim import ClassicalController, ModelController  # noqa: E402
 
 DT = 0.02
 N_SUB = 10                       # 2 ms physics
@@ -64,6 +64,7 @@ HW_MK2 = dict(crown_d=0.050, lean_rate=60.0, wheel=None, level_pi=False, a_roll=
 # Mk2.1 (rl/hw_study.py): crown offset 90 mm (+80 mm width), 180 deg/s lean actuator, PI spine levelling
 HW_MK21 = dict(crown_d=0.090, lean_rate=180.0, wheel=None, level_pi=True, a_roll=4.0, cad="out21")
 ADR_FACTORS = ("terrain", "slope", "friction", "push", "wind", "payload", "actuator", "sensor", "speed")
+BASE = os.environ.get("GYRA_BASE", "classical")    # "model": the cascade with identified-model feedforward
 CMD_MIX = os.environ.get("GYRA_CMD", "operator")   # "nav": also the navigator's command sequences (training)
 TAU_PEND = 39.7                  # N m: pendulum gravity torque m g L at 90 deg (CAD)
 
@@ -425,7 +426,7 @@ class Loco2Env:
         self.last_a = np.zeros(N_ACT)
         self.prev_a = np.zeros(N_ACT)
         self.base_a = np.zeros(N_ACT)
-        self.ctrl = ClassicalController(DT, self.hw["lean_rate"])
+        self.ctrl = (ModelController if BASE == "model" else ClassicalController)(DT, self.hw["lean_rate"])
         self.lvl_i = 0.0
         self.a_queue = [np.zeros(N_ACT)] * 3
         self.bob_cmd = 0.0

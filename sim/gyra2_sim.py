@@ -117,6 +117,32 @@ class ClassicalController:
         return 0.5 * tau_sum - 0.5 * tau_diff, 0.5 * tau_sum + 0.5 * tau_diff, level, self.bob
 
 
+class ModelController(ClassicalController):
+    """The classical cascade with the feedforward of an identified longitudinal model (rl/stop_ctrl.py --identify):
+    the speed loop asks for the pendulum angle the reference's acceleration needs (static gain g_s: speed change per
+    step of a pendulum held at an angle) and the PI only corrects the rest; the inner loop adds the torque that holds
+    the pendulum at the wanted angle (k_g sin th), so the angle asked for is the angle reached. Without them a hard
+    stop needed ~1.3 m/s of speed error before the PI asked for the braking angle, and the base fought the brake."""
+
+    def __init__(self, dt, lean_rate_deg=60.0, k_g=-42.26, g_s=-0.04475):
+        super().__init__(dt, lean_rate_deg)
+        self.k_g, self.g_s = k_g, g_s
+
+    def __call__(self, g: Gyra2, s, v_cmd, w_cmd):
+        vc0 = getattr(self, "vc", 0.0)
+        tl, tr, level, bob = super().__call__(g, s, v_cmd, w_cmd)
+        tau_diff = tr - tl
+        lim = np.radians(80)
+        u = 0.9 * (self.vc - s["v"]) + 0.45 * self.iv
+        th_ff = (self.vc - vc0) / self.g_s                 # angle for the reference's speed change this step
+        th_max = np.radians(60)                            # beyond ~60 deg gravity no longer restores the pendulum
+        th_ref = _clamp(th_ff - _clamp(u, -lim, lim), -th_max, th_max)
+        pend = s["pitch"] + g.q("yoke")
+        pend_rate = s["pitch_rate"] + g.qd("yoke")
+        tau_sum = self.k_g * np.sin(th_ref) + 80 * (pend - th_ref) + 10 * pend_rate
+        return 0.5 * tau_sum - 0.5 * tau_diff, 0.5 * tau_sum + 0.5 * tau_diff, level, bob
+
+
 def run(cmd_fn, T, dt=0.02, **kw):
     g = Gyra2(**kw)
     c = ClassicalController(dt)
