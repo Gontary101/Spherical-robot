@@ -299,8 +299,42 @@ What was found, in order:
    Shaping the reference (critically damped, `GYRA_WREF`) does not remove it: zero-residual surge p95
    0.74 / 1.08 / 1.15 m/s at w_ref 4 / 6 / 8 against 0.35 for the classical base.
 
-What would make shorter stops pay off: a navigation-layer motion model with the pendulum state (the
-reach table already indexes it), so the filter predicts the lurch and the MPC stops smoothly instead
-of stepping; only then a faster low level. Tools: `rl/stop_ctrl.py` (`--identify`, `--sweep-cascade`,
+### Navigation-layer response model with the pendulum state (now the default)
+
+`rl/resp_model.py` identifies, per low level, the closed loop from command to rolling speed, pendulum
+angle and rate (linear, driven by the base controller's speed reference, which follows this layer's
+own commands and is therefore known) plus a yaw-rate lag, on navigator-like command sequences, fitted
+by output error over 1.5 s. Open-loop path prediction (p95, along-track / lateral):
+
+| low level | model | 0.5 s | 1.0 s | 1.5 s |
+|---|---|---|---|---|
+| loco31 | dead time + acceleration limit (before) | 0.22 / 0.11 m | 0.49 / 0.35 m | 0.64 / 0.62 m |
+| loco31 | response model | 0.10 / 0.08 m | 0.20 / 0.20 m | 0.29 / 0.37 m |
+| loco34 | dead time + acceleration limit | 0.31 / 0.13 m | 0.61 / 0.36 m | 0.75 / 0.62 m |
+| loco34 | response model | 0.13 / 0.10 m | 0.26 / 0.27 m | 0.42 / 0.44 m |
+
+The filter reacts with it (the lurch is in the predicted path), enters the braking tables at the
+model's pendulum angle when that is worse than the reach table's, and takes the model's own stop
+rollout as a further floor; the MPC rolls every candidate out with it; the error envelope is
+re-measured for its predictions (`GYRA_RESP=... rl/sysid_low.py --arcs-only`). Navigation (208
+episodes each, as-built sensors with lane cameras):
+
+| low level | model | held-out success / collisions / at fault | standard success / collisions / at fault |
+|---|---|---|---|
+| loco31 | before | 93.3 % / 1.9 % / 3 | 94.2 % / 0.5 % / 1 |
+| loco31 | response model | 92.3 % / 1.9 % / 0 | 93.8 % / 1.4 % / 0 |
+| loco32 | response model | 89.9 % / 1.9 % / 1 | |
+| loco34 | before | 81.2 % / 15.4 % / 28 | |
+| loco34 | response model | 85.1 % / 4.3 % / 7 | |
+
+With the deployed low level every remaining collision is a pedestrian walking into the robot: 4 ->
+0 at-fault collisions over 416 episodes at the same success, so it is the default (`GYRA_RESP=off`
+restores the dead-time model; `GYRA_RESP=<file>` with `GYRA_SYSID=<file>` selects another low
+level's). It removes most of the faster low level's penalty (loco34: collisions 15.4 -> 4.3 %), but
+not all: loco34 still rocks and chatters in tight rooms (yaw-rate reversals median 80 per timed-out
+episode vs 14), which is its own low-speed behaviour (turn tracking error 0.19 vs 0.13 rad/s on
+navigator-like commands), not the planner's - a pendulum-swing cost in the MPC (`MPC_KPEND`) did not
+change it (84.6 / 86.1 % at K 1 / 4). The faster stopper pays off only once it also manoeuvres as
+calmly as loco31 at low speed. Tools: `rl/stop_ctrl.py` (`--identify`, `--sweep-cascade`,
 `--nav-bench`, `GYRA_ZERO_RES=1` for the base alone), `rl/sysid_low.py --stops / --arcs-only` with
 `GYRA_LOW` / `GYRA_BASE`, results in `rl/runs/nav2/bench/heldout_lane_*.json`.

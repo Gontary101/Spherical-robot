@@ -29,7 +29,9 @@ class SafetyFilter:
     def __init__(self, robot_r, margin=float(os.environ.get("GYRA_MARGIN", 0.04)), period=0.1, sysid=None, dt=0.05, k_err=0.25, k_spin=0.04):
         self.r, self.margin, self.period, self.dt = robot_r, margin, period, dt
         self.k_err, self.k_spin = k_err, k_spin
-        sysid = sysid or os.environ.get("GYRA_SYSID") or os.path.join(ROOT, "rl/runs/nav2/bench/sysid.json")
+        from resp_model import DEFAULT_SYSID, configured
+        resp_path = configured()
+        sysid = sysid or os.environ.get("GYRA_SYSID") or (DEFAULT_SYSID if resp_path else os.path.join(ROOT, "rl/runs/nav2/bench/sysid.json"))
         S = json.load(open(sysid))
         self.bv, self.bd = np.array(S["brake_table"]["v"]), np.array(S["brake_table"]["d"])
         self.T2 = None
@@ -41,9 +43,9 @@ class SafetyFilter:
             Q = S["pend_reach"]                                                # reaction window (rl/sysid_low.py --reach)
             self.reach = (np.array(Q["pend_edges"]), np.array(Q["dv_edges"]), np.array(Q["table"]))
         self.resp = None
-        if os.environ.get("GYRA_RESP"):                             # closed-loop response with the pendulum state
+        if resp_path:                                               # closed-loop response with the pendulum state
             from resp_model import Response                         # (rl/resp_model.py): predicts the lurch
-            self.resp = Response(os.environ["GYRA_RESP"])
+            self.resp = Response(resp_path)
         R = S["response"]
         self.dead, self.a_fwd, self.a_rev, self.tau_w = R["dead"], R["a_fwd"], R["a_rev"], R["tau_w"]
         e = S["arc_error"]

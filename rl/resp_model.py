@@ -34,7 +34,16 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DT = 0.02
 V_SLEW, W_SLEW = 2.5, 1.5                       # the base controllers' reference slew limits (sim/gyra2_sim.py)
 FIELD = "field (rough, wind, payload; no pushes)"
-DEFAULT = os.path.join(ROOT, "rl/runs/nav2/bench/resp_model.json")
+DEFAULT = os.path.join(ROOT, "rl/runs/nav2/bench/resp_loco31.json")         # the deployed low level (loco31)
+DEFAULT_SYSID = os.path.join(ROOT, "rl/runs/nav2/bench/sysid_loco31_resp.json")  # its tables, error envelope of this model
+
+
+def configured():
+    """The response model the navigation layer uses: GYRA_RESP (a path, or "off" for the dead-time model), else the
+    deployed low level's. Held-out benchmark, 416 episodes over both seed sets: at-fault collisions 4 -> 0 at the
+    same success (93.8 / 92.3 % vs 94.2 / 93.3 %)."""
+    p = os.environ.get("GYRA_RESP", DEFAULT)
+    return None if p.lower() in ("off", "0", "none", "") else p
 
 
 def nav_commands(rng, n):
@@ -156,7 +165,7 @@ class Response:
     base controller's references vc, wc (the navigation layer knows them: they follow its own commands)."""
 
     def __init__(self, path=None):
-        path = path or os.environ.get("GYRA_RESP") or DEFAULT
+        path = path or configured() or DEFAULT
         M = json.load(open(path))
         self.A, self.B, self.c = np.array(M["A"]), np.array(M["B"]), np.array(M["c"])
         self.w_dead, self.aw = M["w_dead"], 1 - math.exp(-DT / M["w_tau"])

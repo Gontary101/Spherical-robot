@@ -82,9 +82,9 @@ class GeoMPC:
     def __init__(self, horizon=1.5, dt=0.1, deployable=False, v_max=2.5):
         self.h, self.dt, self.deployable = horizon, dt, deployable
         self.resp, self.resp_dt = None, 0.02
-        if os.environ.get("GYRA_RESP"):                         # rl/resp_model.py: rollouts with the pendulum state
-            from resp_model import Response
-            self.resp = Response(os.environ["GYRA_RESP"])
+        from resp_model import Response, configured             # rl/resp_model.py: rollouts with the pendulum state
+        if configured():
+            self.resp = Response(configured())
         self.reset()
         self.cand = CAND if v_max == 2.5 else np.array([(v, w) for v in np.arange(-0.5, v_max + 1e-9, 0.25) for w in WS])
 
