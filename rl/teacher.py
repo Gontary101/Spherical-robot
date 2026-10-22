@@ -33,6 +33,7 @@ RECOVERY = os.environ.get("MPC_RECOVERY", "1") == "1"
 # non-minimum-phase robot lurch, and the filter's corrections of the lurch rock it further
 K_PEND = float(os.environ.get("MPC_KPEND", 0.0))
 DEBUG = os.environ.get("MPC_DEBUG") == "1"
+DOOR = os.environ.get("MPC_DOOR", "0") == "1"          # stalled at a narrow passage: cross it on its axis (docs/12, P2)
 TIGHTEN = float(os.environ.get("MPC_TIGHTEN", 0.0))     # m of spare filter slack per m/s of speed (32-episode A/B: no gain)
 # Route-relative (Frenet) candidates: follow the planner's route - costmap-centred, so it runs straight through the
 # middle of a door - at a speed and a lateral offset, with pure-pursuit feedback INSIDE the rollout. A body-frame arc
@@ -97,6 +98,76 @@ class GeoMPC:
         self.progress = []                                      # (time, remaining route) - stall detection
         self.mode, self.mode_t, self.boost_until, self.n_rec = "drive", 0.0, -1.0, 0
 
+    def find_passage(self, env):
+        """Narrow passage on the route ahead (local map): the route point of least clearance within 1.5 m, if that
+        clearance leaves less than 0.15 m beyond the footprint. Its axis is the direction through it along which the
+        clearance stays largest (through a door: perpendicular to the wall). Stores the passage point N and unit axis
+        a (pointing along the route) in the local frame; returns True when found."""
+        ref = route_ref(env, n=40)
+        if ref is None:
+            return False
+        Q, T = ref
+        dist = np.linalg.norm(Q - env.loc[:2], axis=1)
+        sel = np.flatnonzero(dist < 1.5)
+        if len(sel) == 0:
+            return False
+        cl = env.lmap.clearance(Q[sel])
+        k = sel[int(np.argmin(cl))]
+        if cl.min() > env.robot_r + 0.15:
+            return False
+        N = Q[k]
+        th = np.linspace(0, np.pi, 36, endpoint=False)
+        D = np.c_[np.cos(th), np.sin(th)]
+        score = np.minimum(env.lmap.clearance(N + 0.5 * D), env.lmap.clearance(N - 0.5 * D))
+        ax = D[int(np.argmax(score))]
+        if ax @ T[k] < 0:
+            ax = -ax
+        # centre it: the route's point need not be the passage's middle (the planner's grid path ran 13 cm off-centre
+        # through a 1.0 m door, which leaves this footprint 5 cm a side) - slide across the axis to the most clearance
+        nrm = np.array([-ax[1], ax[0]])
+        off = np.linspace(-0.3, 0.3, 61)
+        N = N + nrm * off[int(np.argmax(env.lmap.clearance(N + off[:, None] * nrm)))]
+        self.door_N, self.door_ax = N, ax
+        return True
+
+    def door(self, env, t):
+        """Cross a narrow passage on its axis: settle the pendulum, go to the point 0.7 m before the passage on its
+        axis (crawl, turning toward it first), face along the axis, then cross straight at a crawl steering onto the
+        axis line, until 0.6 m past it. Any phase that takes too long hands back to normal driving."""
+        N, ax = self.door_N, self.door_ax
+        p, yaw = env.loc[:2], env.loc[2]
+        nrm = np.array([-ax[1], ax[0]])
+        if self.mode == "door_settle":
+            if t - self.mode_t > 0.8:
+                self.mode, self.mode_t = "door_approach", t
+            return np.array([0.0, 0.0])
+        if self.mode == "door_approach":
+            A = N - 0.7 * ax
+            d = A - p
+            if np.linalg.norm(d) < 0.12 or t - self.mode_t > 12.0:
+                self.mode, self.mode_t = "door_align", t
+                return np.array([0.0, 0.0])
+            want = math.atan2(d[1], d[0])
+            err = (want - yaw + math.pi) % (2 * math.pi) - math.pi
+            if abs(err) > math.pi / 2:                          # behind: reverse toward it rather than turn round
+                err = (err + math.pi + math.pi) % (2 * math.pi) - math.pi
+                return np.array([-0.1 if abs(err) < 0.4 else 0.0, float(np.clip(1.5 * err, -0.8, 0.8))])
+            return np.array([0.1 if abs(err) < 0.4 else 0.0, float(np.clip(1.5 * err, -0.8, 0.8))])
+        if self.mode == "door_align":
+            err = (math.atan2(ax[1], ax[0]) - yaw + math.pi) % (2 * math.pi) - math.pi
+            if abs(err) < math.radians(5) or t - self.mode_t > 5.0:
+                self.mode, self.mode_t = "door_cross", t
+            return np.array([0.0, float(np.clip(1.5 * err, -0.8, 0.8))])
+        if self.mode == "door_cross":
+            along, off = (p - N) @ ax, (p - N) @ nrm
+            if along > 0.6 or t - self.mode_t > 15.0:
+                self.mode, self.boost_until, self.progress = "drive", t + 3.0, []
+                return None
+            head = math.atan2(ax[1], ax[0]) - float(np.clip(1.5 * off, -0.5, 0.5))   # steer onto the axis line
+            err = (head - yaw + math.pi) % (2 * math.pi) - math.pi
+            return np.array([0.15 if abs(err) < 0.3 else 0.0, float(np.clip(2.0 * err, -0.6, 0.6))])
+        return None
+
     def recovery(self, env):
         """Stall recovery (as production stacks do): when the remaining route has not shrunk by 0.3 m in 8 s, back off
         0.5 m the way the robot came (space it has seen free), turn in place to face the planned path 1 m ahead, then
@@ -109,8 +180,12 @@ class GeoMPC:
         if self.mode == "drive":
             if t - self.progress[0][0] > 7.9 and self.progress[0][1] - g < 0.3 and g > 0.8:
                 self.mode, self.mode_t, self.n_rec = "settle", t, self.n_rec + 1
+                if DOOR and self.find_passage(env):                 # stalled at a narrow passage: cross it on its axis
+                    self.mode = "door_settle"
             else:
                 return None
+        if self.mode.startswith("door"):
+            return self.door(env, t)
         if self.mode == "settle":
             # let the pendulum come to rest first: commanding reverse while it still swings forward is non-minimum
             # phase (measured: -0.25 m/s commanded, +0.24 m/s actual for 0.8 s, into the wall)
