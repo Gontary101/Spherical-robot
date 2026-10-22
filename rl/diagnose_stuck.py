@@ -23,10 +23,26 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(__file__))
 from eval_nav2 import CALM, LOCO, SCEN  # noqa: E402
 from local_map import KNOWN_FREE, OCC_TH  # noqa: E402
-from nav2_env import Nav2Env  # noqa: E402
+from nav2_env import Nav2Env, _footprint  # noqa: E402
 from teacher import GeoMPC, grid_bilinear  # noqa: E402
 
 LOW = os.environ.get("GYRA_LOW") or os.path.join(os.path.dirname(__file__), "runs/loco31/best.pt")
+
+
+def poly_dist(P, polys):
+    """Exact distance from points (n, 2) to the nearest polygon (0 inside)."""
+    d = np.full(len(P), 1e9)
+    for poly in polys:
+        A, Bq = poly, np.roll(poly, -1, 0)
+        AB = Bq - A
+        t = np.clip(((P[:, None] - A[None]) * AB[None]).sum(-1) / (AB ** 2).sum(-1)[None], 0, 1)
+        dd = np.linalg.norm(P[:, None] - (A[None] + t[..., None] * AB[None]), axis=-1).min(1)
+        inside = np.ones(len(P), bool)
+        for j in range(len(poly)):
+            a, b = poly[j], poly[(j + 1) % len(poly)]
+            inside &= (b[0] - a[0]) * (P[:, 1] - a[1]) - (b[1] - a[1]) * (P[:, 0] - a[0]) >= -1e-9
+        d = np.minimum(d, np.where(inside, 0.0, dd))
+    return d
 
 
 def odo_to_world(env, q):
@@ -65,8 +81,10 @@ def analyse(env):
     if m.L[rr[j], cc[j]] <= OCC_TH:
         kind = "unknown"
     else:
-        tq = grid_bilinear(env, env.clear, odo_to_world(env, q)[None])[0]
-        kind = "ghost" if tq > 0.10 else "real"
+        # against the exact obstacle polygons: env.clear is a 0.1 m grid whose value at a wall surface is ~5 cm, which
+        # made every mapped wall cell look like a "ghost"
+        tq = poly_dist(odo_to_world(env, q)[None], [_footprint(o) for o in env.static_obs])[0]
+        kind = "ghost" if tq > 0.05 else "real"
     pw = odo_to_world(env, p)
     return dict(kind=kind, deficit=float(-M[i]), t_bind=float(ts[0, min(i, ts.shape[1] - 1)]), want=[float(want[0]), float(want[1])],
                 map_clear=float(d[j]), true_clear=float(grid_bilinear(env, env.clear, pw[None])[0]))
@@ -92,8 +110,22 @@ def run(args):
             # little: a recovery, or its own plan is to stand / turn)
             who = ("filter" if info.get("intervened") else
                    "navigator_recovery" if getattr(pol, "mode", "drive") != "drive" else "navigator")
-            out.append(analyse(env) | dict(scenario=scen, ep=ep, who=who, mode=str(getattr(pol, "mode", "")),
-                                           cmd=[float(x) for x in env.loco.cmd]))
+            rec = analyse(env) | dict(scenario=scen, ep=ep, who=who, mode=str(getattr(pol, "mode", "")),
+                                      cmd=[float(x) for x in env.loco.cmd])
+            g = getattr(pol, "dbg", None)
+            if g is not None and who == "navigator":
+                # the chosen candidate against the best admissible one that makes progress (geodesic cost lower than
+                # standing still's): which cost term made the navigator prefer what it did
+                C, i = g["C"], g["i"]
+                stand = int(np.argmin(np.abs(C[:, 0]) + np.abs(C[:, 1])))
+                prog = (g["geo"] < g["geo"][stand] - 0.05) & (g["ok"] if g["ok"] is not None else True)
+                if prog.any():
+                    j = np.flatnonzero(prog)[int(np.argmin(g["cost"][prog]))]
+                    rec["choice"] = {k: [float(g[k][i]), float(g[k][j])] for k in ("cost", "geo", "clr", "hit", "head", "track")}
+                    rec["choice"]["cmd"] = [C[i].round(2).tolist(), C[j].round(2).tolist()]
+                else:
+                    rec["choice"] = "no admissible progress"
+            out.append(rec)
     return out, dict(scenario=scen, ep=ep, success=bool(info["success"]), timeout=bool(info["timeout"]))
 
 
@@ -120,6 +152,13 @@ if __name__ == "__main__":
     print("who holds the robot:", dict(Counter(s.get("who", "?") for s in S)), " navigator modes:",
           dict(Counter(s.get("mode", "") for s in S)))
     print("blocking cause:", dict(Counter(s["kind"] for s in S)))
+    X = [s["choice"] for s in S if isinstance(s.get("choice"), dict)]
+    print("navigator samples:", len([s for s in S if "choice" in s]), " no admissible progress:",
+          sum(s.get("choice") == "no admissible progress" for s in S))
+    if X:
+        for k in ("cost", "geo", "clr", "hit", "head", "track"):
+            d = np.array([x[k][1] - x[k][0] for x in X])
+            print(f"  progress candidate minus chosen, {k:5s}: median {np.median(d):+.2f}  mean {d.mean():+.2f}")
     for k in ("unknown", "ghost", "real"):
         X = [s for s in S if s["kind"] == k]
         if X:

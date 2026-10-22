@@ -509,6 +509,7 @@ class Nav2Env:
         self.plan_free = self.plan_clear > self.robot_r + PLAN_MARGIN
         self.plan_clear0, self.plan_free0 = self.plan_clear, self.plan_free
         self.clear = clear
+        self.static_obs = obs                                # exact geometry, for diagnostics (clear is a 0.1 m grid)
         self.set_goal(np.array([self.gx[tuple(gi)], self.gy[tuple(gi)]]))
         self.static_specs = []
         for o in obs:

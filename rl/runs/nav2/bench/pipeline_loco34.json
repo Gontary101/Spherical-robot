@@ -1,0 +1,39 @@
+{
+ "name": "loco34",
+ "low": "rl/runs/loco34/final.pt",
+ "base": "model",
+ "resp": "rl/runs/nav2/bench/resp_loco34.json",
+ "sysid": "rl/runs/nav2/bench/sysid_loco34_pipe.json",
+ "env": {
+  "GYRA_BASE": "model",
+  "GYRA_SENSORS": "asbuilt_lane",
+  "GYRA_REACH": "1"
+ },
+ "validation": null,
+ "sets": {
+  "heldout": {
+   "file": "rl/runs/nav2/bench/pipe_loco34_heldout.json",
+   "episodes": 208,
+   "success": 0.8798076923076923,
+   "collisions": 0.07211538461538461,
+   "at_fault": 12,
+   "timeouts": 0.04807692307692308,
+   "falls": 0.0
+  },
+  "standard": {
+   "file": "rl/runs/nav2/bench/pipe_loco34_standard.json",
+   "episodes": 208,
+   "success": 0.9038461538461539,
+   "collisions": 0.02403846153846154,
+   "at_fault": 5,
+   "timeouts": 0.07211538461538461,
+   "falls": 0.0
+  }
+ },
+ "stages_s": {
+  "braking + reach tables": 68,
+  "error envelope": 51,
+  "heldout benchmark": 503,
+  "standard benchmark": 478
+ }
+}

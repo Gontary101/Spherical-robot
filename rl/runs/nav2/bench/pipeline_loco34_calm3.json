@@ -1,0 +1,38 @@
+{
+ "name": "loco34_calm3",
+ "low": "rl/runs/loco34/final.pt",
+ "base": "model",
+ "resp": "rl/runs/nav2/bench/resp_loco34.json",
+ "sysid": "rl/runs/nav2/bench/sysid_loco34_pipe.json",
+ "env": {
+  "FILTER_CALM": "3",
+  "GYRA_BASE": "model",
+  "GYRA_SENSORS": "asbuilt_lane",
+  "GYRA_REACH": "1"
+ },
+ "validation": null,
+ "sets": {
+  "heldout": {
+   "file": "rl/runs/nav2/bench/pipe_loco34_calm3_heldout.json",
+   "episodes": 208,
+   "success": 0.8798076923076923,
+   "collisions": 0.057692307692307696,
+   "at_fault": 10,
+   "timeouts": 0.0625,
+   "falls": 0.0
+  },
+  "standard": {
+   "file": "rl/runs/nav2/bench/pipe_loco34_calm3_standard.json",
+   "episodes": 208,
+   "success": 0.8798076923076923,
+   "collisions": 0.03365384615384615,
+   "at_fault": 6,
+   "timeouts": 0.08653846153846154,
+   "falls": 0.0
+  }
+ },
+ "stages_s": {
+  "heldout benchmark": 505,
+  "standard benchmark": 475
+ }
+}

@@ -20,7 +20,10 @@ import nav2_env as NE  # noqa: E402
 from nav2_env import GRID, V_RANGE, W_RANGE  # noqa: E402
 from sysid_low import A_FWD, A_REV, DEAD, TAU_W  # noqa: E402
 
-VS = np.linspace(-0.5, 2.5, 13)
+# crawl speeds (GYRA_CRAWL=1): the coarsest admissible forward speed was 0.25 m/s, whose worst-case stop plus reaction
+# needs ~0.3 m of guaranteed free path - in a 1.0 m door the robot was blocked by ~3 cm with nothing slower to try
+CRAWL = os.environ.get("GYRA_CRAWL", "0") == "1"
+VS = np.union1d(np.linspace(-0.5, 2.5, 13), [-0.1, -0.05, 0.05, 0.1]) if CRAWL else np.linspace(-0.5, 2.5, 13)
 WS = np.linspace(-2.0, 2.0, 17)
 CAND = np.array([(v, w) for v in VS for w in WS])
 K_HEAD, K_REV = float(os.environ.get("K_HEAD", 0.4)), float(os.environ.get("K_REV", 0.2))                                # m of route per unit heading misalignment / per m/s reverse
@@ -29,6 +32,7 @@ RECOVERY = os.environ.get("MPC_RECOVERY", "1") == "1"
 # m of route per rad^2 of mean predicted pendulum swing (needs GYRA_RESP): commands that rock the pendulum make this
 # non-minimum-phase robot lurch, and the filter's corrections of the lurch rock it further
 K_PEND = float(os.environ.get("MPC_KPEND", 0.0))
+DEBUG = os.environ.get("MPC_DEBUG") == "1"
 TIGHTEN = float(os.environ.get("MPC_TIGHTEN", 0.0))     # m of spare filter slack per m/s of speed (32-episode A/B: no gain)
 # Route-relative (Frenet) candidates: follow the planner's route - costmap-centred, so it runs straight through the
 # middle of a door - at a speed and a lateral offset, with pure-pursuit feedback INSIDE the rollout. A body-frame arc
@@ -256,6 +260,10 @@ class GeoMPC:
             if ok.any():
                 cost = np.where(ok, cost, cost + 1e3)
         i = int(np.argmin(cost))
+        if DEBUG:                                               # cost terms per candidate, for rl/diagnose_stuck.py
+            self.dbg = dict(C=C.copy(), cost=cost.copy(), geo=geo.copy(), clr=2.0 * clr_pen, hit=50.0 * hit,
+                            head=K_HEAD * head, track=K_PATH * track, i=i,
+                            ok=ok.copy() if (env.shield and env.filter is not None) else None)
         self.prev = C[i].copy()
         return C[i]
 

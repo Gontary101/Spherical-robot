@@ -65,6 +65,8 @@ class SafetyFilter:
                 self.lat_tab = np.c_[z, np.array(T["p95_lat"])]
                 self.al_tab = np.c_[z, np.array(T["p95_along"])]
         vs = np.linspace(-1.0, 3.5, 19)
+        if os.environ.get("GYRA_CRAWL", "0") == "1":                # crawl speeds for tight spots (rl/teacher.py)
+            vs = np.union1d(vs, [-0.1, -0.05, 0.05, 0.1])
         ws = np.linspace(-2.5, 2.5, 21)
         self.cand = np.array([(v, w) for v in vs for w in ws])
         self.resp_dt = 0.02
