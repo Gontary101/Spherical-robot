@@ -41,3 +41,4 @@ rl/runs/nav2/bench/sensors_*.log
 rl/runs/nav2/bench/sensors_DONE
 rl/runs/nav2/bench/*.log
 rl/runs/loco32/*
+rl/runs/loco33/*

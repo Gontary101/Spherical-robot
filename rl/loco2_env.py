@@ -538,6 +538,9 @@ class Loco2Env:
             track_v_fine=0.5 * math.exp(-ev ** 2 / 0.01),
             track_w_fine=0.5 * math.exp(-ew ** 2 / 0.01),
             hold_dist=0.5 * math.exp(-self.e_s ** 2 / 0.0025),
+            # the same along-track error at the scale of stopping distances: the 5 cm kernel above is flat (zero)
+            # for a stop that overruns by 0.3 m or by 1 m alike, so alone it gives no reason to brake harder
+            **({"hold_dist_coarse": 0.5 * math.exp(-self.e_s ** 2 / 0.25)} if CMD_MIX == "nav" else {}),
             hold_heading=0.5 * math.exp(-self.e_psi ** 2 / 0.0025),
             steady=0.25 * math.exp(-(t["pitch_rate"] ** 2 + t["roll_rate"] ** 2) / 0.25),
             tilt=-1.0 * t["pitch"] ** 2 - 0.5 * t["roll"] ** 2,          # level sensor platform in BOTH axes
