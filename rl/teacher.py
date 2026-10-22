@@ -33,7 +33,11 @@ RECOVERY = os.environ.get("MPC_RECOVERY", "1") == "1"
 # non-minimum-phase robot lurch, and the filter's corrections of the lurch rock it further
 K_PEND = float(os.environ.get("MPC_KPEND", 0.0))
 DEBUG = os.environ.get("MPC_DEBUG") == "1"
-DOOR = os.environ.get("MPC_DOOR", "0") == "1"          # stalled at a narrow passage: cross it on its axis (docs/12, P2)
+DOOR = os.environ.get("MPC_DOOR", "0") == "1"
+# people-aware rollouts (MPC_PED=1, docs/12 P4): half the simulated people never stop for the robot, and all remaining
+# collisions were people walking into a robot that only the filter kept from moving toward them - plan to yield
+PED_MPC = os.environ.get("MPC_PED", "0") == "1"
+PED_H, PED_WANT, K_PED = 1.5, 0.4, float(os.environ.get("MPC_KPED", 3.0))          # stalled at a narrow passage: cross it on its axis (docs/12, P2)
 TIGHTEN = float(os.environ.get("MPC_TIGHTEN", 0.0))     # m of spare filter slack per m/s of speed (32-episode A/B: no gain)
 # Route-relative (Frenet) candidates: follow the planner's route - costmap-centred, so it runs straight through the
 # middle of a door - at a speed and a lateral offset, with pure-pursuit feedback INSIDE the rollout. A body-frame arc
@@ -235,6 +239,8 @@ class GeoMPC:
         mid_k = int(round(self.h / self.dt / 2))
         step = 0
         mx = my = None
+        peds = (env.filter.peds if (PED_MPC and self.deployable and env.shield and env.filter is not None) else [])
+        ped_pen = np.zeros(N)
         RS, n_sub = None, 0
         pend_pen = np.zeros(N)
         if self.resp is not None and self.deployable:
@@ -277,6 +283,11 @@ class GeoMPC:
                     w = w + aw * (cmd[:, 1] - w)
                 th = th + w * self.dt
                 x, y = x + v * np.cos(th) * self.dt, y + v * np.sin(th) * self.dt
+            if peds:                                            # people-aware: keep clear of where each tracked
+                tp = min(k + self.dt, PED_H)                    # person will be (constant velocity, growing doubt)
+                for pp, pv in peds:
+                    dd = np.hypot(x - (pp[0] + pv[0] * tp), y - (pp[1] + pv[1] * tp)) - (env.robot_r + 0.25 + 0.2 * tp)
+                    ped_pen += np.maximum(0.0, PED_WANT - dd) ** 2
             if self.deployable:
                 c = np.minimum(env.lmap.clearance(np.c_[x, y]), 3.0) - env.robot_r
             else:
@@ -321,7 +332,7 @@ class GeoMPC:
         if ref is not None:
             head[nA:], track[nA:] = 0.0, 0.0                    # on the route by construction
             track[nA:] = 0.3 * FQ ** 2                          # prefer the route itself (the costmap's centre line)
-        cost = (geo + 2.0 * clr_pen + 50.0 * hit + K_PEND * pend_pen * self.dt / self.h + 0.05 * np.abs(C[:, 1]) + K_HEAD * head + K_REV * np.maximum(0.0, -C[:, 0])
+        cost = (geo + 2.0 * clr_pen + 50.0 * hit + K_PEND * pend_pen * self.dt / self.h + K_PED * ped_pen + 0.05 * np.abs(C[:, 1]) + K_HEAD * head + K_REV * np.maximum(0.0, -C[:, 0])
                 + K_PATH * (2.0 if env.d.time < self.boost_until else 1.0) * track
                 + 0.15 * np.abs(C[:, 1] - self.prev[1]) + 0.1 * np.abs(C[:, 0] - self.prev[0]))
         if env.shield and env.filter is not None:
