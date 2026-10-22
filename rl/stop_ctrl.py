@@ -292,14 +292,15 @@ if __name__ == "__main__":
     ap.add_argument("--bench", action="store_true")
     ap.add_argument("--sweep", action="store_true", help="a few weightings of the regulator")
     ap.add_argument("--sweep-cascade", action="store_true")
+    ap.add_argument("--policy-only", action="store_true", help="--sweep-cascade: only the low-level policy (GYRA_LOW)")
     ap.add_argument("--nav-bench", default=None, help="JSON list of StopCascade kwargs to compare with the policy on navigator-like commands")
     a = ap.parse_args()
     if a.identify:
         identify()
     if a.sweep_cascade:
         # (k_v, th_max, brake kp/kd, hold kp/kd, hold k_s, unused, observer gain) on flat field ground and an 8 deg slope
-        cfgs = [("policy", (0,) * 9, 0)] + [("cascade", (kv, 60.0, 130.0, 13.0, 60.0, 12.0, 2.0, 0.0, lo), 0)
-                                            for kv in (1.5, 2.0) for lo in (0.0, 0.03, 0.1)]
+        cfgs = [("policy", (0,) * 9, 0)] + ([] if a.policy_only else [("cascade", (kv, 60.0, 130.0, 13.0, 60.0, 12.0, 2.0, 0.0, lo), 0)
+                                                                for kv in (1.5, 2.0) for lo in (0.0, 0.03, 0.1)])
         conds = (FIELD, "downhill 8 deg")
         with mp.get_context("fork").Pool(4) as pool:
             R = pool.map(bench_run, [(m, s_, 40, q, r_, c) for m, q, r_ in cfgs for s_ in (31, 32, 33) for c in conds])
