@@ -1,0 +1,39 @@
+{
+ "name": "loco31_crawl_door",
+ "low": "rl/runs/loco31/best.pt",
+ "base": "classical",
+ "resp": "rl/runs/nav2/bench/resp_loco31.json",
+ "sysid": "rl/runs/nav2/bench/sysid_loco31_pipe.json",
+ "env": {
+  "MPC_DOOR": "1",
+  "GYRA_CRAWL": "1",
+  "GYRA_BASE": "classical",
+  "GYRA_SENSORS": "asbuilt_lane",
+  "GYRA_REACH": "1"
+ },
+ "validation": null,
+ "sets": {
+  "heldout": {
+   "file": "rl/runs/nav2/bench/pipe_loco31_crawl_door_heldout.json",
+   "episodes": 208,
+   "success": 0.9471153846153846,
+   "collisions": 0.02403846153846154,
+   "at_fault": 2,
+   "timeouts": 0.028846153846153848,
+   "falls": 0.0
+  },
+  "standard": {
+   "file": "rl/runs/nav2/bench/pipe_loco31_crawl_door_standard.json",
+   "episodes": 208,
+   "success": 0.9567307692307693,
+   "collisions": 0.014423076923076924,
+   "at_fault": 0,
+   "timeouts": 0.028846153846153848,
+   "falls": 0.0
+  }
+ },
+ "stages_s": {
+  "heldout benchmark": 443,
+  "standard benchmark": 453
+ }
+}

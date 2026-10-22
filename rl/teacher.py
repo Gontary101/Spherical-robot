@@ -144,6 +144,8 @@ class GeoMPC:
         if self.mode == "door_settle":
             if t - self.mode_t > 0.8:
                 self.mode, self.mode_t = "door_approach", t
+                d = N - 0.7 * ax - p                             # forward or reverse, decided once: flipping between
+                self.door_dir = 1.0 if d @ np.array([math.cos(yaw), math.sin(yaw)]) >= 0 else -1.0   # them lurches
             return np.array([0.0, 0.0])
         if self.mode == "door_approach":
             A = N - 0.7 * ax
@@ -151,12 +153,10 @@ class GeoMPC:
             if np.linalg.norm(d) < 0.12 or t - self.mode_t > 12.0:
                 self.mode, self.mode_t = "door_align", t
                 return np.array([0.0, 0.0])
-            want = math.atan2(d[1], d[0])
+            sd = self.door_dir
+            want = math.atan2(sd * d[1], sd * d[0])             # reversing: the tail points at the target
             err = (want - yaw + math.pi) % (2 * math.pi) - math.pi
-            if abs(err) > math.pi / 2:                          # behind: reverse toward it rather than turn round
-                err = (err + math.pi + math.pi) % (2 * math.pi) - math.pi
-                return np.array([-0.1 if abs(err) < 0.4 else 0.0, float(np.clip(1.5 * err, -0.8, 0.8))])
-            return np.array([0.1 if abs(err) < 0.4 else 0.0, float(np.clip(1.5 * err, -0.8, 0.8))])
+            return np.array([sd * 0.1 if abs(err) < 0.4 else 0.0, float(np.clip(1.5 * err, -0.8, 0.8))])
         if self.mode == "door_align":
             err = (math.atan2(ax[1], ax[0]) - yaw + math.pi) % (2 * math.pi) - math.pi
             if abs(err) < math.radians(5) or t - self.mode_t > 5.0:
