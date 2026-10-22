@@ -26,7 +26,7 @@ from local_map import KNOWN_FREE, OCC_TH  # noqa: E402
 from nav2_env import Nav2Env  # noqa: E402
 from teacher import GeoMPC, grid_bilinear  # noqa: E402
 
-LOW = os.path.join(os.path.dirname(__file__), "runs/loco31/best.pt")
+LOW = os.environ.get("GYRA_LOW") or os.path.join(os.path.dirname(__file__), "runs/loco31/best.pt")
 
 
 def odo_to_world(env, q):
@@ -73,19 +73,27 @@ def analyse(env):
 
 
 def run(args):
-    scen, ep = args
-    env = Nav2Env(seed=70000 + ep, low_ckpt=LOW, level=0.8, adaptive=False, scenario={"nav": CALM | SCEN[scen], "loco": LOCO},
-                  shield=True)
+    scen, ep = args[:2]
+    seed0, deployable = (args[2], True) if len(args) > 2 else (0, False)
+    env = Nav2Env(seed=70000 + seed0 + ep, low_ckpt=LOW, level=0.8, adaptive=False,
+                  scenario={"nav": CALM | SCEN[scen], "loco": LOCO}, shield=True)
     oa, _ = env.reset()
-    pol = GeoMPC()
+    pol = GeoMPC(deployable=deployable)
     geo, out = [], []
     while True:
-        (oa, _), _, done, info = env.step(pol(oa, env))
+        a = pol(oa, env)
+        req = env.loco.cmd.copy()
+        (oa, _), _, done, info = env.step(a)
         geo.append(env.geo_prev)
         if done:
             break
         if len(geo) > 50 and env.steps % 25 == 0 and geo[-50] - geo[-1] < 0.2:
-            out.append(analyse(env) | dict(scenario=scen, ep=ep))
+            # who holds the robot: the filter (it corrected the navigator's request) or the navigator (it asked for
+            # little: a recovery, or its own plan is to stand / turn)
+            who = ("filter" if info.get("intervened") else
+                   "navigator_recovery" if getattr(pol, "mode", "drive") != "drive" else "navigator")
+            out.append(analyse(env) | dict(scenario=scen, ep=ep, who=who, mode=str(getattr(pol, "mode", "")),
+                                           cmd=[float(x) for x in env.loco.cmd]))
     return out, dict(scenario=scen, ep=ep, success=bool(info["success"]), timeout=bool(info["timeout"]))
 
 
@@ -93,13 +101,24 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("scenarios", nargs="*", default=["rooms, 1.0 m doors", "mixed"])
     ap.add_argument("--episodes", type=int, default=16)
+    ap.add_argument("--from", dest="src", default=None,
+                    help="a pipeline benchmark file (rl/runs/nav2/bench/pipe_*_<set>.json): rerun its timeouts with the "
+                         "deployable navigator (seed set from the file name)")
     a = ap.parse_args()
+    if a.src:
+        import json
+        seed0 = 100 if "heldout" in a.src else 0
+        jobs = [(e["scenario"], e["ep"], seed0) for e in json.load(open(a.src)) if e.get("failure") == "timeout"]
+    else:
+        jobs = [(s, e) for s in a.scenarios for e in range(a.episodes)]
     with mp.get_context("fork").Pool(4) as pool:
-        R = pool.map(run, [(s, e) for s in a.scenarios for e in range(a.episodes)], chunksize=1)
+        R = pool.map(run, jobs, chunksize=1)
     S = sum((r[0] for r in R), [])
     E = [r[1] for r in R]
     print(f"episodes {len(E)}: success {np.mean([e['success'] for e in E]):.0%}, timeouts {np.mean([e['timeout'] for e in E]):.0%}; "
           f"stalled samples {len(S)}")
+    print("who holds the robot:", dict(Counter(s.get("who", "?") for s in S)), " navigator modes:",
+          dict(Counter(s.get("mode", "") for s in S)))
     print("blocking cause:", dict(Counter(s["kind"] for s in S)))
     for k in ("unknown", "ghost", "real"):
         X = [s for s in S if s["kind"] == k]
