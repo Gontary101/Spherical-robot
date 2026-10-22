@@ -170,6 +170,7 @@ class Response:
         self.A, self.B, self.c = np.array(M["A"]), np.array(M["B"]), np.array(M["c"])
         self.w_dead, self.aw = M["w_dead"], 1 - math.exp(-DT / M["w_tau"])
         self.v_slew, self.w_slew = M["v_slew"], M["w_slew"]
+        self.adapter = None
 
     def step(self, S, cmd):
         """S: dict of arrays v, pend, rate, w, vc, wc (modified in place); cmd: (N, 2). One 0.02 s step."""
@@ -180,6 +181,8 @@ class Response:
         x = np.stack([S["v"], S["pend"], S["rate"]], 0)
         u = np.stack([S["vc"], ac], 0)
         xn = self.A @ x + self.B @ u + self.c[:, None]
+        if self.adapter is not None:                     # online correction (slope, wind, payload, friction, wear)
+            xn[:2] += self.adapter.theta @ np.stack([np.ones_like(S["vc"]), S["vc"], ac], 0)
         S["v"], S["pend"], S["rate"] = xn[0], xn[1], xn[2]
         # yaw: the reference w_dead steps ago (a short queue of past references per candidate), through the lag
         q = S.setdefault("wq", [])
@@ -187,6 +190,62 @@ class Response:
         ref = q.pop(0) if len(q) > self.w_dead else S.get("w0", S["w"])
         S["w"] = S["w"] + self.aw * (ref - S["w"])
         return S
+
+
+class Adapter:
+    """Online correction of the identified model (docs/12, P6): recursive least squares with forgetting on what the
+    model gets wrong one step ahead, for the speed and pendulum rows only, with regressor [1, vc, ac] - a constant
+    (slope, wind, an off-centre payload) and the gains of the speed reference and its acceleration (payload, friction,
+    motor wear). The identified model stays the prior: the correction starts at zero, is regularised toward it and
+    clipped, so a short burst of odd data cannot take the prediction far from what was validated."""
+
+    def __init__(self, model, lam=0.995, p0=1e-3, clip=(0.01, 0.01, 0.002)):
+        self.m, self.lam = model, lam
+        self.theta = np.zeros((2, 3))
+        self.P = np.stack([np.eye(3) * p0] * 2)
+        self.clip = np.array(clip)
+        self.n = 0
+
+    def update(self, x, vc, ac, x_next):
+        """x = [v, pend, rate] before the step, vc / ac the base controller's reference and its acceleration over it,
+        x_next the measured state after it."""
+        m = self.m
+        pred = m.A @ x + m.B @ np.array([vc, ac]) + m.c
+        phi = np.array([1.0, vc, ac])
+        for i in range(2):
+            e = x_next[i] - pred[i] - self.theta[i] @ phi
+            P = self.P[i]
+            k = P @ phi / (self.lam + phi @ P @ phi)
+            self.theta[i] = np.clip(self.theta[i] + k * e, -self.clip, self.clip)
+            self.P[i] = (P - np.outer(k, phi @ P)) / self.lam
+        self.n += 1
+
+
+def validate_adaptive(D, R, K=50, every=25):
+    """Causal check under a condition: walk through the log updating the adapter; every `every` steps predict K steps
+    ahead with the fixed and with the adapted model (correction frozen at that moment). Along-track error p50 / p95."""
+    ad = Adapter(R)
+    errs = {"fixed": [], "adapted": []}
+    for i in range(1, len(D) - K):
+        if D[i, 0] != D[i - 1, 0]:
+            ad = Adapter(R)                                   # new run: start from the prior again
+            continue
+        ad.update(D[i, 1:4], D[i, 5], D[i, 6], D[i, 8:11])
+        if i % every or ad.n < 100 or not (D[i:i + K + 1, 0] == D[i, 0]).all():
+            continue
+        x0 = D[i + 1, 1:4]
+        true = np.sum(D[i + 1:i + 1 + K, 8] * DT)
+        for name, use in (("fixed", None), ("adapted", ad)):
+            R.adapter = use
+            S = dict(v=x0[0:1].copy(), pend=x0[1:2].copy(), rate=x0[2:3].copy(), w=np.zeros(1),
+                     vc=np.array([D[i, 5]]), wc=np.zeros(1))
+            dist = 0.0
+            for k in range(K):
+                R.step(S, D[i + 1 + k, 12:14][None])
+                dist += S["v"][0] * DT
+            errs[name].append(abs(dist - true))
+    R.adapter = None
+    return {k: (float(np.median(v)), float(np.percentile(v, 95)), len(v)) for k, v in errs.items() if v}
 
 
 def deadtime_paths(D, i0, K):
@@ -256,6 +315,7 @@ if __name__ == "__main__":
     ap.add_argument("--identify", action="store_true")
     ap.add_argument("--validate", action="store_true")
     ap.add_argument("--out", default=DEFAULT)
+    ap.add_argument("--adapt-test", action="store_true", help="online adaptation under conditions never identified")
     a = ap.parse_args()
     if a.identify:
         D = gather(range(4))
@@ -265,6 +325,19 @@ if __name__ == "__main__":
         json.dump(M, open(a.out, "w"), indent=1)
         print(f"{M['samples']} transitions; output-error cost {M['output_error_fit']['cost0']:.1f} -> {M['output_error_fit']['cost']:.1f}; "
               f"yaw: slew {M['w_slew']:.3g}, dead {M['w_dead'] * DT:.2f} s, lag {M['w_tau']:.2f} s; eig A {np.round(np.abs(np.linalg.eigvals(np.array(M['A']))), 3).tolist()}")
+    if a.adapt_test:
+        import sysid_low as SI
+        R = Response(a.out)
+        for cond in ("nominal", FIELD, "downhill 8 deg", "uphill 8 deg", "ice mu 0.3", "payload 10 kg"):
+            with mp.get_context("fork").Pool(4) as pool:
+                Dc = pool.map(collect, [(200 + s, 600, cond) for s in range(4)])
+            D = []
+            for j, (d, _) in enumerate(Dc):
+                d[:, 0] += 10000 * j
+                D.append(d)
+            r = validate_adaptive(np.concatenate(D), R)
+            print(f"{cond:42s} 1.0 s along-track error p50 / p95: fixed {r['fixed'][0]:.3f} / {r['fixed'][1]:.3f} m, "
+                  f"adapted {r['adapted'][0]:.3f} / {r['adapted'][1]:.3f} m  ({r['fixed'][2]} predictions)")
     if a.validate:
         D = gather(range(100, 102))
         V = validate(D, Response(a.out))
