@@ -26,6 +26,9 @@ CAND = np.array([(v, w) for v in VS for w in WS])
 K_HEAD, K_REV = float(os.environ.get("K_HEAD", 0.4)), float(os.environ.get("K_REV", 0.2))                                # m of route per unit heading misalignment / per m/s reverse
 K_PATH = float(os.environ.get("K_PATH", 1.5))            # m of route per m^2 of cross-track error (mid + end)
 RECOVERY = os.environ.get("MPC_RECOVERY", "1") == "1"
+# m of route per rad^2 of mean predicted pendulum swing (needs GYRA_RESP): commands that rock the pendulum make this
+# non-minimum-phase robot lurch, and the filter's corrections of the lurch rock it further
+K_PEND = float(os.environ.get("MPC_KPEND", 0.0))
 TIGHTEN = float(os.environ.get("MPC_TIGHTEN", 0.0))     # m of spare filter slack per m/s of speed (32-episode A/B: no gain)
 # Route-relative (Frenet) candidates: follow the planner's route - costmap-centred, so it runs straight through the
 # middle of a door - at a speed and a lateral offset, with pure-pursuit feedback INSIDE the rollout. A body-frame arc
@@ -154,6 +157,7 @@ class GeoMPC:
         step = 0
         mx = my = None
         RS, n_sub = None, 0
+        pend_pen = np.zeros(N)
         if self.resp is not None and self.deployable:
             rs = env._resp_state()
             RS = dict(v=v.copy(), pend=np.full(N, rs["pend"]), rate=np.full(N, rs["rate"]), w=w.copy(),
@@ -186,6 +190,7 @@ class GeoMPC:
                     th = th + RS["w"] * self.resp_dt
                     x, y = x + RS["v"] * np.cos(th) * self.resp_dt, y + RS["v"] * np.sin(th) * self.resp_dt
                 v, w = RS["v"], RS["w"]
+                pend_pen += RS["pend"] ** 2
             else:
                 if k >= DEAD:
                     acc = np.where((cmd[:, 0] < v) & (v <= 0.0), A_REV, A_FWD)
@@ -237,7 +242,7 @@ class GeoMPC:
         if ref is not None:
             head[nA:], track[nA:] = 0.0, 0.0                    # on the route by construction
             track[nA:] = 0.3 * FQ ** 2                          # prefer the route itself (the costmap's centre line)
-        cost = (geo + 2.0 * clr_pen + 50.0 * hit + 0.05 * np.abs(C[:, 1]) + K_HEAD * head + K_REV * np.maximum(0.0, -C[:, 0])
+        cost = (geo + 2.0 * clr_pen + 50.0 * hit + K_PEND * pend_pen * self.dt / self.h + 0.05 * np.abs(C[:, 1]) + K_HEAD * head + K_REV * np.maximum(0.0, -C[:, 0])
                 + K_PATH * (2.0 if env.d.time < self.boost_until else 1.0) * track
                 + 0.15 * np.abs(C[:, 1] - self.prev[1]) + 0.1 * np.abs(C[:, 0] - self.prev[0]))
         if env.shield and env.filter is not None:
