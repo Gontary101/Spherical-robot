@@ -65,6 +65,7 @@ HW_MK2 = dict(crown_d=0.050, lean_rate=60.0, wheel=None, level_pi=False, a_roll=
 HW_MK21 = dict(crown_d=0.090, lean_rate=180.0, wheel=None, level_pi=True, a_roll=4.0, cad="out21")
 ADR_FACTORS = ("terrain", "slope", "friction", "push", "wind", "payload", "actuator", "sensor", "speed")
 BASE = os.environ.get("GYRA_BASE", "classical")    # "model": the cascade with identified-model feedforward
+W_REF = float(os.environ["GYRA_WREF"]) if os.environ.get("GYRA_WREF") else None   # its reference bandwidth (rad/s)
 CMD_MIX = os.environ.get("GYRA_CMD", "operator")   # "nav": also the navigator's command sequences (training)
 TAU_PEND = 39.7                  # N m: pendulum gravity torque m g L at 90 deg (CAD)
 
@@ -426,7 +427,8 @@ class Loco2Env:
         self.last_a = np.zeros(N_ACT)
         self.prev_a = np.zeros(N_ACT)
         self.base_a = np.zeros(N_ACT)
-        self.ctrl = (ModelController if BASE == "model" else ClassicalController)(DT, self.hw["lean_rate"])
+        self.ctrl = (ModelController(DT, self.hw["lean_rate"], w_ref=W_REF) if BASE == "model"
+                     else ClassicalController(DT, self.hw["lean_rate"]))
         self.lvl_i = 0.0
         self.a_queue = [np.zeros(N_ACT)] * 3
         self.bob_cmd = 0.0

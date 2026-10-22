@@ -37,6 +37,7 @@ def excite(args):
     import sysid_low as SI
     from nav2_env import LowLevel
     low = LowLevel(SI.LOW)
+    act = lambda o: low(o)[0]
     r = np.random.default_rng(seed)
     e = SI.env_for(cond, seed)
     oa, _ = e.reset()
@@ -46,7 +47,7 @@ def excite(args):
         for k in range(int(r.uniform(0.5, 2.0) / DT)):
             e.long_ctrl = None
             e.cmd = np.array([v_a, r.uniform(-0.3, 0.3)])
-            (oa, _), *_ = e.step(low(oa)[0])
+            (oa, _), *_ = e.step(act(oa))
         amp = r.uniform(10.0, 40.0)
         prbs = {"u": 0.0, "k": 0}
 
@@ -60,7 +61,7 @@ def excite(args):
         e.cmd = np.array([r.uniform(-0.3, 0.8), 0.0])
         for k in range(int(1.5 / DT)):
             t0 = e._truth()
-            (oa, _), *_ = e.step(low(oa)[0])
+            (oa, _), *_ = e.step(act(oa))
             t1 = e._truth()
             rows.append([t0["v"], t0["pend"], t0["pend_rate"], e.diag["tauL"] + e.diag["tauR"], t1["v"], t1["pend"], t1["pend_rate"]])
             if abs(t1["pend"]) > 1.4:
@@ -204,6 +205,7 @@ def bench_run(args):
     import sysid_low as SI
     from nav2_env import LowLevel
     low = LowLevel(SI.LOW)
+    act = (lambda o: np.zeros(3)) if os.environ.get("GYRA_ZERO_RES") == "1" else (lambda o: low(o)[0])
     rng = np.random.default_rng(seed)
     e = SI.env_for(cond, seed)
     oa, _ = e.reset()
@@ -215,7 +217,7 @@ def bench_run(args):
         v_a = rng.uniform(-0.5, 3.0)
         for k in range(int(rng.uniform(0.3, 2.5) / DT)):
             e.cmd = np.array([v_a, rng.uniform(-0.3, 0.3)])
-            (oa, _), *_ = e.step(low(oa)[0])
+            (oa, _), *_ = e.step(act(oa))
         t = e._truth()
         v0, th0 = t["v"], t["pend"]
         p0 = e.d.qpos[0:2].copy()
@@ -225,7 +227,7 @@ def bench_run(args):
         k_stop, d_stop, pk = None, None, 0.0
         for k in range(int(4.0 / DT)):
             e.cmd = np.zeros(2)
-            (oa, _), *_ = e.step(low(oa)[0])
+            (oa, _), *_ = e.step(act(oa))
             tt = e._truth()
             pk = max(pk, abs(tt["pend"]))
             if k_stop is None and abs(tt["v"]) < 0.05 and k > 5:
@@ -249,6 +251,7 @@ def nav_run(args):
     import sysid_low as SI
     from nav2_env import LowLevel
     low = LowLevel(SI.LOW)
+    act = (lambda o: np.zeros(3)) if os.environ.get("GYRA_ZERO_RES") == "1" else (lambda o: low(o)[0])
     rng = np.random.default_rng(seed)
     e = SI.env_for(cond, seed)
     e.long_ctrl = (StopCascade(**q) if mode == "cascade" else None)
@@ -262,7 +265,7 @@ def nav_run(args):
         fwd0, vmax = t0["fwd"][:2].copy(), 0.0
         for k in range(int(rng.integers(1, 6)) * 5):
             e.cmd = np.array([v_c, w_c])
-            (oa, _), *_ = e.step(low(oa)[0])
+            (oa, _), *_ = e.step(act(oa))
             t = e._truth()
             if v_c == 0.0:
                 vmax = max(vmax, sv * t["v"])

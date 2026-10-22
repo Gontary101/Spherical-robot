@@ -86,6 +86,11 @@ class ClassicalController:
         self.iw = 0.0
         self.bob = 0.0
 
+    def _speed_ref(self, v_cmd):
+        """Speed reference: the command, slew-limited to 2.5 m/s^2."""
+        self.vc = getattr(self, "vc", 0.0)
+        self.vc += _clamp(v_cmd - self.vc, -2.5 * self.dt, 2.5 * self.dt)
+
     def __call__(self, g: Gyra2, s, v_cmd, w_cmd):
         # command shaping: limit yaw-rate command slew and lateral acceleration (tip-over bound)
         a_lat_max = 3.8
@@ -93,8 +98,7 @@ class ClassicalController:
         w_cmd = _clamp(w_cmd, -w_lim, w_lim)
         self.wc = getattr(self, "wc", 0.0)
         self.wc += _clamp(w_cmd - self.wc, -1.5 * self.dt, 1.5 * self.dt)
-        self.vc = getattr(self, "vc", 0.0)
-        self.vc += _clamp(v_cmd - self.vc, -2.5 * self.dt, 2.5 * self.dt)
+        self._speed_ref(v_cmd)
         e = self.vc - s["v"]
         lim = np.radians(80)
         u = 0.9 * e + 0.45 * self.iv
@@ -122,19 +126,40 @@ class ModelController(ClassicalController):
     the speed loop asks for the pendulum angle the reference's acceleration needs (static gain g_s: speed change per
     step of a pendulum held at an angle) and the PI only corrects the rest; the inner loop adds the torque that holds
     the pendulum at the wanted angle (k_g sin th), so the angle asked for is the angle reached. Without them a hard
-    stop needed ~1.3 m/s of speed error before the PI asked for the braking angle, and the base fought the brake."""
+    stop needed ~1.3 m/s of speed error before the PI asked for the braking angle, and the base fought the brake.
 
-    def __init__(self, dt, lean_rate_deg=60.0, k_g=-42.26, g_s=-0.04475):
+    Feedforward is only right for a reference the pendulum can follow. A slew-limited step asks for the full braking
+    angle at once, which the pendulum reaches ~0.3 s late, so every small command step overshot - and against the
+    safety filter's 0.25 m/s command steps the loop rocked. The reference is therefore a critically damped second-
+    order response to the command (natural frequency w_ref, acceleration capped at a_max): small steps ask for small
+    angles, a stop from v takes ~2 v / w_ref metres. Measured on navigator-like command sequences (rl/stop_ctrl.py
+    --nav-bench, zero residual), the post-stop surge still grows with braking authority (p95 0.74 / 1.08 / 1.15 m/s at
+    w_ref 4 / 6 / 8 against 0.35 for the classical base): the sphere is non-minimum phase - swinging the pendulum
+    forward to brake first drives the shell forward - so harder braking means a bigger lurch toward what it stops for.
+    w_ref=None keeps the slew-limited reference."""
+
+    def __init__(self, dt, lean_rate_deg=60.0, k_g=-42.26, g_s=-0.04475, w_ref=None, a_max=2.5):
         super().__init__(dt, lean_rate_deg)
-        self.k_g, self.g_s = k_g, g_s
+        self.k_g, self.g_s, self.w_ref, self.a_max = k_g, g_s, w_ref, a_max
+        self.vc, self.ac = 0.0, 0.0
+
+    def _speed_ref(self, v_cmd):
+        if self.w_ref is None:                             # slew-limited reference, as loco34 was trained
+            vc0 = self.vc
+            super()._speed_ref(v_cmd)
+            self.ac = (self.vc - vc0) / self.dt
+            return
+        w = self.w_ref
+        self.ac += (w * w * (v_cmd - self.vc) - 2.0 * w * self.ac) * self.dt
+        self.ac = _clamp(self.ac, -self.a_max, self.a_max)
+        self.vc += self.ac * self.dt
 
     def __call__(self, g: Gyra2, s, v_cmd, w_cmd):
-        vc0 = getattr(self, "vc", 0.0)
         tl, tr, level, bob = super().__call__(g, s, v_cmd, w_cmd)
         tau_diff = tr - tl
         lim = np.radians(80)
         u = 0.9 * (self.vc - s["v"]) + 0.45 * self.iv
-        th_ff = (self.vc - vc0) / self.g_s                 # angle for the reference's speed change this step
+        th_ff = self.ac * self.dt / self.g_s              # angle for the reference's speed change this step
         th_max = np.radians(60)                            # beyond ~60 deg gravity no longer restores the pendulum
         th_ref = _clamp(th_ff - _clamp(u, -lim, lim), -th_max, th_max)
         pend = s["pitch"] + g.q("yoke")

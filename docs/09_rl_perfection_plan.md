@@ -247,3 +247,60 @@ The repository copy is a two-pass 1.7 Mbit/s encode to stay under GitHub's 100 M
 limit. Fonts: Poppins (upright weights only), DejaVu Sans as fallback for Greek symbols.
 High-quality (1080p or 4K, every frame, GPU) rendering: [10_render_film_tutorial.md](10_render_film_tutorial.md).
 
+
+## Low-level stopping study
+
+Question: the learned low level (loco31) stops in 0.75 m per m/s (median; p95 1.51, worst 2.77) and
+creeps 0.26 m afterwards. Can a shorter stop make navigation safer? Answer so far: **no** - every
+variant that stops shorter navigates worse, because this robot is non-minimum phase. The deployed
+stack is unchanged (loco31, classical base, `GYRA_STOPCTRL=0`); everything below is opt-in.
+
+Stops from field states (`rl/stop_ctrl.py --sweep-cascade [--policy-only]`, 120 stops, rough ground /
+wind / payload) and on navigator-like command sequences (`--nav-bench`: the MPC's candidate speeds held
+0.1-0.5 s, a third of them stops):
+
+| low level | field stop, m per m/s (p50 / p95 / max) | creep p95 | post-stop surge p95 | yaw-rate error p50 |
+|---|---|---|---|---|
+| loco31 (deployed) | 0.75 / 1.51 / 2.77 | 0.26 m | 0.53 m/s | 0.13 rad/s |
+| loco31 + external stop controller (`StopCascade`) | 0.45 / 0.77 / 0.91 | 0.04 m | 1.14 m/s | 0.26 rad/s |
+| loco32: fine-tuned on the navigator command mix (`GYRA_CMD=nav`) | 0.74 / 1.30 / 1.69 | 0.14 m | 0.49 m/s | 0.12 rad/s |
+| loco34: base with model feedforward (`GYRA_BASE=model`) + fine-tune | 0.47 / 0.87 / 1.42 | 0.40 m | 0.89 m/s | 0.19 rad/s |
+
+Held-out navigation (`GYRA_SEED0=100`, as-built sensors with lane cameras, 208 episodes; each low
+level with its own re-identified braking, reach and path-error tables):
+
+| low level | success | collisions | at fault | timeouts |
+|---|---|---|---|---|
+| loco31 | 93.3 % | 1.9 % | 3 | 4.8 % |
+| loco31 + stop controller (before bumpless hand-back and steering priority) | 78.8 % | 16.8 % | 31 | 3.8 % |
+| loco32 | 89.9 % | 3.8 % | 1 (7 pedestrians walking into it) | 6.3 % |
+| loco34 | 81.2 % | 15.4 % | 28 | 3.4 % |
+
+What was found, in order:
+
+1. **The classical base fights hard stops.** Its speed loop slews the reference at 2.5 m/s^2 but has
+   no feedforward of the pendulum angle that deceleration needs (~64 deg); the PI asks for it only at
+   ~1.3 m/s of error. Stopping from 2 m/s the policy's residual sat at its -60 N m limit while the
+   base pushed back with +30..+54 N m. `ModelController` (`sim/gyra2_sim.py`) adds the identified
+   model's feedforward (angle for the reference's acceleration, torque that holds the pendulum there,
+   60 deg cap): the base alone stops in 0.26 / 1.04 / 2.52 m from 1 / 2 / 3 m/s (classical 0.49 /
+   1.75 / 3.69), downhill 8 deg 0.58 / 1.82 / 3.19 (0.92 / 2.72 / 4.29).
+2. **An external stop controller fights the policy.** Taking over the common drive torque during
+   stops (`StopCascade`: pendulum-capped braking cascade, disturbance observer, equilibrium
+   feedforward, bumpless hand-back, steering priority) stops best in isolation but halves turn
+   tracking and doubles the surge; the navigator toggles stop / go every 0.1-0.5 s.
+3. **Training never contained the navigator's commands** (10 % stops, half of them ramped, held
+   1.5-5 s). `GYRA_CMD=nav` adds them; it trims the tail (loco32) but leaves the median.
+4. **The reason shorter stops hurt: the sphere is non-minimum phase.** To brake, the motors swing the
+   pendulum forward, and the reaction first drives the shell forward. Harder braking means a bigger
+   lurch toward what the robot is stopping for; the filter's response model (dead time +
+   acceleration limit) cannot represent it, and its 0.25 m/s command steps near walls then drive the
+   loop into rocking (velocity traces of the new collisions: commands 0 / +-0.25, speed +-0.5-0.8).
+   Shaping the reference (critically damped, `GYRA_WREF`) does not remove it: zero-residual surge p95
+   0.74 / 1.08 / 1.15 m/s at w_ref 4 / 6 / 8 against 0.35 for the classical base.
+
+What would make shorter stops pay off: a navigation-layer motion model with the pendulum state (the
+reach table already indexes it), so the filter predicts the lurch and the MPC stops smoothly instead
+of stepping; only then a faster low level. Tools: `rl/stop_ctrl.py` (`--identify`, `--sweep-cascade`,
+`--nav-bench`, `GYRA_ZERO_RES=1` for the base alone), `rl/sysid_low.py --stops / --arcs-only` with
+`GYRA_LOW` / `GYRA_BASE`, results in `rl/runs/nav2/bench/heldout_lane_*.json`.
