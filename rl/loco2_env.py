@@ -67,6 +67,11 @@ ADR_FACTORS = ("terrain", "slope", "friction", "push", "wind", "payload", "actua
 BASE = os.environ.get("GYRA_BASE", "classical")    # "model": the cascade with identified-model feedforward
 W_REF = float(os.environ["GYRA_WREF"]) if os.environ.get("GYRA_WREF") else None   # its reference bandwidth (rad/s)
 CMD_MIX = os.environ.get("GYRA_CMD", "operator")   # "nav": also the navigator's command sequences (training)
+REPLAY = None                                         # "replay:<npz>": nav mix + recorded navigation command streams
+if CMD_MIX.startswith("replay:"):
+    _z = np.load(CMD_MIX.split(":", 1)[1])
+    REPLAY = np.c_[_z["v"], _z["w"]]
+    CMD_MIX = "nav"
 TAU_PEND = 39.7                  # N m: pendulum gravity torque m g L at 90 deg (CAD)
 
 
@@ -328,11 +333,24 @@ class Loco2Env:
         vm = S["v_max"]
         a_lat = min(4.0, 0.6 * 9.81 * self.mu)
         w_max = min(3.0, 1.5 + vm / 4)
-        if CMD_MIX == "nav" and (self.burst_until > self.d.time or r.random() < 0.3):
+        live = self.burst_until > self.d.time
+        if REPLAY is not None and ((live and self.burst_kind == "replay") or (not live and r.random() < 0.4)):
+            # the command stream navigation actually sends (rl/record_cmds.py), replayed from a random point
+            if not live:
+                self.burst_until, self.burst_kind = self.d.time + r.uniform(2.0, 6.0), "replay"
+                self.rp_i = int(r.integers(0, len(REPLAY)))
+            v, w = REPLAY[self.rp_i % len(REPLAY)]
+            self.rp_i += 1
+            v = float(np.clip(v, -min(vm, 2.5), vm))
+            self.cmd_target, self.cmd_ramp = np.array([v, float(np.clip(w, -w_max, w_max))]), 0.0
+            self.cmd_from, self.cmd_t0 = self.cmd.copy(), self.d.time
+            self.next_cmd_t = self.d.time + 0.1
+            return
+        if CMD_MIX == "nav" and ((live and self.burst_kind == "nav") or (not live and r.random() < 0.3)):
             # the navigator's commands: its candidate speeds and turn rates, switched every 0.1-0.5 s, a third of
             # them stops - brief stops, stops while turning, stops cut short, all as steps
-            if self.burst_until <= self.d.time:
-                self.burst_until = self.d.time + r.uniform(2.0, 6.0)
+            if not live:
+                self.burst_until, self.burst_kind = self.d.time + r.uniform(2.0, 6.0), "nav"
             v = 0.0 if r.random() < 0.35 else float(min(r.choice([-0.25, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0]), vm))
             w = float(np.clip(r.choice(np.arange(-1.5, 1.51, 0.25)), -a_lat / max(abs(v), 0.5), a_lat / max(abs(v), 0.5)))
             self.cmd_target, self.cmd_ramp = np.array([v, w]), 0.0
@@ -439,7 +457,7 @@ class Loco2Env:
         self.cmd = np.zeros(2)
         self.v_ref, self.w_ref = 0.0, 0.0
         self.e_s, self.e_psi = 0.0, 0.0
-        self.burst_until = -1.0
+        self.burst_until, self.burst_kind = -1.0, None
         self.u_terrain = np.zeros(2)
         if not self.external_cmd:
             self._sample_cmd()
@@ -522,11 +540,13 @@ class Loco2Env:
             if len(a) > 3:
                 tw += W["tau"] * a_eff[3]
             d.ctrl[self.wheel[0]] = _clamp(tw, -W["tau"], W["tau"])
+        self.v_prev = t["v"]                             # speed before this step (lurch term)
         mujoco.mj_step(self.m, d, nstep=N_SUB)
         self.steps += 1
         self._update_cmd()
         t = self._truth()
         # ---------------- reward (each term logged)
+        self.v_ref_prev = self.v_ref
         self._ref_step(t)
         ev, ew = self.v_ref - t["v"], self.w_ref - t["w"]
         # leaky integrals of the along-track and heading errors: a persistent bias (creeping when told to stop, turning
@@ -544,6 +564,11 @@ class Loco2Env:
             # the same along-track error at the scale of stopping distances: the 5 cm kernel above is flat (zero)
             # for a stop that overruns by 0.3 m or by 1 m alike, so alone it gives no reason to brake harder
             **({"hold_dist_coarse": 0.5 * math.exp(-self.e_s ** 2 / 0.25)} if CMD_MIX == "nav" else {}),
+            # the lurch: speeding up in the direction of motion while the reference slows down (braking first drives
+            # this non-minimum-phase shell forward); navigation pays for it next to every wall
+            **({"lurch": -0.05 * max(0.0, math.copysign(1.0, t["v"]) * (t["v"] - self.v_prev) / DT)
+                if (REPLAY is not None and abs(t["v"]) > 0.05 and abs(self.v_ref) < abs(self.v_ref_prev)) else 0.0}
+               if REPLAY is not None else {}),
             hold_heading=0.5 * math.exp(-self.e_psi ** 2 / 0.0025),
             steady=0.25 * math.exp(-(t["pitch_rate"] ** 2 + t["roll_rate"] ** 2) / 0.25),
             tilt=-1.0 * t["pitch"] ** 2 - 0.5 * t["roll"] ** 2,          # level sensor platform in BOTH axes
