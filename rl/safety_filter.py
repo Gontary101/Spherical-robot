@@ -40,6 +40,10 @@ class SafetyFilter:
         if "pend_reach" in S and os.environ.get("GYRA_REACH", "1") == "1":   # pendulum angle a command can reach in the
             Q = S["pend_reach"]                                                # reaction window (rl/sysid_low.py --reach)
             self.reach = (np.array(Q["pend_edges"]), np.array(Q["dv_edges"]), np.array(Q["table"]))
+        self.resp = None
+        if os.environ.get("GYRA_RESP"):                             # closed-loop response with the pendulum state
+            from resp_model import Response                         # (rl/resp_model.py): predicts the lurch
+            self.resp = Response(os.environ["GYRA_RESP"])
         R = S["response"]
         self.dead, self.a_fwd, self.a_rev, self.tau_w = R["dead"], R["a_fwd"], R["a_rev"], R["tau_w"]
         e = S["arc_error"]
@@ -60,6 +64,8 @@ class SafetyFilter:
         vs = np.linspace(-1.0, 3.5, 19)
         ws = np.linspace(-2.5, 2.5, 21)
         self.cand = np.array([(v, w) for v in vs for w in ws])
+        self.resp_dt = 0.02
+        self.d_model = None
         self.reset()
 
     def reset(self):
@@ -68,6 +74,7 @@ class SafetyFilter:
         self.peds = []                                              # tracked people: (position, velocity), local frame
         self.a0 = 0.0                                               # current longitudinal acceleration (IMU / LIO)
         self.pend = 0.0                                             # pendulum angle (yoke encoder + IMU), rad
+        self.rs = None                                              # response-model state (nav2_env._resp_state)
 
     def stop_dist(self, v):
         """Worst-case stopping distance over friction / slope / payload (identified table, linear in between)."""
@@ -89,7 +96,38 @@ class SafetyFilter:
         aw = 1 - math.exp(-self.dt / self.tau_w)
         pts, ts, hs = [], [], []
         t = 0.0
-        while t < self.period + self.dead - 1e-9:                  # react: dead time, then move toward the command
+        pend_on = None
+        if self.resp is not None and self.rs is not None:
+            # react with the identified closed loop: the pendulum state is part of the prediction, so a stop or a
+            # reversal commanded while the pendulum is swung into a push shows the shell running on first
+            rs = self.rs
+            S = dict(v=v.copy(), pend=np.full(N, rs["pend"]), rate=np.full(N, rs["rate"]), w=w.copy(),
+                     vc=np.full(N, rs["vc"]), wc=np.full(N, rs["wc"]))
+            dt_m, k = self.resp_dt, 0
+            while t < self.period + self.dead - 1e-9:
+                self.resp.step(S, cmds)
+                t += dt_m
+                k += 1
+                TH = TH + S["w"] * dt_m
+                X, Y = X + S["v"] * np.cos(TH) * dt_m, Y + S["v"] * np.sin(TH) * dt_m
+                if k % 2 == 0:
+                    pts.append(np.stack([X, Y], -1))
+                    ts.append(np.full(N, t))
+                    hs.append(TH)
+            v, w, pend_on = S["v"], S["w"], S["pend"]
+            # the identified stop from that state (command 0 for up to 2.5 s): distance run on in the direction of
+            # motion, the lurch included; the braking tables below remain the floor (worst case over conditions)
+            Sb = {key: val.copy() for key, val in S.items() if key != "wq"}
+            Sb["wq"] = [q.copy() for q in S.get("wq", [])]
+            sv0 = np.where(np.abs(v) > 0.05, np.sign(v), 1.0)
+            run, far = np.zeros(N), np.zeros(N)
+            zero = np.zeros((N, 2))
+            for _ in range(int(2.5 / dt_m)):
+                self.resp.step(Sb, zero)
+                run += sv0 * Sb["v"] * dt_m
+                far = np.maximum(far, run)
+            self.d_model = far
+        while pend_on is None and t < self.period + self.dead - 1e-9:   # react: dead time, then toward the command
             if t < self.dead:
                 # during the dead time the robot keeps its current acceleration: with the pendulum already swung deep
                 # into a push it is still speeding up when a stop is commanded (measured: 2.1 -> 2.5 m/s)
@@ -122,6 +160,8 @@ class SafetyFilter:
                 sv = np.where(av > 0.05, np.sign(v), np.where(np.abs(cmds[:, 0]) > 0.05, np.sign(cmds[:, 0]), 1.0))
                 reach = RT[np.searchsorted(pe, sv * self.pend), np.searchsorted(de, sv * (cmds[:, 0] - v0))]
                 col = np.searchsorted(edges, reach)
+                if pend_on is not None:                             # the model's pendulum at brake onset, if worse
+                    col = np.minimum(col, np.searchsorted(edges, sv * pend_on))
             else:
                 sv = np.sign(v0) if abs(v0) > 0.05 else 1.0
                 c_now = int(np.searchsorted(edges, sv * self.pend))
@@ -129,6 +169,8 @@ class SafetyFilter:
             D = np.stack([np.interp(av, tv, td[:, c]) for c in range(td.shape[1])], 1)
             d2 = D[np.arange(len(av)), col]
             d_stop = np.maximum(d_stop, d2)
+        if pend_on is not None:
+            d_stop = np.maximum(d_stop, self.d_model + 0.05)
         kappa = np.where(np.abs(v) > 0.05, w / np.maximum(np.abs(v), 0.05), 0.0)
         n_brake = 12
         sgn = np.sign(v)

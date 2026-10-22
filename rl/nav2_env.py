@@ -756,6 +756,14 @@ class Nav2Env:
             self._put_envelope(obs)
         return obs
 
+    def _resp_state(self):
+        """What the response model (rl/resp_model.py) needs besides (v, w): the pendulum angle and rate (yoke encoder +
+        IMU) and the base controller's speed reference (it follows the commands this layer sent, so it is known), plus
+        the last commanded yaw rate."""
+        t = self.loco._truth()
+        return dict(pend=float(t["pend"]), rate=float(t["pend_rate"]), vc=float(getattr(self.loco.ctrl, "vc", t["v"])),
+                    wc=float(self.loco.cmd[1]))
+
     def _velocity_estimate(self):
         """(v, w) as the safety filter sees them: LiDAR-inertial odometry, or encoders + gyro when LIO is lost."""
         tr = self.loco._truth()
@@ -766,6 +774,7 @@ class Nav2Env:
 
     def _put_envelope(self, obs):
         self.filter.pend = float(self.loco._truth()["pend"])
+        self.filter.rs = self._resp_state()
         """What the filter knows, in a form the navigator can act on: for each of N_ENV yaw rates, the fastest
         admissible forward speed (fraction of v_max). Without it, the navigator is penalised for corrections it cannot
         predict (map memory, blind wedge, braking envelope) and learns to stand still."""
@@ -1076,6 +1085,7 @@ class Nav2Env:
             self.filter.a0 = 0.6 * self.filter.a0 + 0.4 * float(np.clip((v_now - getattr(self, "v_prev", v_now)) / 0.1, -4, 4))
             self.v_prev = v_now
             self.filter.pend = float(self.loco._truth()["pend"])         # yoke encoder + IMU on the robot
+            self.filter.rs = self._resp_state()
             v_f, w_f, intervened, _ = self.filter(self.lmap, self.loc.copy(), v_now, w_now, v_cmd, w_cmd)
             corr = abs(v_f - v_cmd) / (V_RANGE[1] - V_RANGE[0]) + abs(w_f - w_cmd) / (2 * W_RANGE)
             self.interv_mag += corr

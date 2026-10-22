@@ -29,6 +29,10 @@ from nav2_env import LowLevel  # noqa: E402
 
 L.GEOFENCE = 1e9
 DEAD, A_FWD, A_REV, TAU_W = 0.22, 1.7, 1.1, 0.15      # identified from step responses (see docs/09)
+RESP = None
+if os.environ.get("GYRA_RESP"):                       # rl/resp_model.py: the closed-loop model with the pendulum state
+    from resp_model import Response
+    RESP = Response(os.environ["GYRA_RESP"])
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 LOW = os.environ.get("GYRA_LOW") or os.path.join(ROOT, "rl/runs/loco31/best.pt")   # low-level policy under test
 from eval_nav2 import LOCO  # noqa: E402
@@ -177,11 +181,18 @@ def arcs(args):
         P, U, TH = [], [], []
         if r.random() < 0.4:                               # low-speed manoeuvring near obstacles matters most
             v, w = r.uniform(-0.5, 0.8), r.uniform(-1.0, 1.0)
+        RS = None
+        if RESP is not None:                               # the filter predicts with the response model: measure its error
+            RS = dict(v=np.array([t["v"]]), pend=np.array([t["pend"]]), rate=np.array([t["pend_rate"]]),
+                      w=np.array([t["w"]]), vc=np.array([getattr(e.ctrl, "vc", t["v"])]), wc=np.array([float(e.cmd[1])]))
         for k in range(int(1.0 / 0.02)):
             e.cmd = np.array([v, w])
             (oa, _), *_ = e.step(low(oa)[0])
+            if RS is not None:
+                RESP.step(RS, np.array([[v, w]]))
+                vc, wc = float(RS["v"][0]), float(RS["w"][0])
             # identified response (the filter's model): dead time, then acceleration-limited speed, lagged yaw rate
-            if k * 0.02 >= DEAD:
+            elif k * 0.02 >= DEAD:
                 acc = A_REV if (v < vc and vc <= 0.0) else A_FWD          # speeding up in reverse is slower
                 vc += float(np.clip(v - vc, -acc * 0.02, acc * 0.02))
                 wc += (1 - math.exp(-0.02 / TAU_W)) * (w - wc)

@@ -78,6 +78,10 @@ class GeoMPC:
     planner's geodesic field on the prior map, clearance from its own local map."""
     def __init__(self, horizon=1.5, dt=0.1, deployable=False, v_max=2.5):
         self.h, self.dt, self.deployable = horizon, dt, deployable
+        self.resp, self.resp_dt = None, 0.02
+        if os.environ.get("GYRA_RESP"):                         # rl/resp_model.py: rollouts with the pendulum state
+            from resp_model import Response
+            self.resp = Response(os.environ["GYRA_RESP"])
         self.reset()
         self.cand = CAND if v_max == 2.5 else np.array([(v, w) for v in np.arange(-0.5, v_max + 1e-9, 0.25) for w in WS])
 
@@ -149,6 +153,12 @@ class GeoMPC:
         mid_k = int(round(self.h / self.dt / 2))
         step = 0
         mx = my = None
+        RS, n_sub = None, 0
+        if self.resp is not None and self.deployable:
+            rs = env._resp_state()
+            RS = dict(v=v.copy(), pend=np.full(N, rs["pend"]), rate=np.full(N, rs["rate"]), w=w.copy(),
+                      vc=np.full(N, rs["vc"]), wc=np.full(N, rs["wc"]))
+            n_sub = int(round(self.dt / self.resp_dt))
         while k < self.h - 1e-9:
             cmd = C
             if ref is not None:                                 # pure pursuit on the offset route, every step
@@ -170,12 +180,19 @@ class GeoMPC:
                 cmd[F, 0], cmd[F, 1] = vf, wf
                 if step == 0:
                     C = cmd.copy()                              # the command actually sent if this candidate wins
-            if k >= DEAD:
-                acc = np.where((cmd[:, 0] < v) & (v <= 0.0), A_REV, A_FWD)
-                v = v + np.clip(cmd[:, 0] - v, -acc * self.dt, acc * self.dt)
-                w = w + aw * (cmd[:, 1] - w)
-            th = th + w * self.dt
-            x, y = x + v * np.cos(th) * self.dt, y + v * np.sin(th) * self.dt
+            if RS is not None:                                  # identified closed loop with the pendulum state
+                for _ in range(n_sub):
+                    self.resp.step(RS, cmd)
+                    th = th + RS["w"] * self.resp_dt
+                    x, y = x + RS["v"] * np.cos(th) * self.resp_dt, y + RS["v"] * np.sin(th) * self.resp_dt
+                v, w = RS["v"], RS["w"]
+            else:
+                if k >= DEAD:
+                    acc = np.where((cmd[:, 0] < v) & (v <= 0.0), A_REV, A_FWD)
+                    v = v + np.clip(cmd[:, 0] - v, -acc * self.dt, acc * self.dt)
+                    w = w + aw * (cmd[:, 1] - w)
+                th = th + w * self.dt
+                x, y = x + v * np.cos(th) * self.dt, y + v * np.sin(th) * self.dt
             if self.deployable:
                 c = np.minimum(env.lmap.clearance(np.c_[x, y]), 3.0) - env.robot_r
             else:
