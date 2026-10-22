@@ -23,6 +23,7 @@ import numpy as np
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 A_PUSH_MAX = 2.9                             # m/s^2: pendulum at 90 deg on the flat (m g L / R / M)
 PED_R, PED_T, PED_GROW = 0.25, 1.5, 0.2      # person radius, prediction horizon (s), deviation growth (m per s)
+CALM = float(os.environ.get("FILTER_CALM", 0.0))  # cost per rad of predicted pendulum swing when choosing a correction
 
 
 class SafetyFilter:
@@ -68,6 +69,7 @@ class SafetyFilter:
         self.cand = np.array([(v, w) for v in vs for w in ws])
         self.resp_dt = 0.02
         self.d_model = None
+        self.swing = None
         self.reset()
 
     def reset(self):
@@ -106,8 +108,10 @@ class SafetyFilter:
             S = dict(v=v.copy(), pend=np.full(N, rs["pend"]), rate=np.full(N, rs["rate"]), w=w.copy(),
                      vc=np.full(N, rs["vc"]), wc=np.full(N, rs["wc"]))
             dt_m, k = self.resp_dt, 0
+            swing = np.zeros(N)
             while t < self.period + self.dead - 1e-9:
                 self.resp.step(S, cmds)
+                swing = np.maximum(swing, np.abs(S["pend"] - rs["pend"]))
                 t += dt_m
                 k += 1
                 TH = TH + S["w"] * dt_m
@@ -117,6 +121,7 @@ class SafetyFilter:
                     ts.append(np.full(N, t))
                     hs.append(TH)
             v, w, pend_on = S["v"], S["w"], S["pend"]
+            self.swing = swing                                      # predicted pendulum swing per candidate (rad)
             # the identified stop from that state (command 0 for up to 2.5 s): distance run on in the direction of
             # motion, the lurch included; the braking tables below remain the floor (worst case over conditions)
             Sb = {key: val.copy() for key, val in S.items() if key != "wq"}
@@ -304,7 +309,15 @@ class SafetyFilter:
         swings this robot's pendulum and makes it translate while commanded to stop."""
         pv, pw = self.prev
         flip = (np.abs(pw) > 0.1) & (np.sign(c[:, 1]) == -np.sign(pw)) & (np.abs(c[:, 1]) > 0.1)
-        return 0.3 * np.abs(c[:, 1] - pw) + 0.2 * np.abs(c[:, 0] - pv) + 0.8 * flip
+        cost = 0.3 * np.abs(c[:, 1] - pw) + 0.2 * np.abs(c[:, 0] - pv) + 0.8 * flip
+        if CALM > 0 and self.swing is not None and len(self.swing) == len(c):
+            # calm corrections: on this non-minimum-phase robot every switch of the speed command swings the pendulum
+            # and lurches the shell, and the next correction answers the lurch - the 0 / +-0.25 m/s alternation that
+            # rocked the fast low level next to walls. Price the swing the response model predicts for each candidate
+            # and reversals of the speed command (the admissibility test, i.e. the guarantee, is unchanged)
+            vflip = (np.abs(pv) > 0.05) & (np.sign(c[:, 0]) == -np.sign(pv)) & (np.abs(c[:, 0]) > 0.05)
+            cost = cost + CALM * self.swing + 0.5 * CALM * vflip
+        return cost
 
     def _out(self, c, intervened, slack):
         self.prev = np.array([float(c[0]), float(c[1])])
