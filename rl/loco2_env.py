@@ -65,7 +65,7 @@ HW_MK2 = dict(crown_d=0.050, lean_rate=60.0, wheel=None, level_pi=False, a_roll=
 HW_MK21 = dict(crown_d=0.090, lean_rate=180.0, wheel=None, level_pi=True, a_roll=4.0, cad="out21")
 ADR_FACTORS = ("terrain", "slope", "friction", "push", "wind", "payload", "actuator", "sensor", "speed")
 BASE = os.environ.get("GYRA_BASE", "classical")    # "model": the cascade with identified-model feedforward
-K_SLOPE = float(os.environ.get("GYRA_KSLOPE", 0.0))  # model base: slope feedforward, sin(pend) = K sin(slope)
+K_SLOPE = float(os.environ.get("GYRA_KSLOPE", 2.46))  # slope feedforward in the base, sin(pend) = K sin(slope); 0 = off
 W_REF = float(os.environ["GYRA_WREF"]) if os.environ.get("GYRA_WREF") else None   # its reference bandwidth (rad/s)
 CMD_MIX = os.environ.get("GYRA_CMD", "operator")   # "nav": also the navigator's command sequences (training)
 REPLAY = None                                         # "replay:<npz>": nav mix + recorded navigation command streams

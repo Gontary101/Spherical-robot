@@ -1,0 +1,38 @@
+{
+ "name": "loco31_kslope2",
+ "low": "rl/runs/loco31/best.pt",
+ "base": "classical",
+ "resp": "rl/runs/nav2/bench/resp_loco31.json",
+ "sysid": "rl/runs/nav2/bench/sysid_loco31_pipe.json",
+ "env": {
+  "GYRA_KSLOPE": "2.46",
+  "GYRA_BASE": "classical",
+  "GYRA_SENSORS": "asbuilt_lane",
+  "GYRA_REACH": "1"
+ },
+ "validation": null,
+ "sets": {
+  "heldout": {
+   "file": "rl/runs/nav2/bench/pipe_loco31_kslope2_heldout.json",
+   "episodes": 208,
+   "success": 0.9711538461538461,
+   "collisions": 0.004807692307692308,
+   "at_fault": 0,
+   "timeouts": 0.02403846153846154,
+   "falls": 0.0
+  },
+  "standard": {
+   "file": "rl/runs/nav2/bench/pipe_loco31_kslope2_standard.json",
+   "episodes": 208,
+   "success": 0.9807692307692307,
+   "collisions": 0.0,
+   "at_fault": 0,
+   "timeouts": 0.019230769230769232,
+   "falls": 0.0
+  }
+ },
+ "stages_s": {
+  "heldout benchmark": 505,
+  "standard benchmark": 456
+ }
+}
