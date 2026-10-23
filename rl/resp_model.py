@@ -34,8 +34,10 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DT = 0.02
 V_SLEW, W_SLEW = 2.5, 1.5                       # the base controllers' reference slew limits (sim/gyra2_sim.py)
 FIELD = "field (rough, wind, payload; no pushes)"
-DEFAULT = os.path.join(ROOT, "rl/runs/nav2/bench/resp_loco31.json")         # the deployed low level (loco31)
-DEFAULT_SYSID = os.path.join(ROOT, "rl/runs/nav2/bench/sysid_loco31_resp.json")  # its tables, error envelope of this model
+# the deployed low level: loco31 with the base's slope feedforward (docs/12, P5); its tables are the worst case over two
+# identifications (rl/lowlevel_pipeline.py --merge)
+DEFAULT = os.path.join(ROOT, "rl/runs/nav2/bench/resp_loco31m.json")
+DEFAULT_SYSID = os.path.join(ROOT, "rl/runs/nav2/bench/sysid_loco31m_pipe.json")
 
 
 def configured():
