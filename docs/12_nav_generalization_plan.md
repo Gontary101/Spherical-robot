@@ -151,8 +151,10 @@ Findings, in the order they changed the plan:
   the measured channels and their noise (LIO speed 0.03 m/s, gyro 0.02 rad/s, pendulum 0.003 rad):
   open-loop prediction from the log-identified model 0.10 / 0.18 / 0.27 m (p95 along-track at 0.5 / 1 /
   1.5 s) vs 0.10 / 0.20 / 0.29 m from the privileged one, lateral within 0.01 m; stopping distances
-  from the log's 85 stops 0.39 / 0.81 / 1.17 / 2.42 / 2.60 m from 0.5 ... 2.5 m/s, never below the
-  privileged field-condition table (0.38 / 0.73 / 1.14 / 1.79 / 2.66 m with its 5 cm).
+  from the log's 85 stops 0.39 / 0.81 / 1.17 / 2.42 / 2.60 m from 0.5 ... 2.5 m/s against the
+  privileged field-condition table's 0.38 / 0.73 / 1.14 / 1.79 / 2.66 m (with its 5 cm): equal or larger
+  except 6 cm short at 2.5 m/s, where the protocol has the fewest stops - on the robot, repeat the fast
+  stops or take the larger of the log and a margin.
 
 ## Where it stands
 
