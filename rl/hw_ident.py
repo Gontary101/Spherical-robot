@@ -114,7 +114,8 @@ def to_rows(Z, has_vc=True):
 def stop_events(Z):
     """Commanded stops from >= 0.4 m/s: distance travelled until |v| < 0.05 (LIO pose), per starting speed."""
     out = []
-    cv, v, seg = Z["cmd_v"], Z["v"], Z["seg"]
+    cv, seg = Z["cmd_v"], Z["seg"]
+    v = np.convolve(Z["v"], np.ones(5) / 5, mode="same")         # 0.1 s average: LIO speed noise is ~0.03 m/s
     for i in range(1, len(cv)):
         if abs(cv[i]) < 1e-9 and abs(cv[i - 1]) >= 0.4 and abs(v[i]) >= 0.3 and seg[i] == seg[i - 1]:
             j = i
@@ -190,7 +191,7 @@ def identify(log, name, template=os.path.join(B, "sysid_loco31_pipe.json")):
     print("open-loop prediction (along p95 at 0.5 / 1.0 / 1.5 s):",
           " / ".join(f"{V['model'][h]['along_p95']:.2f}" for h in ('0.5s', '1.0s', '1.5s')), "m (model)",
           " / ".join(f"{V['deadtime'][h]['along_p95']:.2f}" for h in ('0.5s', '1.0s', '1.5s')), "m (dead-time model)")
-    print("stopping distance from the log (worst + 5 cm):", dict(zip(S["brake_table_hw"]["v"], d)))
+    print("stopping distance from the log (worst + 5 cm), m:", {v: (round(x, 2) if x else None) for v, x in zip(v0s, d)})
     return resp, out
 
 

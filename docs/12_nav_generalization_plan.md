@@ -103,6 +103,8 @@ against the previous default with a bootstrap 95 % interval (`rl/lowlevel_pipeli
 | P5 | slope-aware braking tables (`GYRA_TERRAIN`) | +1.0 % (-0.7 .. +2.6) | 3 / 0 | | off: worse on slopes |
 | P3+P5 | loco35: model base + slope feedforward + replayed commands + lurch penalty | -4.3 % (-7.2 .. -1.4) | 23 / 21 | | rejected |
 | P5 | slope feedforward in loco31's own base (`GYRA_KSLOPE`) | **+2.4 % (+0.2 .. +4.6)** | **1 / 0** | 9 | **default** |
+| P5 | same, tables re-identified with it | +0.5 % (-1.4 .. +2.4) | 6 / 4 | 12 | tables too optimistic |
+| P5 | same, tables merged over both identifications (`--merge`) | +1.7 % (-0.5 .. +3.8) | 3 / 0 | 10 | **default** |
 
 Findings, in the order they changed the plan:
 
@@ -139,5 +141,24 @@ Findings, in the order they changed the plan:
   band, leaves level ground unchanged and improves slopes (downhill 1 s p95 0.364 -> 0.319 m); kept as
   an opt-in tool (`resp_model.Adapter`), not wired into navigation: the slope feedforward measures the
   slope directly.
-* **P7.** `rl/hw_ident.py`: the identification run, the log channels, and the tool that turns a log
-  into the response model, stopping distances and error envelope (see below).
+* **Tables are tail estimates.** Re-identifying loco31's tables with the slope feedforward gave less
+  conservative extremes (0.38 vs 0.41-0.47 m from 0.5 m/s, 0.80 vs 0.85-1.15 m from 1.0 m/s) and lost
+  1.9 % (-3.8 .. -0.2) against the same controller on the older tables. Every entry is the extreme of
+  ~150 runs; the deployed tables are now the worst case over both identifications
+  (`rl/lowlevel_pipeline.py --merge loco31 loco31k --into loco31m`).
+* **P7.** `rl/hw_ident.py`: identification run, log channels, and the tool that turns a log into the
+  response model, stopping distances and error envelope. Verified on a simulated 17-minute log with only
+  the measured channels and their noise (LIO speed 0.03 m/s, gyro 0.02 rad/s, pendulum 0.003 rad):
+  open-loop prediction from the log-identified model 0.10 / 0.18 / 0.27 m (p95 along-track at 0.5 / 1 /
+  1.5 s) vs 0.10 / 0.20 / 0.29 m from the privileged one, lateral within 0.01 m; stopping distances
+  from the log's 85 stops 0.39 / 0.81 / 1.17 / 2.42 / 2.60 m from 0.5 ... 2.5 m/s, never below the
+  privileged field-condition table (0.38 / 0.73 / 1.14 / 1.79 / 2.66 m with its 5 cm).
+
+## Where it stands
+
+Deployed: loco31 with the base's slope feedforward, the response model with the pendulum state,
+crawl speeds and the door-crossing mode, tables merged over two identifications. Held-out 97.6 %,
+standard 96.2 % success; 3 collisions in 416 episodes, none at fault (the start of this plan: 94.2 /
+92.3 %, 9 collisions). Open: slopes beyond the low level's training envelope (12 deg: 14 / 32); the
+pedestrian contacts, which need better coverage of the pods' blind wedge rather than planning; and a
+low level that stops shorter without the lurch (every one tried so far traded one for the other).
