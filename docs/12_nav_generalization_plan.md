@@ -89,4 +89,55 @@ noise.
 
 ## Progress log
 
-(filled in as phases complete)
+All numbers: deployed low level loco31 unless stated, held-out + standard seeds, 416 episodes, paired
+against the previous default with a bootstrap 95 % interval (`rl/lowlevel_pipeline.py --compare`).
+
+| step | change | success (paired) | collisions / at fault | timeouts | verdict |
+|---|---|---|---|---|---|
+| P0 | pipeline reproduces loco31 | 94.2 / 92.3 % (sets) | 9 / 1 | 19 | noise floor about +-2 % per set |
+| P1 | calm filter corrections (`FILTER_CALM` 1 / 3) | -1.4 % (-3.1 .. +0.2) / -0.5 % | 10 / 1, 9 / 3 | | rejected |
+| P2 | crawl speeds (`GYRA_CRAWL`) | +0.7 % (-1.2 .. +2.9) | 8 / 1 | 17 | kept |
+| P2 | + door-crossing mode (`MPC_DOOR`) | +1.9 % (-0.2 .. +4.1) | 8 / 2 | 12 (2.9 % per set) | **default** |
+| P4 | people-aware rollouts (`MPC_PED`) | -0.5 % (-1.7 .. +0.7) | 9 / 1 | | rejected |
+| P4 | + speed limit near people | 0.0 % (-1.2 .. +1.2) | 7 / 1 | | rejected |
+| P5 | slope-aware braking tables (`GYRA_TERRAIN`) | +1.0 % (-0.7 .. +2.6) | 3 / 0 | | off: worse on slopes |
+| P3+P5 | loco35: model base + slope feedforward + replayed commands + lurch penalty | -4.3 % (-7.2 .. -1.4) | 23 / 21 | | rejected |
+| P5 | slope feedforward in loco31's own base (`GYRA_KSLOPE`) | **+2.4 % (+0.2 .. +4.6)** | **1 / 0** | 9 | **default** |
+
+Findings, in the order they changed the plan:
+
+* **P1.** Pricing the filter's corrections by the predicted pendulum swing changes nothing: loco34's
+  rocking is its own behaviour, not the filter's alternation.
+* **P2.** Timeout forensics (`rl/diagnose_stuck.py --from <report>`): the filter held the robot in 11
+  of 203 stall samples; the navigator mostly chose the best admissible progress command. The robot
+  approached 1.0 m doors obliquely along the planner's grid route and wedged on the near jamb (a
+  r = 0.393 m circle with the filter's margins fits only a centred, near-perpendicular crossing), and the
+  stall recovery backed off and re-aligned to the same route. The door mode finds the passage axis,
+  centres it, approaches on it and crosses at a crawl. (The "ghost" map cells the old diagnosis
+  reported were an artefact of its 0.1 m truth grid: against exact geometry the map's hit points lie
+  p50 0.0 / p90 1.5 cm from the surfaces.)
+* **P4.** The remaining pedestrian collisions are people perceived only at contact (blind wedge,
+  depth only): a sensing limit no planning cost changes.
+* **P5.** Slopes were the largest weakness: on 8 / 12 deg 24 / 16 of 32 episodes succeeded, with 3 /
+  12 at-fault static collisions, the robot rolling on at 0.2-0.45 m/s while commanded to stop. Cause:
+  turning in place while stopped changes the slope's component along the heading, and the base's PI
+  only followed it through its integrator (loco31 rolled 0.6-0.8 m in 5 s on 8 deg, up to 1.5 m on 12
+  deg). The base now adds the standing pendulum angle for the measured slope along the heading (IMU +
+  levelling angle; sin th = 2.46 sin slope) and the torque that holds it there, within the cascade's 80
+  deg limit: drift turning in place 0.15-0.31 m (8 deg), 0.06-0.46 m (12 deg). It is zero on level
+  ground, so the trained policy is unchanged there - and on the benchmark's rough ground, whose local
+  slopes it also follows, collisions fell from 8 to 1. 12 deg remains poor (14 / 32): outside the
+  envelope the low level was trained for (slopes to 10.5 deg) and the tables were identified at (8 deg).
+  Slope-aware braking tables helped on level ground but not on slopes, where the failure was the low
+  level, not the stopping distance; they stay off.
+* **P3.** A low level fine-tuned on the recorded navigation command stream (10651 commands, switching
+  every 0.2 s) with a lurch penalty, on the model base with slope feedforward (loco35), stops shorter
+  (field p95 0.81 vs 1.51 m per m/s) but navigates worse: every low level on the aggressive base lurches
+  more after a stop command (surge p95 0.84 vs 0.53 m/s), and navigation pays for it more than it gains.
+* **P6.** One-step RLS adaptation of the response model made predictions worse everywhere (the model
+  is fitted on multi-step error). An acceleration offset nudged by the 0.5 s speed error, beyond a dead
+  band, leaves level ground unchanged and improves slopes (downhill 1 s p95 0.364 -> 0.319 m); kept as
+  an opt-in tool (`resp_model.Adapter`), not wired into navigation: the slope feedforward measures the
+  slope directly.
+* **P7.** `rl/hw_ident.py`: the identification run, the log channels, and the tool that turns a log
+  into the response model, stopping distances and error envelope (see below).
