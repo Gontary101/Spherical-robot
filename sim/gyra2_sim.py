@@ -113,8 +113,11 @@ class ClassicalController:
             # on a slope, the standing pendulum angle for the slope along the heading (IMU) and the torque that holds
             # it there, at once: turning in place changes that component, and the PI alone let the robot roll while
             # it caught up. Zero on flat ground, so the cascade the policy was trained with is unchanged there.
+            # the combined reference keeps the cascade's own limit: on 12 deg the standing angle is ~31 deg, and
+            # braking on top of it took the pendulum over the top (8 falls in 32 episodes without this)
             th_s = -np.arcsin(np.clip(self.k_slope * s["slope_f"], -0.95, 0.95))
-            tau_sum += self.k_g_slope * np.sin(th_s) - 80 * th_s
+            th_tot = _clamp(th_ref + th_s, -lim, lim)
+            tau_sum = 80 * (pend - th_tot) + 10 * pend_rate + self.k_g_slope * np.sin(th_s)
         ew = self.wc - s["yaw_rate"]
         sched = 1.0 / (1.0 + abs(s["v"]) / 1.5)    # yaw authority grows with speed -> lower gains
         self.iw = _clamp(self.iw + ew * self.dt, -2, 2)
