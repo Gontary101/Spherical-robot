@@ -138,9 +138,9 @@ class ModelController(ClassicalController):
     forward to brake first drives the shell forward - so harder braking means a bigger lurch toward what it stops for.
     w_ref=None keeps the slew-limited reference."""
 
-    def __init__(self, dt, lean_rate_deg=60.0, k_g=-42.26, g_s=-0.04475, w_ref=None, a_max=2.5):
+    def __init__(self, dt, lean_rate_deg=60.0, k_g=-42.26, g_s=-0.04475, w_ref=None, a_max=2.5, k_slope=0.0):
         super().__init__(dt, lean_rate_deg)
-        self.k_g, self.g_s, self.w_ref, self.a_max = k_g, g_s, w_ref, a_max
+        self.k_g, self.g_s, self.w_ref, self.a_max, self.k_slope = k_g, g_s, w_ref, a_max, k_slope
         self.vc, self.ac = 0.0, 0.0
 
     def _speed_ref(self, v_cmd):
@@ -160,6 +160,8 @@ class ModelController(ClassicalController):
         lim = np.radians(80)
         u = 0.9 * (self.vc - s["v"]) + 0.45 * self.iv
         th_ff = self.ac * self.dt / self.g_s              # angle for the reference's speed change this step
+        if self.k_slope and "slope_f" in s:             # standing angle on the slope along the heading (IMU), so a
+            th_ff -= np.arcsin(np.clip(self.k_slope * s["slope_f"], -0.95, 0.95))   # turn on a slope does not roll
         th_max = np.radians(60)                            # beyond ~60 deg gravity no longer restores the pendulum
         th_ref = _clamp(th_ff - _clamp(u, -lim, lim), -th_max, th_max)
         pend = s["pitch"] + g.q("yoke")

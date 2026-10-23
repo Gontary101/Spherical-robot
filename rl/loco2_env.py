@@ -65,6 +65,7 @@ HW_MK2 = dict(crown_d=0.050, lean_rate=60.0, wheel=None, level_pi=False, a_roll=
 HW_MK21 = dict(crown_d=0.090, lean_rate=180.0, wheel=None, level_pi=True, a_roll=4.0, cad="out21")
 ADR_FACTORS = ("terrain", "slope", "friction", "push", "wind", "payload", "actuator", "sensor", "speed")
 BASE = os.environ.get("GYRA_BASE", "classical")    # "model": the cascade with identified-model feedforward
+K_SLOPE = float(os.environ.get("GYRA_KSLOPE", 0.0))  # model base: slope feedforward, sin(pend) = K sin(slope)
 W_REF = float(os.environ["GYRA_WREF"]) if os.environ.get("GYRA_WREF") else None   # its reference bandwidth (rad/s)
 CMD_MIX = os.environ.get("GYRA_CMD", "operator")   # "nav": also the navigator's command sequences (training)
 REPLAY = None                                         # "replay:<npz>": nav mix + recorded navigation command streams
@@ -445,7 +446,7 @@ class Loco2Env:
         self.last_a = np.zeros(N_ACT)
         self.prev_a = np.zeros(N_ACT)
         self.base_a = np.zeros(N_ACT)
-        self.ctrl = (ModelController(DT, self.hw["lean_rate"], w_ref=W_REF) if BASE == "model"
+        self.ctrl = (ModelController(DT, self.hw["lean_rate"], w_ref=W_REF, k_slope=K_SLOPE) if BASE == "model"
                      else ClassicalController(DT, self.hw["lean_rate"]))
         self.lvl_i = 0.0
         self.a_queue = [np.zeros(N_ACT)] * 3
@@ -502,6 +503,9 @@ class Loco2Env:
         est = dict(v=t["v"] + r.normal(0, 0.05), yaw_rate=t["w"] + S["gyro_bias"][2] + r.normal(0, 0.02),
                    roll=t["roll"] + r.normal(0, 0.01), roll_rate=t["roll_rate"] + r.normal(0, 0.02),
                    pitch=t["pitch"] + r.normal(0, 0.005), pitch_rate=t["pitch_rate"] + r.normal(0, 0.02))
+        if K_SLOPE:                                      # slope along the heading (IMU gravity vector + levelling angle)
+            u = self.gtilt + (self.u_terrain if self.hmap is not None else 0.0)
+            est["slope_f"] = float(math.cos(t["yaw"]) * u[0] + math.sin(t["yaw"]) * u[1] + r.normal(0, 0.009))
         tl, tr, _, bob_c = self.ctrl(self, est, self.cmd[0], self.cmd[1])
         self.base_a = np.array([(tl + tr) / 100.0, (tr - tl) / 100.0, bob_c / 0.698])
         tau_sum = (tl + tr) + RES_SUM * a_eff[0]
