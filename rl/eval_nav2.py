@@ -40,6 +40,11 @@ SCEN = {
     "LiDAR odometry lost (wheel+gyro)": dict(family="mixed", odom="wheel"),
     "everything at once": dict(family="mixed", n_dyn=4, map_stale=0.3, lidar_sector=True, lidar_spurious=0.01, depth_drop=0.2),
 }
+# extra scenarios (not in the default benchmark set): ground the identification covers only as a condition
+SCEN_EXTRA = {
+    "slope 8 deg": dict(family="mixed", loco=dict(slope=np.radians(8), slope_dir="random")),
+    "slope 12 deg": dict(family="mixed", loco=dict(slope=np.radians(12), slope_dir="random")),
+}
 # ground / robot conditions for every scenario: rough terrain, mid friction, light disturbances
 LOCO = dict(k=0.5, family="rough", terrain_k=0.5, slope=0.0, slope_dir=0.0, mu=0.7, mu2=None, mu_switch_t=8.0, tors=0.015,
             roll_fr=0.005, mscale=np.ones(4), com=np.zeros(3), payload=3.0, payload_pos=np.array([0.0, 0.05, 0.05]),

@@ -23,7 +23,7 @@ from collections import Counter, deque
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(__file__))
-from eval_nav2 import CALM, LOCO, SCEN, make  # noqa: E402
+from eval_nav2 import CALM, LOCO, SCEN, SCEN_EXTRA, make  # noqa: E402
 from nav2_env import MAX_R, N_BEAM, Nav2Env  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -51,7 +51,9 @@ def run(args):
     nav = make("nav2", path) if path not in ("vfh", "oracle", "mpc") else make(path, None)
     out = []
     for ep in range(n):
-        env = Nav2Env(seed=70000 + SEED0 + ep, low_ckpt=low, level=0.8, adaptive=False, scenario={"nav": CALM | SCEN[scen], "loco": LOCO},
+        sd = dict(SCEN.get(scen) or SCEN_EXTRA[scen])
+        env = Nav2Env(seed=70000 + SEED0 + ep, low_ckpt=low, level=0.8, adaptive=False,
+                      scenario={"nav": CALM | {k: v for k, v in sd.items() if k != "loco"}, "loco": LOCO | sd.get("loco", {})},
                       shield=shield)
         oa, oc = env.reset()
         hist = deque(maxlen=10)

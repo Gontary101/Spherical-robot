@@ -23,6 +23,7 @@ import numpy as np
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 A_PUSH_MAX = 2.9                             # m/s^2: pendulum at 90 deg on the flat (m g L / R / M)
 PED_R, PED_T, PED_GROW = 0.25, 1.5, 0.2      # person radius, prediction horizon (s), deviation growth (m per s)
+TERRAIN = os.environ.get("GYRA_TERRAIN", "0") == "1"   # slope-aware braking tables
 CALM = float(os.environ.get("FILTER_CALM", 0.0))  # cost per rad of predicted pendulum swing when choosing a correction
 
 
@@ -35,6 +36,9 @@ class SafetyFilter:
         sysid = sysid or os.environ.get("GYRA_SYSID") or (DEFAULT_SYSID if resp_path else os.path.join(ROOT, "rl/runs/nav2/bench/sysid.json"))
         S = json.load(open(sysid))
         self.bv, self.bd = np.array(S["brake_table"]["v"]), np.array(S["brake_table"]["d"])
+        self.down_excess = None
+        if TERRAIN and "braking" in S and "dyn_braking" in S:
+            self._terrain_tables(S)
         self.T2 = None
         if "brake_table2" in S:                                     # stopping distance from dynamic states, by speed and
             T2 = S["brake_table2"]                                  # pendulum angle (signed with the motion; < 0 = still
@@ -81,6 +85,32 @@ class SafetyFilter:
         self.a0 = 0.0                                               # current longitudinal acceleration (IMU / LIO)
         self.pend = 0.0                                             # pendulum angle (yoke encoder + IMU), rad
         self.rs = None                                              # response-model state (nav2_env._resp_state)
+        self.u_f = 0.0                                              # sin(slope) uphill along the heading (measured)
+
+    def _terrain_tables(self, S):
+        """Slope-aware braking (GYRA_TERRAIN=1, docs/12 P5): the worst-case tables were dominated by the 8 deg
+        downhill condition (0.36 vs 0.26 m from 0.5 m/s, 2.2 vs 1.7 m from 2 m/s) and made every flat-ground stop pay
+        for it. Rebuilt from the identification runs: flat-ground tables (every condition but the slopes; the dynamic
+        table floored by the flat steady case), plus the downhill excess, added per candidate in proportion to the
+        measured downhill slope along its motion (rl/nav2_env.py feeds it)."""
+        B = S["braking"]
+        v0s = sorted({b["v0"] for b in B})
+        flat = np.array([max(b["dist"] for b in B if b["v0"] == v and "hill" not in b["cond"]) for v in v0s])
+        down = np.array([max(b["dist"] for b in B if b["v0"] == v and b["cond"].startswith("downhill")) for v in v0s])
+        self.bv, self.bd = np.r_[0.0, v0s], np.r_[0.05, flat + 0.05]
+        self.down_excess = np.r_[0.0, np.maximum(down - flat, 0.0)]
+        self.down_deg = 8.0
+        if self.T2 is not None:
+            tv, _, pb = self.T2
+            T = np.zeros((len(tv), len(pb) + 1))
+            for x in S["dyn_braking"]:
+                sv = np.sign(x["v"]) if abs(x["v"]) > 0.05 else 1.0
+                i = int(np.clip(np.searchsorted(tv, abs(x["v"])), 0, len(tv) - 1))
+                j = int(np.searchsorted(pb, sv * x["pend"]))
+                T[i, j] = max(T[i, j], x["dist"])
+            T = np.maximum.accumulate(T, axis=0)
+            T = np.maximum(T, np.interp(tv, self.bv, self.bd - 0.05)[:, None]) + 0.05
+            self.T2 = (tv, T, pb)
 
     def stop_dist(self, v):
         """Worst-case stopping distance over friction / slope / payload (identified table, linear in between)."""
@@ -180,6 +210,13 @@ class SafetyFilter:
             d_stop = np.maximum(d_stop, d2)
         if pend_on is not None:
             d_stop = np.maximum(d_stop, self.d_model + 0.05)
+        if self.down_excess is not None:
+            # downhill along each candidate's motion (IMU + levelling angle), 1 deg of sensing margin, beyond the
+            # identified 8 deg extrapolated linearly (to 1.5x)
+            sv = np.where(np.abs(v) > 0.05, np.sign(v), np.where(np.abs(cmds[:, 0]) > 0.05, np.sign(cmds[:, 0]), 1.0))
+            down = np.degrees(np.arcsin(np.clip(-sv * self.u_f, -1.0, 1.0)))
+            frac = np.clip((down + 1.0) / self.down_deg, 0.0, 1.5)
+            d_stop = d_stop + frac * np.interp(np.abs(v), self.bv, self.down_excess)
         kappa = np.where(np.abs(v) > 0.05, w / np.maximum(np.abs(v), 0.05), 0.0)
         n_brake = 12
         sgn = np.sign(v)

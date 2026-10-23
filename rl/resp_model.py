@@ -193,32 +193,35 @@ class Response:
 
 
 class Adapter:
-    """Online correction of the identified model (docs/12, P6): recursive least squares with forgetting on what the
-    model gets wrong one step ahead, for the speed and pendulum rows only, with regressor [1, vc, ac] - a constant
-    (slope, wind, an off-centre payload) and the gains of the speed reference and its acceleration (payload, friction,
-    motor wear). The identified model stays the prior: the correction starts at zero, is regularised toward it and
-    clipped, so a short burst of odd data cannot take the prediction far from what was validated."""
+    """Online correction of the identified model (docs/12, P6) on the error that matters: every step, re-run the model
+    from the state H steps ago through the references since then and compare its speed with the measured one; the
+    difference nudges a constant acceleration offset of the speed row (slope, wind, an off-centre payload). A one-step
+    (RLS) correction made 1 s predictions worse under every condition: the model is fitted on multi-step error, so it is
+    deliberately not the best one-step predictor, and one-step adaptation undoes that. The identified model stays the
+    prior: the offset starts at zero and is clipped."""
 
-    def __init__(self, model, lam=0.995, p0=1e-3, clip=(0.01, 0.01, 0.002)):
-        self.m, self.lam = model, lam
-        self.theta = np.zeros((2, 3))
-        self.P = np.stack([np.eye(3) * p0] * 2)
-        self.clip = np.array(clip)
+    def __init__(self, model, H=25, gain=0.02, clip=0.012, dead=float(os.environ.get("GYRA_ADAPT_DEAD", 0.004))):
+        self.m, self.H, self.gain, self.clip, self.dead = model, H, gain, clip, dead
+        self.est = 0.0                                         # estimated speed change per step (m/s)
+        self.theta = np.zeros((2, 3))                          # applied: the estimate beyond a dead band, so noise
+        self.hist = []                                         # around zero (flat ground) changes nothing
         self.n = 0
 
     def update(self, x, vc, ac, x_next):
-        """x = [v, pend, rate] before the step, vc / ac the base controller's reference and its acceleration over it,
-        x_next the measured state after it."""
         m = self.m
-        pred = m.A @ x + m.B @ np.array([vc, ac]) + m.c
-        phi = np.array([1.0, vc, ac])
-        for i in range(2):
-            e = x_next[i] - pred[i] - self.theta[i] @ phi
-            P = self.P[i]
-            k = P @ phi / (self.lam + phi @ P @ phi)
-            self.theta[i] = np.clip(self.theta[i] + k * e, -self.clip, self.clip)
-            self.P[i] = (P - np.outer(k, phi @ P)) / self.lam
+        self.hist.append((np.asarray(x, float), vc, ac))
+        if len(self.hist) > self.H:
+            self.hist.pop(0)
         self.n += 1
+        if len(self.hist) < self.H:
+            return
+        z = self.hist[0][0].copy()
+        for _, vc_k, ac_k in self.hist:
+            z = m.A @ z + m.B @ np.array([vc_k, ac_k]) + m.c
+            z[0] += self.est
+        e = x_next[0] - z[0]                                   # speed error after H steps
+        self.est = float(np.clip(self.est + self.gain * e / self.H, -self.clip, self.clip))
+        self.theta[0, 0] = math.copysign(max(abs(self.est) - self.dead, 0.0), self.est)
 
 
 def validate_adaptive(D, R, K=50, every=25):

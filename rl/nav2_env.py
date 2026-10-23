@@ -697,6 +697,8 @@ class Nav2Env:
         lo = self.loco
         lo.level = P["loco_level"]
         sc = self.scenario.get("loco") if self.scenario else None
+        if sc is not None and sc.get("slope_dir") == "random":      # a uniform slope, a new direction every episode
+            sc = dict(sc, slope_dir=float(self.rng.uniform(-np.pi, np.pi)))
         lo.scenario = sc
         lo.spawn = None
         # Loco2Env.reset -> _sample_world -> _build -> self._world (places start/goal) -> compile
@@ -756,6 +758,14 @@ class Nav2Env:
             self._map_update()
             self._put_envelope(obs)
         return obs
+
+    def _slope_along(self):
+        """sin(ground slope) uphill along the heading, as the robot measures it (IMU gravity vector and the spine
+        levelling angle; 0.5 deg noise): the filter's slope-aware braking (GYRA_TERRAIN)."""
+        lo = self.loco
+        u = lo.gtilt + (lo.u_terrain if lo.hmap is not None else 0.0)
+        yaw = lo._truth()["yaw"]
+        return float(math.cos(yaw) * u[0] + math.sin(yaw) * u[1] + self.rng.normal(0, math.sin(math.radians(0.5))))
 
     def _resp_state(self):
         """What the response model (rl/resp_model.py) needs besides (v, w): the pendulum angle and rate (yoke encoder +
@@ -1087,6 +1097,7 @@ class Nav2Env:
             self.v_prev = v_now
             self.filter.pend = float(self.loco._truth()["pend"])         # yoke encoder + IMU on the robot
             self.filter.rs = self._resp_state()
+            self.filter.u_f = self._slope_along()
             v_f, w_f, intervened, _ = self.filter(self.lmap, self.loc.copy(), v_now, w_now, v_cmd, w_cmd)
             corr = abs(v_f - v_cmd) / (V_RANGE[1] - V_RANGE[0]) + abs(w_f - w_cmd) / (2 * W_RANGE)
             self.interv_mag += corr
