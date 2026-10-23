@@ -1,0 +1,40 @@
+{
+ "name": "loco31_cd2ped",
+ "low": "rl/runs/loco31/best.pt",
+ "base": "classical",
+ "resp": "rl/runs/nav2/bench/resp_loco31.json",
+ "sysid": "rl/runs/nav2/bench/sysid_loco31_pipe.json",
+ "env": {
+  "MPC_DOOR": "1",
+  "GYRA_CRAWL": "1",
+  "MPC_PED": "1",
+  "GYRA_BASE": "classical",
+  "GYRA_SENSORS": "asbuilt_lane",
+  "GYRA_REACH": "1"
+ },
+ "validation": null,
+ "sets": {
+  "heldout": {
+   "file": "rl/runs/nav2/bench/pipe_loco31_cd2ped_heldout.json",
+   "episodes": 208,
+   "success": 0.9519230769230769,
+   "collisions": 0.019230769230769232,
+   "at_fault": 1,
+   "timeouts": 0.028846153846153848,
+   "falls": 0.0
+  },
+  "standard": {
+   "file": "rl/runs/nav2/bench/pipe_loco31_cd2ped_standard.json",
+   "episodes": 208,
+   "success": 0.9423076923076923,
+   "collisions": 0.02403846153846154,
+   "at_fault": 0,
+   "timeouts": 0.03365384615384615,
+   "falls": 0.0
+  }
+ },
+ "stages_s": {
+  "heldout benchmark": 447,
+  "standard benchmark": 457
+ }
+}

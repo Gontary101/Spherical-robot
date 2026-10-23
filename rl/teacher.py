@@ -332,6 +332,12 @@ class GeoMPC:
         if ref is not None:
             head[nA:], track[nA:] = 0.0, 0.0                    # on the route by construction
             track[nA:] = 0.3 * FQ ** 2                          # prefer the route itself (the costmap's centre line)
+        if peds:
+            # speed near people: a person seen late (from behind a corner, in the pods' blind wedge) cannot be avoided
+            # at 1.5 m/s whatever the plan - limit speed by the distance to the nearest tracked person
+            dmin = min(float(np.linalg.norm(pp - np.asarray(pos))) for pp, _ in peds)
+            v_cap = float(np.clip(0.4 + 0.4 * (dmin - 1.0), 0.4, 3.0))
+            ped_pen = ped_pen + 20.0 * (np.abs(C[:, 0]) > v_cap + 1e-6)
         cost = (geo + 2.0 * clr_pen + 50.0 * hit + K_PEND * pend_pen * self.dt / self.h + K_PED * ped_pen + 0.05 * np.abs(C[:, 1]) + K_HEAD * head + K_REV * np.maximum(0.0, -C[:, 0])
                 + K_PATH * (2.0 if env.d.time < self.boost_until else 1.0) * track
                 + 0.15 * np.abs(C[:, 1] - self.prev[1]) + 0.1 * np.abs(C[:, 0] - self.prev[0]))
