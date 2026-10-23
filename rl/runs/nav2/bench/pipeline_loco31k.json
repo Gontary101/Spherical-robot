@@ -1,0 +1,43 @@
+{
+ "name": "loco31k",
+ "low": "rl/runs/loco31/best.pt",
+ "base": "classical",
+ "resp": "rl/runs/nav2/bench/resp_loco31k.json",
+ "sysid": "rl/runs/nav2/bench/sysid_loco31k_pipe.json",
+ "env": {
+  "GYRA_BASE": "classical",
+  "GYRA_SENSORS": "asbuilt_lane",
+  "GYRA_REACH": "1"
+ },
+ "validation": [
+  "model     0.3s: along p50 0.01 p95 0.05 lat p95 0.05  0.5s: along p50 0.02 p95 0.09 lat p95 0.08  1.0s: along p50 0.05 p95 0.19 lat p95 0.23  1.5s: along p50 0.08 p95 0.29 lat p95 0.40",
+  "deadtime  0.3s: along p50 0.04 p95 0.10 lat p95 0.06  0.5s: along p50 0.07 p95 0.22 lat p95 0.11  1.0s: along p50 0.13 p95 0.49 lat p95 0.35  1.5s: along p50 0.17 p95 0.65 lat p95 0.64"
+ ],
+ "sets": {
+  "heldout": {
+   "file": "rl/runs/nav2/bench/pipe_loco31k_heldout.json",
+   "episodes": 208,
+   "success": 0.9519230769230769,
+   "collisions": 0.02403846153846154,
+   "at_fault": 3,
+   "timeouts": 0.02403846153846154,
+   "falls": 0.0
+  },
+  "standard": {
+   "file": "rl/runs/nav2/bench/pipe_loco31k_standard.json",
+   "episodes": 208,
+   "success": 0.9615384615384616,
+   "collisions": 0.004807692307692308,
+   "at_fault": 1,
+   "timeouts": 0.03365384615384615,
+   "falls": 0.0
+  }
+ },
+ "stages_s": {
+  "response model": 33,
+  "braking + reach tables": 76,
+  "error envelope": 53,
+  "heldout benchmark": 489,
+  "standard benchmark": 428
+ }
+}

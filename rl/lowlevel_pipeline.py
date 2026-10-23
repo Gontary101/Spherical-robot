@@ -114,6 +114,27 @@ def compare(a_name, b_name, n_boot=4000):
     return d.mean(), lo, hi
 
 
+def merge(srcs, out):
+    """Worst case over several identifications of the same closed loop: each table entry is the extreme of ~150 runs,
+    a noisy estimate of the tail, and two identifications of loco31 disagreed by up to 0.35 m (1.0 m/s) - with the
+    less conservative one navigation lost 1.9 % (-3.8 .. -0.2). More runs, element-wise extreme: braking tables and
+    error envelope by maximum, the reach table (pendulum angle reachable, signed: lower = later braking) by minimum."""
+    S = [json.load(open(os.path.join(B, f"sysid_{n}_pipe.json"))) for n in srcs]
+    R = json.loads(json.dumps(S[0]))
+    R["brake_table"]["d"] = np.max([x["brake_table"]["d"] for x in S], 0).tolist()
+    R["brake_table2"]["d"] = np.max([x["brake_table2"]["d"] for x in S], 0).tolist()
+    R["pend_reach"]["table"] = np.min([x["pend_reach"]["table"] for x in S], 0).tolist()
+    for k in ("p95", "p95_along", "p95_lat"):
+        R["err_table"][k] = np.max([x["err_table"][k] for x in S], 0).tolist()
+    R["merged_from"] = list(srcs)
+    for k in ("braking", "dyn_braking", "pend_reach_samples", "arcs", "arcs_field", "dyn_braking_field"):
+        R.pop(k, None)                                       # the raw runs stay in the source files
+    R["braking"] = sum((x.get("braking", []) for x in S), [])
+    R["dyn_braking"] = sum((x.get("dyn_braking", []) for x in S), [])
+    json.dump(R, open(os.path.join(B, f"sysid_{out}_pipe.json"), "w"))
+    print(f"merged {srcs} -> sysid_{out}_pipe.json")
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--name")
@@ -124,8 +145,12 @@ if __name__ == "__main__":
     ap.add_argument("--force", action="store_true", help="redo every stage")
     ap.add_argument("--rerun", action="store_true", help="redo the benchmarks only")
     ap.add_argument("--compare", nargs=2)
+    ap.add_argument("--merge", nargs="+", help="identifications to merge (worst case), then --into NAME")
+    ap.add_argument("--into")
     a = ap.parse_args()
-    if a.compare:
+    if a.merge:
+        merge(a.merge, a.into)
+    elif a.compare:
         compare(*a.compare)
     else:
         run(a)
