@@ -22,7 +22,7 @@ from sysid_low import A_FWD, A_REV, DEAD, TAU_W  # noqa: E402
 
 # crawl speeds (GYRA_CRAWL=1): the coarsest admissible forward speed was 0.25 m/s, whose worst-case stop plus reaction
 # needs ~0.3 m of guaranteed free path - in a 1.0 m door the robot was blocked by ~3 cm with nothing slower to try
-CRAWL = os.environ.get("GYRA_CRAWL", "0") == "1"
+CRAWL = os.environ.get("GYRA_CRAWL", "1") == "1"
 VS = np.union1d(np.linspace(-0.5, 2.5, 13), [-0.1, -0.05, 0.05, 0.1]) if CRAWL else np.linspace(-0.5, 2.5, 13)
 WS = np.linspace(-2.0, 2.0, 17)
 CAND = np.array([(v, w) for v in VS for w in WS])
@@ -33,7 +33,7 @@ RECOVERY = os.environ.get("MPC_RECOVERY", "1") == "1"
 # non-minimum-phase robot lurch, and the filter's corrections of the lurch rock it further
 K_PEND = float(os.environ.get("MPC_KPEND", 0.0))
 DEBUG = os.environ.get("MPC_DEBUG") == "1"
-DOOR = os.environ.get("MPC_DOOR", "0") == "1"
+DOOR = os.environ.get("MPC_DOOR", "1") == "1"
 # people-aware rollouts (MPC_PED=1, docs/12 P4): half the simulated people never stop for the robot, and all remaining
 # collisions were people walking into a robot that only the filter kept from moving toward them - plan to yield
 PED_MPC = os.environ.get("MPC_PED", "0") == "1"
