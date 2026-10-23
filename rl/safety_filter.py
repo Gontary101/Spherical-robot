@@ -37,8 +37,6 @@ class SafetyFilter:
         S = json.load(open(sysid))
         self.bv, self.bd = np.array(S["brake_table"]["v"]), np.array(S["brake_table"]["d"])
         self.down_excess = None
-        if TERRAIN and "braking" in S and "dyn_braking" in S:
-            self._terrain_tables(S)
         self.T2 = None
         if "brake_table2" in S:                                     # stopping distance from dynamic states, by speed and
             T2 = S["brake_table2"]                                  # pendulum angle (signed with the motion; < 0 = still
@@ -51,6 +49,8 @@ class SafetyFilter:
         if resp_path:                                               # closed-loop response with the pendulum state
             from resp_model import Response                         # (rl/resp_model.py): predicts the lurch
             self.resp = Response(resp_path)
+        if TERRAIN and "braking" in S and "dyn_braking" in S:     # after the dynamic table: it is rebuilt flat
+            self._terrain_tables(S)
         R = S["response"]
         self.dead, self.a_fwd, self.a_rev, self.tau_w = R["dead"], R["a_fwd"], R["a_rev"], R["tau_w"]
         e = S["arc_error"]
