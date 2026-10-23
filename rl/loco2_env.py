@@ -447,7 +447,7 @@ class Loco2Env:
         self.prev_a = np.zeros(N_ACT)
         self.base_a = np.zeros(N_ACT)
         self.ctrl = (ModelController(DT, self.hw["lean_rate"], w_ref=W_REF, k_slope=K_SLOPE) if BASE == "model"
-                     else ClassicalController(DT, self.hw["lean_rate"]))
+                     else ClassicalController(DT, self.hw["lean_rate"], k_slope=K_SLOPE))
         self.lvl_i = 0.0
         self.a_queue = [np.zeros(N_ACT)] * 3
         self.bob_cmd = 0.0

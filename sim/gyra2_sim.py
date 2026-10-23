@@ -79,8 +79,9 @@ def _clamp(x, lo, hi):
 class ClassicalController:
     """Cascade speed loop + differential yaw-rate loop + counter-lean + spine levelling."""
 
-    def __init__(self, dt, lean_rate_deg=60.0):
+    def __init__(self, dt, lean_rate_deg=60.0, k_slope=0.0, k_g=-42.26):
         self.dt = dt
+        self.k_slope, self.k_g_slope = k_slope, k_g             # slope feedforward (0 = the original cascade)
         self.lean_rate = np.radians(lean_rate_deg)       # bob actuator slew limit (worm drive: 60 deg/s)
         self.iv = 0.0
         self.iw = 0.0
@@ -108,6 +109,12 @@ class ClassicalController:
         pend_rate = s["pitch_rate"] + g.qd("yoke")
         th_ref = -_clamp(u, -lim, lim)
         tau_sum = 80 * (pend - th_ref) + 10 * pend_rate
+        if self.k_slope and "slope_f" in s and type(self) is ClassicalController:
+            # on a slope, the standing pendulum angle for the slope along the heading (IMU) and the torque that holds
+            # it there, at once: turning in place changes that component, and the PI alone let the robot roll while
+            # it caught up. Zero on flat ground, so the cascade the policy was trained with is unchanged there.
+            th_s = -np.arcsin(np.clip(self.k_slope * s["slope_f"], -0.95, 0.95))
+            tau_sum += self.k_g_slope * np.sin(th_s) - 80 * th_s
         ew = self.wc - s["yaw_rate"]
         sched = 1.0 / (1.0 + abs(s["v"]) / 1.5)    # yaw authority grows with speed -> lower gains
         self.iw = _clamp(self.iw + ew * self.dt, -2, 2)
