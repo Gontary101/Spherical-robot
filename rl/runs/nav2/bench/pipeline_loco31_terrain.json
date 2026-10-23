@@ -1,0 +1,38 @@
+{
+ "name": "loco31_terrain",
+ "low": "rl/runs/loco31/best.pt",
+ "base": "classical",
+ "resp": "rl/runs/nav2/bench/resp_loco31.json",
+ "sysid": "rl/runs/nav2/bench/sysid_loco31_pipe.json",
+ "env": {
+  "GYRA_TERRAIN": "1",
+  "GYRA_BASE": "classical",
+  "GYRA_SENSORS": "asbuilt_lane",
+  "GYRA_REACH": "1"
+ },
+ "validation": null,
+ "sets": {
+  "heldout": {
+   "file": "rl/runs/nav2/bench/pipe_loco31_terrain_heldout.json",
+   "episodes": 208,
+   "success": 0.9663461538461539,
+   "collisions": 0.004807692307692308,
+   "at_fault": 0,
+   "timeouts": 0.028846153846153848,
+   "falls": 0.0
+  },
+  "standard": {
+   "file": "rl/runs/nav2/bench/pipe_loco31_terrain_standard.json",
+   "episodes": 208,
+   "success": 0.9567307692307693,
+   "collisions": 0.009615384615384616,
+   "at_fault": 0,
+   "timeouts": 0.03365384615384615,
+   "falls": 0.0
+  }
+ },
+ "stages_s": {
+  "heldout benchmark": 440,
+  "standard benchmark": 430
+ }
+}
